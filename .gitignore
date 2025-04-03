@@ -1,0 +1,9 @@
+.netrwhist
+
+# OS X
+.DS_Store
+
+# Emacs
+var/
+custom.el
+*.elc

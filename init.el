@@ -1,1 +1,1 @@
-init.el
+minimal-emacs.d/init.el
