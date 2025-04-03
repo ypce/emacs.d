@@ -1,3 +1,10 @@
+;;; Style
+;;;; set default size of frame
+(setq default-frame-alist '(
+  (left . 0)
+  (width . 0)
+  (fullscreen . maximized)))
+
 ;;; Compile 
 ;; Ensure adding the following compile-angel code at the very beginning
 ;; of your `~/.emacs.d/post-init.el` file, before all other packages.
