@@ -1,8 +1,15 @@
-;; Reducing clutter in ~/.emacs.d by redirecting files to ~/emacs.d/var/
+;;; pre-early-init.el --- 1 -*- lexical-binding: t; -*-
+
+;;; Set up directories
 (setq minimal-emacs-var-dir (expand-file-name "var/" minimal-emacs-user-directory))
 (setq package-user-dir (expand-file-name "elpa" minimal-emacs-var-dir))
 (setq user-emacs-directory minimal-emacs-var-dir)
 
+;;; Disable debug
+(defvar minimal-emacs-debug nil
+  "Non-nil to enable debug.")
+
+;;; Homebrew gcc paths fix
 (defun homebrew-gcc-paths ()
   "Return GCC library paths from Homebrew installations.
 Detects paths for gcc and libgccjit packages to be used in LIBRARY_PATH."
@@ -54,17 +61,10 @@ Includes Homebrew GCC paths and CommandLineTools SDK libraries."
 (when (eq system-type 'darwin)
   (setup-macos-native-comp-library-paths))
 
-;; By default, minimal-emacs-package-initialize-and-refresh is set to t, which
-;; makes minimal-emacs.d call the built-in package manager. Since Elpaca will
-;; replace the package manager, there is no need to call it.
-(setq minimal-emacs-package-initialize-and-refresh nil)
-
+;;; Display startup time
 (defun display-startup-time ()
-  "Display the startup time and number of garbage collections."
-  (message "Emacs init loaded in %.2f seconds (Full emacs-startup: %.2fs) with %d garbage collections."
+  "Display the startup time and garbage collections."
+  (message "Emacs loaded in %.2f seconds with %d GCs."
            (float-time (time-subtract after-init-time before-init-time))
-           (time-to-seconds (time-since before-init-time))
            gcs-done))
-
 (add-hook 'emacs-startup-hook #'display-startup-time 100)
-
