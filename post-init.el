@@ -1,98 +1,415 @@
-;;; Style
-;;;; set default size of frame
-(setq default-frame-alist '(
-  (left . 0)
-  (width . 0)
-  (fullscreen . maximized)))
+;;; post-init.el --- 4 -*- no-byte-compile: t; lexical-binding: t; -*-
 
-;;; Compile 
-;; Ensure adding the following compile-angel code at the very beginning
-;; of your `~/.emacs.d/post-init.el` file, before all other packages.
+;;; Let's go! System
+;;;; Flycheck
+;; Recommends using purcell/exec-path-from-shell on macOS to fix the $PATH environment variable:
+(use-package exec-path-from-shell
+  :init
+  ;; Use non-interactive shell
+  (setopt exec-path-from-shell-arguments nil
+          exec-path-from-shell-variables '("PATH" "MANPATH")) ;; Only initialize specific variables we need, for better performance
+  :if (memq window-system '(mac ns x))
+  :hook
+  (after-init . exec-path-from-shell-initialize))
+
+;;;; Ensure all packages are installed by default
+(setopt use-package-always-ensure t)
+
+;;;; after-init-hook for non-use-package modes
+(add-hook 'kill-emacs-hook #'recentf-cleanup)
+
+(defun setup-builtin-modes ()
+  "Set up all built-in minor modes that should be enabled globally."
+  (recentf-mode 1)
+  (savehist-mode 1)
+  (save-place-mode 1)
+  (global-auto-revert-mode 1)
+  (auto-save-visited-mode 1)
+  (column-number-mode 1)
+  (line-number-mode 1)
+  (display-time-mode 1)
+  (simple-modeline-mode 1)
+  (setopt mode-line-position-column-line-format '("%l:%C")))
+(add-hook 'after-init-hook #'setup-builtin-modes)
+
+;;;; Auto-save settings
+(setopt auto-save-default t
+        auto-save-interval 300
+        auto-save-timeout 30
+        auto-save-visited-interval 5)   ; Save after 5 seconds if inactivity
+(auto-save-visited-mode 1)
+
+;; Allow upgrading built-in packages with package.el
+(setopt package-install-upgrade-built-in t)
+
+;;;; Automatic Byte-compiling and Native-compiling of all .el files
 (use-package compile-angel
-  :ensure t
-  :demand t
   :custom
-  ;; Set `compile-angel-verbose` to nil to suppress output from compile-angel.
-  ;; Drawback: The minibuffer will not display compile-angel's actions.
   (compile-angel-verbose t)
-
   :config
-  ;; The following directive prevents compile-angel from compiling your init
-  ;; files. If you choose to remove this push to `compile-angel-excluded-files'
-  ;; and compile your pre/post-init files, ensure you understand the
-  ;; implications and thoroughly test your code. For example, if you're using
-  ;; `use-package', you'll need to explicitly add `(require 'use-package)` at
-  ;; the top of your init file.
   (push "/pre-init.el" compile-angel-excluded-files)
   (push "/post-init.el" compile-angel-excluded-files)
   (push "/pre-early-init.el" compile-angel-excluded-files)
   (push "/post-early-init.el" compile-angel-excluded-files)
-
-  ;; A local mode that compiles .el files whenever the user saves them.
-  ;; (add-hook 'emacs-lisp-mode-hook #'compile-angel-on-save-local-mode)
-
-  ;; A global mode that compiles .el files before they are loaded.
   (compile-angel-on-load-mode))
 
-;; # recentf, savehist, saveplace, and auto-revert
-;; Auto-revert in Emacs is a feature that automatically updates the
-;; contents of a buffer to reflect changes made to the underlying file
-;; on disk.
-(add-hook 'after-init-hook #'global-auto-revert-mode)
+;;;; Use a dedicated file for Emacs customizations.
+(setopt custom-file (expand-file-name "custom.el" user-emacs-directory))
+(when (file-exists-p custom-file)
+  (load custom-file 'noerror))
+; ;; Preventing Emacs from saving custom.el
+; (setopt custom-file null-device)
 
-;; recentf is an Emacs package that maintains a list of recently
-;; accessed files, making it easier to reopen files you have worked on
-;; recently.
-(add-hook 'after-init-hook #'(lambda()
-                               (let ((inhibit-message t))
-                                 (recentf-mode 1))))
-(add-hook 'kill-emacs-hook #'recentf-cleanup)
+;;;; Backup Settings
+;; Enabled backups save your changes to a file intermittently
+(setopt make-backup-files t
+        backup-directory-alist `(("." . ,(expand-file-name "backup/" user-emacs-directory)))
+        vc-make-backup-files t
+        kept-old-versions 10
+        kept-new-versions 10)
 
-;; savehist is an Emacs feature that preserves the minibuffer history between
-;; sessions. It saves the history of inputs in the minibuffer, such as commands,
-;; search strings, and other prompts, to a file. This allows users to retain
-;; their minibuffer history across Emacs restarts.
-(add-hook 'after-init-hook #'savehist-mode)
+;;;; SSH Management
+(use-package ssh-config-mode
+  :mode (("/\\.ssh/config\\'" . ssh-config-mode)
+         ("/sshd?_config\\'" . ssh-config-mode)
+         ("/known_hosts\\'" . ssh-known-hosts-mode)
+         ("/authorized_keys\\'" . ssh-authorized-keys-mode)))
 
-;; save-place-mode enables Emacs to remember the last location within a file
-;; upon reopening. This feature is particularly beneficial for resuming work at
-;; the precise point where you previously left off.
-(add-hook 'after-init-hook #'save-place-mode)
+(use-package tramp
+  :ensure nil
+  :custom
+  (tramp-default-method "ssh")
+  (tramp-verbose 2)  ; Increase for debugging (max is 10)
+  (tramp-completion-reread-directory-timeout nil))
 
-;;; auto-save-mode
-;; Enable `auto-save-mode' to prevent data loss. Use `recover-file' or
-;; `recover-session' to restore unsaved changes.
-(setq auto-save-default t)
+;; SSH key management via auth-source
+(use-package auth-source
+  :ensure nil  ; Built-in
+  :custom
+  (auth-sources '("~/.authinfo.gpg" "~/.authinfo" "~/.netrc"))
+  :config
+  (auth-source-pass-enable))  ; Use password-store if available
 
-(setq auto-save-interval 300)
-(setq auto-save-timeout 30)
+;;;; crux utility packages
+(use-package crux
+  :commands (crux-delete-file-and-buffer crux-rename-file-and-buffer))
 
-(auto-save-visited-mode 1)
-(setq auto-save-visited-interval 5)   ; Save after 5 seconds if inactivity
+;;;; Automatically kill running processes on exit
+(setopt confirm-kill-processes nil)
 
-;; # Code Completion
+;;;; Local packages (future)
+;; Make local packages from ~/.emacs.d/lisp/ available.
+(add-to-list 'load-path (expand-file-name "lisp" minimal-emacs-user-directory))
+
+;;; UI
+;;;;  Frame Settings
+;; Big & Centered
+(add-to-list 'default-frame-alist '(width . 130)) ; Set width to 80 columns
+(add-to-list 'default-frame-alist '(height . 40)) ; Set height to 24 lines
+
+(defun center-frame ()
+  "Center the frame on the screen, respecting the size set in default-frame-alist."
+  (interactive)
+  (let* ((desired-width
+          (or (cdr (assq 'width default-frame-alist)) 80))
+         (desired-height
+          (or (cdr (assq 'height default-frame-alist)) 24))
+         (screen-width (x-display-pixel-width))
+         (screen-height (x-display-pixel-height))
+         (char-width (frame-char-width))
+         (char-height (frame-char-height))
+         (frame-pixel-width (* desired-width char-width))
+         (frame-pixel-height (* desired-height char-height))
+         (left (max 0 (/ (- screen-width frame-pixel-width) 2)))
+         (top (max 0 (/ (- screen-height frame-pixel-height) 2))))
+    (set-frame-size (selected-frame) desired-width desired-height)
+    (set-frame-position (selected-frame) left top)))
+
+(add-hook 'window-setup-hook #'center-frame)
+
+;; Full Screen
+(defun toggle-fullscreen-or-maximized ()
+  "Toggle between fullscreen on macOS and maximized on Linux."
+  (interactive)
+  (if (eq system-type 'darwin) ; macOS
+      (set-frame-parameter
+       nil 'fullscreen
+       (if (frame-parameter nil 'fullscreen)
+           nil
+         'fullboth))
+    (set-frame-parameter
+     nil 'fullscreen
+     (if (eq (frame-parameter nil 'fullscreen) 'maximized)
+         nil
+       'maximized)))) ; Linux
+
+(add-hook 'window-setup-hook #'toggle-fullscreen-or-maximized)
+
+;;;; Smooth Scrolling
+;; Use momentum for smooth scrolling
+(when (and (eq window-system 'ns) 
+           (>= emacs-major-version 29)) ; Pixel scrolling is in Emacs 29+
+  (setopt pixel-scroll-precision-use-momentum t) ; Use momentum for smooth feel
+  (pixel-scroll-precision-mode 1)) 
+
+;;;; Theme
+(mapc #'disable-theme custom-enabled-themes)  ; Disable all active themes
+(add-to-list 'custom-theme-load-path (expand-file-name "themes/" user-emacs-directory))
+
+;; Add to safe themes list
+(setopt custom-safe-themes '("dracula-pro-pro"))
+;; (use-package dracula-pro-theme
+;;   :config
+;;   (load-theme 'dracula-pro-pro t))
+
+(use-package uwu-theme
+  :custom
+  (uwu-distinct-line-numbers 'nil)
+  (uwu-height-title-3 1.1)
+  (uwu-scale-org-headlines t)
+  (uwu-use-variable-pitch t)
+  :config (load-theme 'uwu t))
+
+;;;; Font
+(defun font-available-p (font-name)
+  (find-font (font-spec :name font-name)))
+
+(let ((mono-spaced-font "Aeonik Mono")
+      (proportionately-spaced-font "Codelia"))
+  (set-face-attribute 'default nil :family mono-spaced-font :height 200)
+  (set-face-attribute 'fixed-pitch nil :family mono-spaced-font :height 1.0)
+  (set-face-attribute 'variable-pitch nil :family proportionately-spaced-font :height 0.8))
+
+(use-package mixed-pitch
+  :hook (text-mode . mixed-pitch-mode))
+
+;;;; Tab-bar
+(setopt tab-bar-show 1
+        tab-bar-close-button nil
+        tab-bar-format '(tab-bar-format-history tab-bar-format-tabs tab-bar-separator))
+
+(define-key global-map (kbd "C-x t n") 'tab-new)
+(define-key global-map (kbd "C-x t k") 'tab-close)
+
+;;;; Modeline
+(use-package simple-modeline
+  :after nerd-icons
+  :custom
+  (simple-modeline-segments '((simple-modeline-segment-modified
+                               simple-modeline-segment-buffer-name
+                               simple-modeline-segment-position)
+                              (simple-modeline-segment-input-method
+                               simple-modeline-segment-eol
+                               simple-modeline-segment-encoding
+                               simple-modeline-segment-vc
+                               simple-modeline-segment-misc-info
+                               simple-modeline-segment-process
+                               simple-modeline-segment-major-mode))))
+
+
+;; After installing nerd-icons, you need to run M-x nerd-icons-install-fonts once.
+(use-package nerd-icons)
+
+;; TAB acts more like how it does in the shell
+(keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
+
+;;;; More nerd-icons
+;; For Marginalia
+(use-package nerd-icons-completion
+  :after marginalia
+  :config
+  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
+
+;; For Corfu
+(use-package nerd-icons-corfu
+  :after corfu
+  :config
+  (add-to-list 'corfu-margin-formatters #'nerd-icons-corfu-formatter))
+
+;; For dired
+(use-package nerd-icons-dired
+  :hook (dired-mode . nerd-icons-dired-mode))
+
+;;;; Minibuffer completion
+;; TODO Check https://www.masteringemacs.org/articleu nderstanding-minibuffer-completion
+(setopt completion-cycle-threshold 1                   ; TAB cycles candidates
+        completion-styles '(basic initials substring)  ; Different styles to match input to candidates
+        completion-auto-help 'always                   ; Open completion always; `lazy' another option
+        completions-max-height 20                      ; This is arbitrary
+        completions-detailed t
+        completions-format 'one-column
+        completions-group t
+        completion-auto-select 'second-tab)            ; Much more eager
+
+;;;; Golden ratio
+;; Automatically resize windows so the working window is always large enough.
+(use-package golden-ratio
+  :diminish golden-ratio-mode
+  :custom
+  (golden-ratio-auto-scale t)
+  :config
+  (golden-ratio-mode 1))
+
+;;;; Cursor
+;; Adaptive cursor width: make cursor the width of the character it is under. i.e. full width of a TAB.
+;; https://pragmaticemacs.wordpress.com/2017/10/01/adaptive-cursor-width/
+(setopt x-stretch-cursor t)
+
+;;;; cursor trail on focus
+(use-package beacon
+  :custom
+  (beacon-blink-delay 0.6)
+  (beacon-blink-duration 0.6)
+  (beacon-color "#F7433E")
+  (beacon-push-mark 35)
+   :config
+  (beacon-mode 1))
+
+;;;; Line numbers
+;; Display line numbers in programming mode.
+(use-package prog-mode
+  :ensure nil
+  :hook (prog-mode . display-line-numbers-mode))
+
+(setopt display-line-numbers-width 3            ; Set a minimum width
+        display-line-numbers-type 'relative)    ; Relative line numbers
+
+;;;; Text wrapping
+;; Unified text wrapping configuration
+(use-package visual-fill-column
+  :hook ((text-mode . visual-line-mode)
+         (markdown-mode . visual-line-mode)
+         (org-mode . visual-line-mode)
+         (visual-line-mode . visual-fill-column-mode))
+  :custom
+  (visual-fill-column-width 90)        ; Set desired column width
+  (visual-fill-column-center-text t)   ; Center text in buffer
+  (visual-fill-column-fringes-outside-margins t))
+
+;; Ensure consistent behavior across modes
+(setopt word-wrap t                    ; Wrap at word boundaries
+        truncate-lines nil             ; Don't truncate lines by default
+        truncate-partial-width-windows nil) ; Don't truncate in split windows
+
+;;;; Highlight line
+(use-package hl-line
+  :ensure nil
+  :hook ((text-mode prog-mode) . hl-line-mode))
+
+;;;; Underlines
+;; Prettier underlines. (Bedrock Emacs)
+(setopt x-underline-at-descent-line nil
+        show-trailing-whitespace t)    ; By default, do underline trailing spaces.
+
+;;; Window/Buffer Management
+(use-package winner
+  :ensure nil
+  :hook (after-init . winner-mode))    ; Track changes in the window configuration
+
+(use-package window-divider
+  :ensure nil
+  :hook (after-init . window-divider-mode)
+  :custom
+  (window-divider-default-places t)    ; Show dividers on all edges
+  (window-divider-default-bottom-width 1)
+  (window-divider-default-right-width 1))
+
+;;;; Unique buffer names
+(use-package uniquify
+  :ensure nil
+  :custom
+  (uniquify-buffer-name-style 'reverse)
+  (uniquify-separator "•")
+  (uniquify-after-kill-buffer-p t)
+  (uniquify-ignore-buffers-re "^\\*"))
+
+;;; Editing
+;;;; Keybindings
+(use-package emacs
+  :ensure nil
+  :bind
+  (("M-k" . (lambda () (interactive) (kill-this-buffer nil)))
+   ("C-c C-b" . compile)
+   ("M-0" . delete-window)
+   ("M-1" . delete-other-windows)
+   ("M-2" . split-window-below)
+   ("M-3" . split-window-right)
+   ("M-u" . upcase-dwim)
+   ("M-l" . downcase-dwim)
+   ("C-." . xref-find-definitions-other-window)
+   ("RET" . newline-and-indent)))
+
+; Disable Ctrl + mouse wheel up/down zooming in/out
+(global-unset-key (kbd "C-<wheel-up>"))   ;; Unbind Ctrl + Wheel Up
+(global-unset-key (kbd "C-<wheel-down>")) ;; Unbind Ctrl + Wheel Down
+
+;;;; Multiple Cursors (MC)
+(use-package multiple-cursors
+  :bind
+  (("C-M-j" . mc/edit-lines)
+   ("C->" . mc/mark-next-like-this)
+   ("C-<" . mc/mark-previous-like-this)
+   ("C-c C-<" . mc/mark-all-like-this)
+   ("C-M-=" . mc/mark-all-symbols-like-this)))
+
+;;;; Avy
+(use-package avy
+  :bind (("C-c j" . avy-goto-line)
+         ("s-j"   . avy-goto-char-timer)))
+
+;;;; Undo/Redo
+;; The undo-fu package is a lightweight wrapper around Emacs' built-in undo
+;; system, providing more convenient undo/redo functionality.
+(use-package undo-fu
+  :commands (undo-fu-only-undo undo-fu-only-redo undo-fu-only-redo-all undo-fu-disable-checkpoint)
+  :bind
+  (("C-z" . undo-fu-only-undo)
+   ("C-S-z" . undo-fu-only-redo))
+  :init
+  (global-unset-key (kbd "C-z")))
+
+;; The undo-fu-session package complements undo-fu by enabling the saving
+;; and restoration of undo history across Emacs sessions, even after restarting.
+(use-package undo-fu-session
+  :commands undo-fu-session-global-mode
+  :hook (after-init . undo-fu-session-global-mode))
+
+;;;; Paren Match Highlighting
+;; Highlights matching parentheses, brackets, and braces when the cursor is positioned at one of them.
+(add-hook 'after-init-hook #'show-paren-mode)
+
+;;;; Key Assistance
+(use-package which-key
+  :commands which-key-mode
+  :hook (after-init . which-key-mode)
+  :custom
+  (which-key-idle-delay 1.5)
+  (which-key-idle-secondary-delay 0.25)
+  (which-key-add-column-padding 1)
+  (which-key-max-description-length 40))
+
+;;; Completion & Search
+;;;; Hitting TAB behavior
+(setopt tab-always-indent nil)
+
+;;;; Corfu
 (use-package corfu
-  :ensure t
-  :defer t
   :commands (corfu-mode global-corfu-mode)
-
   :hook ((prog-mode . corfu-mode)
          (shell-mode . corfu-mode)
          (eshell-mode . corfu-mode))
-
   :custom
   ;; Hide commands in M-x which do not apply to the current mode.
   (read-extended-command-predicate #'command-completion-default-include-p)
   ;; Disable Ispell completion function. As an alternative try `cape-dict'.
   (text-mode-ispell-word-completion nil)
   (tab-always-indent 'complete)
-
   ;; Enable Corfu
   :config
   (global-corfu-mode))
 
+;;;; Cape
 (use-package cape
-  :ensure t
   :defer t
   :commands (cape-dabbrev cape-file cape-elisp-block)
   :bind ("C-c p" . cape-prefix-map)
@@ -103,66 +420,53 @@
   (add-hook 'completion-at-point-functions #'cape-file)
   (add-hook 'completion-at-point-functions #'cape-elisp-block))
 
+;;;; Virtico
 (use-package vertico
-  ;; (Note: It is recommended to also enable the savehist package.)
-  :ensure t
-  :defer t
   :commands vertico-mode
   :hook (after-init . vertico-mode))
 
+;;;; Orderless
 (use-package orderless
-  ;; Vertico leverages Orderless' flexible matching capabilities, allowing users
-  ;; to input multiple patterns separated by spaces, which Orderless then
-  ;; matches in any order against the candidates.
-  :ensure t
   :custom
   (completion-styles '(orderless basic))
   (completion-category-defaults nil)
   (completion-category-overrides '((file (styles partial-completion)))))
 
+;;;; Marginalia
 (use-package marginalia
-  ;; Marginalia allows Embark to offer you preconfigured actions in more contexts.
-  ;; In addition to that, Marginalia also enhances Vertico by adding rich
-  ;; annotations to the completion candidates displayed in Vertico's interface.
-  :ensure t
-  :defer t
   :commands (marginalia-mode marginalia-cycle)
   :hook (after-init . marginalia-mode))
 
-(use-package embark
-  ;; Embark is an Emacs package that acts like a context menu, allowing
-  ;; users to perform context-sensitive actions on selected items
-  ;; directly from the completion interface.
-  :ensure t
-  :defer t
-  :commands (embark-act
-             embark-dwim
-             embark-export
-             embark-collect
-             embark-bindings
-             embark-prefix-help-command)
-  :bind
-  (("C-." . embark-act)         ;; pick some comfortable binding
-   ("C-;" . embark-dwim)        ;; good alternative: M-.
-   ("C-h B" . embark-bindings)) ;; alternative for `describe-bindings'
+;;;; Embark
+;; Context Menu & Actions
+ (use-package embark
+   :commands (embark-act
+              embark-dwim
+              embark-export
+              embark-collect
+              embark-bindings
+              embark-prefix-help-command)
+   :bind
+   (("C-." . embark-act)         ;; pick some comfortable binding
+    ("C-;" . embark-dwim)        ;; good alternative: M-.
+    ("C-h B" . embark-bindings)) ;; alternative for `describe-bindings'
 
-  :init
-  (setq prefix-help-command #'embark-prefix-help-command)
+   :init
+   (setopt prefix-help-command #'embark-prefix-help-command)
 
-  :config
-  ;; Hide the mode line of the Embark live/completions buffers
-  (add-to-list 'display-buffer-alist
-               '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
-                 nil
-                 (window-parameters (mode-line-format . none)))))
+   :config
+   ;; Hide the mode line of the Embark live/completions buffers
+   (add-to-list 'display-buffer-alist
+                '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+                  nil
+                  (window-parameters (mode-line-format . none)))))
 
 (use-package embark-consult
-  :ensure t
   :hook
   (embark-collect-mode . consult-preview-at-point-mode))
 
+;;;; Enhanced Search & Navigation
 (use-package consult
-  :ensure t
   :bind (;; C-c bindings in `mode-specific-map'
          ("C-c M-x" . consult-mode-command)
          ("C-c h" . consult-history)
@@ -221,14 +525,14 @@
 
   :init
   ;; Optionally configure the register formatting. This improves the register
-  (setq register-preview-delay 0.5
+  (setopt register-preview-delay 0.5
         register-preview-function #'consult-register-format)
 
   ;; Optionally tweak the register preview window.
   (advice-add #'register-preview :override #'consult-register-window)
 
   ;; Use Consult to select xref locations with preview
-  (setq xref-show-xrefs-function #'consult-xref
+  (setopt xref-show-xrefs-function #'consult-xref
         xref-show-definitions-function #'consult-xref)
 
   :config
@@ -240,53 +544,69 @@
    consult--source-recent-file consult--source-project-recent-file
    ;; :preview-key "M-."
    :preview-key '(:debounce 0.4 any))
-  (setq consult-narrow-key "<"))
+  (setopt consult-narrow-key "<"))
 
-;; # Code folding 
-(add-hook 'emacs-lisp-mode-hook #'outline-minor-mode)
+(use-package consult-dir
+  :bind (("C-x C-d" . consult-dir)
+         :map minibuffer-local-completion-map
+         ("C-x C-d" . consult-dir)
+         ("C-x C-j" . consult-dir-jump-file)))
 
-(use-package outline-indent
-  :ensure t
-  :defer t
-  :commands outline-indent-minor-mode
-
+;;; File Management
+;;;; Dired
+(use-package dired
+  :ensure nil
+  :commands dired
   :custom
-  (outline-indent-ellipsis " ▼ ")
+  (dired-listing-switches "-ahl")
+  (dired-kill-when-opening-new-dired-buffer t)
+  (dired-recursive-copies 'always)
+  (dired-recursive-deletes 'top)
+  (dired-auto-revert-buffer t)
+  (dired-dwim-target t)
+  (dired-create-destination-dirs 'ask))
 
-  :init
-  ;; The minor mode can also be automatically activated for a certain modes.
-  (add-hook 'python-mode-hook #'outline-indent-minor-mode)
-  (add-hook 'python-ts-mode-hook #'outline-indent-minor-mode)
-
-  (add-hook 'yaml-mode-hook #'outline-indent-minor-mode)
-  (add-hook 'yaml-ts-mode-hook #'outline-indent-minor-mode))
-
-;; UNDO/REDO
-;; The undo-fu package is a lightweight wrapper around Emacs' built-in undo
-;; system, providing more convenient undo/redo functionality.
-(use-package undo-fu
-  :defer t
-  :commands (undo-fu-only-undo
-             undo-fu-only-redo
-             undo-fu-only-redo-all
-             undo-fu-disable-checkpoint)
+(use-package dired-x
+  :ensure nil
+  :hook (dired-mode . dired-omit-mode)
   :config
-  (global-unset-key (kbd "C-z"))
-  (global-set-key (kbd "C-z") 'undo-fu-only-undo)
-  (global-set-key (kbd "C-S-z") 'undo-fu-only-redo))
+  (setopt dired-clean-confirm-killing-deleted-buffers nil)
+  (setopt dired-omit-verbose nil
+        dired-omit-files
+        (concat dired-omit-files
+                "\\|^\\.DS_Store\\'"
+                "\\|^\\.project\\(?:ile\\)?\\'"
+                "\\|^\\.\\(?:svn\\|git\\)\\'"
+                "\\|^\\.ccls-cache\\'"
+                "\\|\\(?:\\.js\\)?\\.meta\\'"
+                "\\|\\.\\(?:elc\\|o\\|pyo\\|swp\\|class\\)\\'"))
+  (let ((cmd "open"))
+    (setopt dired-guess-shell-alist-user
+          `(("\\.\\(?:docx\\|pdf\\|djvu\\|eps\\)\\'" ,cmd)
+            ("\\.\\(?:jpe?g\\|png\\|gif\\|xpm\\)\\'" ,cmd)
+            ("\\.\\(?:xcf\\)\\'" ,cmd)
+            ("\\.csv\\'" ,cmd)
+            ("\\.tex\\'" ,cmd)
+            ("\\.\\(?:mp4\\|mkv\\|avi\\|flv\\|rm\\|rmvb\\|ogv\\)\\(?:\\.part\\)?\\'" ,cmd)
+            ("\\.\\(?:mp3\\|flac\\)\\'" ,cmd)
+            ("\\.html?\\'" ,cmd)
+            ("\\.md\\'" ,cmd)))))
 
-;; The undo-fu-session package complements undo-fu by enabling the saving
-;; and restoration of undo history across Emacs sessions, even after restarting.
-(use-package undo-fu-session
-  :defer t
-  :commands undo-fu-session-global-mode
-  :hook (after-init . undo-fu-session-global-mode))
+(use-package dired-aux
+  :ensure nil
+  :after dired
+  :custom
+  (dired-create-destination-dirs 'always)
+  (dired-do-revert-buffer t)
+  (dired-vc-rename-file t))
 
+;; Dired fontlock
+(use-package diredfl
+  :hook (dired-mode . diredfl-mode))
 
-
-;; BETTER HELP
+;;; Help & Documentation
+;;;; Better Help
 (use-package helpful
-  :defer t
   :commands (helpful-callable
              helpful-variable
              helpful-key
@@ -302,140 +622,18 @@
   :custom
   (helpful-max-buffers 7))
 
-;; Preventing Emacs from saving custom.el
-(setq custom-file null-device)
+(setopt help-window-select t)
+(setopt echo-keystrokes-help nil)
 
-;; OTHER CUSTOMISATIONS
-;; Allow Emacs to upgrade built-in packages, such as Org mode
-(setq package-install-upgrade-built-in t)
-
-;; Display the current line and column numbers in the mode line
-(setq line-number-mode t)
-(setq column-number-mode t)
-(setq mode-line-position-column-line-format '("%l:%C"))
-
-;; Display of line numbers in the buffer:
-;; (display-line-numbers-mode 1)
-
-(use-package which-key
-  :ensure nil ; builtin
-  :defer t
-  :commands which-key-mode
-  :hook (after-init . which-key-mode)
-  :custom
-  (which-key-idle-delay 1.5)
-  (which-key-idle-secondary-delay 0.25)
-  (which-key-add-column-padding 1)
-  (which-key-max-description-length 40))
-
-(unless (and (eq window-system 'mac)
-             (bound-and-true-p mac-carbon-version-string))
-  ;; Enables `pixel-scroll-precision-mode' on all operating systems and Emacs
-  ;; versions, except for emacs-mac.
-  ;;
-  ;; Enabling `pixel-scroll-precision-mode' is unnecessary with emacs-mac, as
-  ;; this version of Emacs natively supports smooth scrolling.
-  ;; https://bitbucket.org/mituharu/emacs-mac/commits/65c6c96f27afa446df6f9d8eff63f9cc012cc738
-  (setq pixel-scroll-precision-use-momentum nil) ; Precise/smoother scrolling
-  (pixel-scroll-precision-mode 1))
-
-;; Display the time in the modeline
-(add-hook 'after-init-hook #'display-time-mode)
-
-;; Paren match highlighting
-(add-hook 'after-init-hook #'show-paren-mode)
-
-;; Track changes in the window configuration, allowing undoing actions such as
-;; closing windows.
-(add-hook 'after-init-hook #'winner-mode)
-
-;; Replace selected text with typed text
-;; (delete-selection-mode 1)
-
-(use-package uniquify
-  :ensure nil
-  :custom
-  (uniquify-buffer-name-style 'reverse)
-  (uniquify-separator "•")
-  (uniquify-after-kill-buffer-p t)
-  (uniquify-ignore-buffers-re "^\\*"))
-
-;; Window dividers separate windows visually. Window dividers are bars that can
-;; be dragged with the mouse, thus allowing you to easily resize adjacent
-;; windows.
-;; https://www.gnu.org/software/emacs/manual/html_node/emacs/Window-Dividers.html
-(add-hook 'after-init-hook #'window-divider-mode)
-
-;; Dired buffers: Automatically hide file details (permissions, size,
-;; modification date, etc.) and all the files in the `dired-omit-files' regular
-;; expression for a cleaner display.
-(add-hook 'dired-mode-hook #'dired-hide-details-mode)
-
-;; Hide files from dired
-(setq dired-omit-files (concat "\\`[.]\\'"
-                               "\\|\\(?:\\.js\\)?\\.meta\\'"
-                               "\\|\\.\\(?:elc|a\\|o\\|pyc\\|pyo\\|swp\\|class\\)\\'"
-                               "\\|^\\.DS_Store\\'"
-                               "\\|^\\.\\(?:svn\\|git\\)\\'"
-                               "\\|^\\.ccls-cache\\'"
-                               "\\|^__pycache__\\'"
-                               "\\|^\\.project\\(?:ile\\)?\\'"
-                               "\\|^flycheck_.*"
-                               "\\|^flymake_.*"))
-(add-hook 'dired-mode-hook #'dired-omit-mode)
-
-;; Configure Emacs to ask for confirmation before exiting
-(setq confirm-kill-emacs 'y-or-n-p)
-
-;; Enabled backups save your changes to a file intermittently
-(setq make-backup-files t)
-(setq vc-make-backup-files t)
-(setq kept-old-versions 10)
-(setq kept-new-versions 10)
-
-;; Theme
-(mapc #'disable-theme custom-enabled-themes)  ; Disable all active themes
-
-(add-to-list 'custom-theme-load-path "~/.emacs.d/themes")
-;; (Load-theme 'dracula-pro-pro t)
-
-(use-package uwu-theme
-  :custom
-  (uwu-distinct-line-numbers 'nil)
-  (uwu-height-title-3 1.1)
-  (uwu-scale-org-headlines t)
-  (uwu-use-variable-pitch t)
-  :config (load-theme 'uwu t))
-
-;;; Set default fonts
-(set-face-attribute 'default nil :font "Aeonik Mono" :height 200)
-(set-face-attribute 'variable-pitch nil :family "Aeonik Mono" :height 1.0)
-(set-face-attribute 'fixed-pitch nil :family (face-attribute 'default :family) :height 1.0)
-
-(use-package outli
-  :load-path "~/code/emacs/outli"
-  ;:after lispy ; uncomment only if you use lispy; it also sets speed keys on headers!
-  :bind (:map outli-mode-map ; convenience key to get back to containing heading
-	      ("C-c C-p" . (lambda () (interactive) (outline-back-to-heading))))
-  :hook ((prog-mode text-mode) . outli-mode)) ; or whichever modes you prefer
-
-(use-package outli
-  :ensure (outli :host github :repo "jdtsmith/outli" :files ("*.el"))
-  :bind (:map outli-mode-map ; convenience key to get back to containing heading
-	      ("C-c C-p" . (lambda () (interactive) (outline-back-to-heading))))
-  :hook ((prog-mode text-mode) . outli-mode))
-
-
-
-;;;; Org-Mode
+;;; Notes
+;;;; Org Mode
 (use-package org
-  :ensure t
-  :defer t
+  :ensure nil
   :commands (org-mode org-version)
   :mode
   ("\\.org\\'" . org-mode)
   :custom
-  (org-directory "/Users/vp/Cloud/Org")
+  (org-directory "~/Org/")
   (org-hide-emphasis-markers t)
   (org-pretty-entities t)
   (org-cycle-separator-lines 2)
@@ -466,29 +664,25 @@
     (set-face-attribute face nil :inherit 'fixed-pitch))
   (set-face-attribute 'org-meta-line nil :inherit '(font-lock-comment-face fixed-pitch))
 
-  ;; (define-key org-src-mode-map [remap evil-quit] 'org-edit-src-exit)
-;  :general
-;  (+local-leader-def
-;    :keymaps '(org-mode-map)
-;    "'" #'org-edit-special
-;    "." #'consult-org-heading
-;    "e"   '(nil :wk "eval")
-;    "ed"  'eval-defun
-;    "ee"  'eval-last-sexp
-;    "er"  'eval-region
-;    "l" #'org-insert-link)
   :hook
   (org-mode . org-indent-mode)
   (org-mode . variable-pitch-mode))
 
+;;;; Appearance
 (use-package org-appear
   :hook (org-mode . org-appear-mode))
 
+;;;; Todo
+(use-package hl-todo
+  :custom
+  (hl-todo-highlight-punctuation ":")
+  :hook
+  ((prog-mode text-mode conf-mode) . hl-todo-mode))
 
-;;;; Org-Roam
+;;;; Org Roam
 (use-package org-roam
   :custom
-  (org-roam-directory (file-truename "/Users/vp/Cloud/Org"))
+  (org-roam-directory (file-truename "~/Org/Roam"))
   ;; (org-roam-completion-everywhere t)
   :bind (("C-c r l" . org-roam-buffer-toggle)
          ("C-c r f" . org-roam-node-find)
@@ -504,22 +698,264 @@
          ("C-c d d" . org-roam-dailies-goto-date))
   :config
   ;; If you're using a vertical completion framework, you might want a more informative completion interface
-  (setq org-roam-node-display-template (concat "${title:*} " (propertize "${tags:10}" 'face 'org-tag)))
-  (setq org-roam-dailies-capture-templates
+  (setopt org-roam-node-display-template (concat "${title:*} " (propertize "${tags:10}" 'face 'org-tag)))
+  (setopt org-roam-dailies-capture-templates
         '(("d" "default" entry "* %<%I:%M %p>: %?"
            :if-new (file+head "%<%Y-%m-%d>.org" "#+title: %<%Y-%m-%d>\n"))))
   (org-roam-db-autosync-mode)
   ;; If using org-roam-protocol
   (require 'org-roam-protocol))
 
+;;;; Org Roam UI
+;; Install org-roam-ui if not already installed
+(unless (package-installed-p 'org-roam-ui)
+  (package-vc-install "https://github.com/org-roam/org-roam-ui"))
+
+;; Configure org-roam-ui
 (use-package org-roam-ui
-  ;; :if (or (eq system-type 'gnu/linux)
-  ;;         (eq system-type 'darwin))
-  :ensure (org-roam-ui :host github :repo "org-roam/org-roam-ui" :branch "main" :files ("*.el" "out"))
   :after org-roam
-  ;;  :hook (after-init . org-roam-ui-mode)
   :config
-  (setq org-roam-ui-sync-theme t
-        org-roam-ui-follow t
-        org-roam-ui-update-on-save t
-        org-roam-ui-open-on-start t))
+  (setopt org-roam-ui-sync-theme t
+         org-roam-ui-follow t
+         org-roam-ui-update-on-save t
+         org-roam-ui-open-on-start t))
+
+;;;; Org Agenda
+(use-package org-agenda
+  :ensure nil
+  :custom
+  (org-agenda-sorting-strategy '((agenda habit-down time-up priority-down category-keep)
+                                 (todo tag-up priority-down category-keep)
+                                 (tags priority-down category-keep)
+                                 (search category-keep)))
+  (org-todo-keywords
+   '((sequence "TODO(t)" "NEXT(n)" "|" "DONE(d!)")
+     (sequence "[ ](T)" "|" "[X](x!)")))
+  (org-refile-use-outline-path 'file)
+  (org-refile-targets '(("tasks.org" :maxlevel . 1)
+                        ))
+  (org-agenda-files `(,(expand-file-name "tasks.org" org-directory)))
+  (org-agenda-confirm-kill nil)
+  (org-agenda-window-setup 'only-window)
+  (org-agenda-restore-windows-after-quit t)
+  (org-capture-templates
+   `(("t" "Tasks" entry (file "tasks.org")
+      "* TODO %?")
+     ))
+  :config
+  ;; Add key binding for org-agenda-mode-map
+  (with-eval-after-load 'org-agenda
+    (define-key org-agenda-mode-map (kbd "q") 'org-agenda-exit))
+  
+  :hook
+  (org-agenda-mode . hl-line-mode)
+  (org-agenda-mode . (lambda ()
+                       (interactive) (org-element-cache-reset 'all)))
+  :config
+  ;; Refresh agenda after capturing.
+  (add-hook 'org-capture-after-finalize-hook 'org-agenda-maybe-redo)
+
+  ;; Save agenda buffers after doing these actions
+  (dolist (hook '(org-refile
+                  org-agenda-archive
+                  org-agenda-add-note
+                  org-agenda-deadline
+                  org-agenda-kill
+                  org-agenda-todo
+                  org-agenda-refile
+                  org-agenda-schedule
+                  org-agenda-set-property
+                  org-agenda-set-tags))
+    ;; https://github.com/bbatsov/helm-projectile/issues/51
+    (advice-add hook :after (lambda (&rest _) (org-save-all-org-buffers))))
+
+  ;; need this because syncing updates from cloud show categories as ???
+  (advice-add #'org-agenda-redo :after (lambda (&rest _) (org-element-cache-reset t)))
+  )
+
+(use-package org-super-agenda
+  :ensure t
+  :after (org-agenda)
+  :config
+  (setopt org-super-agenda-groups
+        `(
+          (:name "Next" :todo "NEXT")
+          (:name "Todo" :todo "TODO")
+          ))
+  (setopt org-super-agenda-header-map (make-sparse-keymap))
+  (org-super-agenda-mode 1))
+
+;;;; Denote
+(use-package denote
+  :bind (("C-c n n" . denote)
+         ("C-c n l" . denote-link-or-create)
+         ("C-c n f" . denote-add-front-matter)
+         ("C-c n k" . denote-rename-file-keywords)
+         ("C-c n r" . denote-rename-file))
+  :config
+  (setq denote-directory "~/Org/Notes")
+  (which-key-add-key-based-replacements "C-c n" "Notes")
+
+  ;; Accept any symbol in a .dir-locals.el file; makes it easier to use silos.
+  ;; See "silos" in the manual: https://protesilaos.com/emacs/denote
+  (put 'denote-file-type 'safe-local-variable-p 'symbolp))
+
+(use-package consult-denote
+    :after denote)
+
+;;;; Destraction-free writing with darkroom
+(use-package darkroom
+  :bind (("C-c d r" . darkroom-tentative-mode)
+         ("C-c d t" . darkroom-mode))
+  :custom
+  (darkroom-text-scale-increase 1.5))
+
+;;; Code
+;;;; Elisp
+;;;; Enables automatic indentation of code while typing
+(use-package aggressive-indent
+  :commands aggressive-indent-mode
+  :hook
+  (emacs-lisp-mode . aggressive-indent-mode))
+
+;;;; Highlights function and variable definitions in Emacs Lisp mode
+(use-package highlight-defined
+  :commands highlight-defined-mode
+  :hook
+  (emacs-lisp-mode . highlight-defined-mode))
+
+;;;; Prevent parenthesis imbalance
+(use-package paredit
+  :commands paredit-mode
+  :hook
+  (emacs-lisp-mode . paredit-mode)
+  :config
+  (define-key paredit-mode-map (kbd "RET") nil))
+
+;;;; Displays visible indicators for page breaks
+(use-package page-break-lines
+  :commands (page-break-lines-mode
+             global-page-break-lines-mode)
+  :hook
+  (emacs-lisp-mode . page-break-lines-mode))
+
+;;;; Provides functions to find references to functions, macros, variables, special forms, and symbols in Emacs Lisp
+(use-package elisp-refs
+  :commands (elisp-refs-function
+             elisp-refs-macro
+             elisp-refs-variable
+             elisp-refs-special
+             elisp-refs-symbol))
+
+;;;; Outli Code folding
+(unless (package-installed-p 'outli)
+  (package-vc-install "https://github.com/jdtsmith/outli"))
+
+(use-package outli
+  :bind (:map outli-mode-map
+              ("C-c C-p" . outline-back-to-heading)
+              ("C-c C-n" . outline-next-heading)
+              ("C-c C-u" . outline-up-heading)
+              ("C-c C-f" . outline-forward-same-level)
+              ("C-c C-b" . outline-backward-same-level)
+              ("TAB" . outli-toggle-subtree))
+  :hook (prog-mode . outli-mode))
+
+;;;; magit
+(use-package magit
+  ;; Set initial state to insert mode in Magit commit message buffer
+  :bind (("C-x g" . magit-status))
+  :custom
+  ;; Improve readability of diffs
+  (magit-diff-refine-hunk 'all))
+
+(use-package diff-hl
+  :hook ((prog-mode . diff-hl-mode)
+         (prog-mode . diff-hl-flydiff-mode)))
+
+;;;; file type modes
+(use-package markdown-mode
+  :hook ((markdown-mode . visual-line-mode)))
+(use-package yaml-mode)
+(use-package json-mode)
+(use-package restclient)
+
+; ;;;; Flycheck
+; ;; TODO Configure
+; ; (use-package flycheck
+; ;   :after exec-path-from-shell
+; ;   :hook (prog-mode . global-flycheck-mode))
+
+; ;;;; Treesitter
+; ;; TODO Configure
+
+;;;; Parenthesis matching
+;; Automatically insert matching parenthesis.
+(use-package electric
+  :ensure nil
+  :hook (prog-mode . electric-pair-mode))
+
+;; Indicate pairs of parenthesis by color.
+;; https://github.com/Fanael/rainbow-delimiters
+(use-package rainbow-delimiters
+  :hook ((prog-mode . rainbow-delimiters-mode)))
+
+;;; Other Modes 
+;;;; Ledger
+(use-package ledger-mode
+  :commands ledger-mode
+  :defer t)
+
+;; Install beancount mode if not already installed
+(unless (package-installed-p 'beancount-mode)
+  (package-vc-install "https://github.com/beancount/beancount-mode"))
+
+(use-package beancount-mode
+  :mode (("\\.beancount\\'" . beancount-mode)
+         ("\\.ledger\\'" . beancount-mode))
+  :custom
+  (beancount-highlight-transaction-at-point t)
+  :config
+  ;; Replace general.el binding with standard Emacs keybinding
+  (with-eval-after-load 'beancount-mode
+    (define-key beancount-mode-map (kbd "C-c d") #'beancount-insert-date)
+   
+    ;; Standard key bindings for functions previously under +local-leader-def
+    (define-key beancount-mode-map (kbd "C-c q") #'beancount-query)
+    (define-key beancount-mode-map (kbd "C-c l") #'beancount-check)
+    (define-key beancount-mode-map (kbd "C-c x") #'beancount-context))
+  :hook
+  (beancount-mode . (lambda ()
+                      (goto-char (point-max))
+                      (outline-show-entry)))
+  :config
+  (defun private/beancount-balance-sheet ()
+    (interactive)
+    (let ((compilation-read-command nil))
+      (beancount--run beancount-query-program
+                      (file-relative-name buffer-file-name)
+                      "select account, sum(units(position)) as position from clear where account ~ 'Assets'or account ~ 'Liabilities'group by account, currency order by account, currency")))
+  (advice-add #'beancount-align-number :override
+              (lambda (&rest r) ())))
+              
+;;; Terminal 
+;;;; Eshell
+(with-eval-after-load 'consult
+  (defvar  +consult--source-term
+    (list :name     "Terminal buffers"
+          :narrow   ?t
+          :category 'buffer
+          :face     'consult-buffer
+          :history  'buffer-name-history
+          :state    #'consult--buffer-state
+          :items (lambda () (consult--buffer-query
+                             :mode '(shell-mode eshell-mode term-mode eat-mode compilation-mode)
+                             :sort 'visibility
+                             :as #'buffer-name))))
+  (add-to-list 'consult-buffer-sources '+consult--source-term 'append))
+
+;;;; vterm
+(use-package vterm
+  :commands vterm
+  :custom
+  (vterm-max-scrollback 10000))
