@@ -12,9 +12,6 @@
   :hook
   (after-init . exec-path-from-shell-initialize))
 
-;;;; Ensure all packages are installed by default
-(setopt use-package-always-ensure t)
-
 ;;;; after-init-hook for non-use-package modes
 (add-hook 'kill-emacs-hook #'recentf-cleanup)
 
@@ -28,7 +25,6 @@
   (column-number-mode 1)
   (line-number-mode 1)
   (display-time-mode 1)
-  (simple-modeline-mode 1)
   (setopt mode-line-position-column-line-format '("%l:%C")))
 (add-hook 'after-init-hook #'setup-builtin-modes)
 
@@ -38,9 +34,6 @@
         auto-save-timeout 30
         auto-save-visited-interval 5)   ; Save after 5 seconds if inactivity
 (auto-save-visited-mode 1)
-
-;; Allow upgrading built-in packages with package.el
-(setopt package-install-upgrade-built-in t)
 
 ;;;; Automatic Byte-compiling and Native-compiling of all .el files
 (use-package compile-angel
@@ -204,8 +197,10 @@
                                simple-modeline-segment-vc
                                simple-modeline-segment-misc-info
                                simple-modeline-segment-process
-                               simple-modeline-segment-major-mode))))
-
+                               simple-modeline-segment-major-mode)))
+  :config
+  (simple-modeline-mode 1))
+  
 
 ;; After installing nerd-icons, you need to run M-x nerd-icons-install-fonts once.
 (use-package nerd-icons)
@@ -707,18 +702,14 @@
   (require 'org-roam-protocol))
 
 ;;;; Org Roam UI
-;; Install org-roam-ui if not already installed
-(unless (package-installed-p 'org-roam-ui)
-  (package-vc-install "https://github.com/org-roam/org-roam-ui"))
-
-;; Configure org-roam-ui
-(use-package org-roam-ui
-  :after org-roam
-  :config
-  (setopt org-roam-ui-sync-theme t
-         org-roam-ui-follow t
-         org-roam-ui-update-on-save t
-         org-roam-ui-open-on-start t))
+; (elpaca (org-roam-ui :host github :repo "org-roam/org-roam-ui"))
+; (use-package org-roam-ui
+;   :after org-roam
+;   :config
+;   (setopt org-roam-ui-sync-theme t
+;          org-roam-ui-follow t
+;          org-roam-ui-update-on-save t
+;          org-roam-ui-open-on-start t))
 
 ;;;; Org Agenda
 (use-package org-agenda
@@ -774,7 +765,6 @@
   )
 
 (use-package org-super-agenda
-  :ensure t
   :after (org-agenda)
   :config
   (setopt org-super-agenda-groups
@@ -793,7 +783,7 @@
          ("C-c n k" . denote-rename-file-keywords)
          ("C-c n r" . denote-rename-file))
   :config
-  (setq denote-directory "~/Org/Notes")
+  (setopt denote-directory "~/Org/Notes")
   (which-key-add-key-based-replacements "C-c n" "Notes")
 
   ;; Accept any symbol in a .dir-locals.el file; makes it easier to use silos.
@@ -848,10 +838,8 @@
              elisp-refs-symbol))
 
 ;;;; Outli Code folding
-(unless (package-installed-p 'outli)
-  (package-vc-install "https://github.com/jdtsmith/outli"))
-
 (use-package outli
+  :ensure (:host github :repo "jdtsmith/outli")
   :bind (:map outli-mode-map
               ("C-c C-p" . outline-back-to-heading)
               ("C-c C-n" . outline-next-heading)
@@ -862,6 +850,7 @@
   :hook (prog-mode . outli-mode))
 
 ;;;; magit
+(elpaca transient)
 (use-package magit
   ;; Set initial state to insert mode in Magit commit message buffer
   :bind (("C-x g" . magit-status))
@@ -906,38 +895,33 @@
   :commands ledger-mode
   :defer t)
 
-;; Install beancount mode if not already installed
-(unless (package-installed-p 'beancount-mode)
-  (package-vc-install "https://github.com/beancount/beancount-mode"))
-
 (use-package beancount-mode
+  :ensure (:host github :repo "beancount/beancount-mode" :main nil)
   :mode (("\\.beancount\\'" . beancount-mode)
          ("\\.ledger\\'" . beancount-mode))
   :custom
   (beancount-highlight-transaction-at-point t)
-  :config
-  ;; Replace general.el binding with standard Emacs keybinding
-  (with-eval-after-load 'beancount-mode
-    (define-key beancount-mode-map (kbd "C-c d") #'beancount-insert-date)
-   
-    ;; Standard key bindings for functions previously under +local-leader-def
-    (define-key beancount-mode-map (kbd "C-c q") #'beancount-query)
-    (define-key beancount-mode-map (kbd "C-c l") #'beancount-check)
-    (define-key beancount-mode-map (kbd "C-c x") #'beancount-context))
   :hook
   (beancount-mode . (lambda ()
                       (goto-char (point-max))
                       (outline-show-entry)))
   :config
+  (with-eval-after-load 'beancount-mode
+    (define-key beancount-mode-map (kbd "C-c d") #'beancount-insert-date)
+    (define-key beancount-mode-map (kbd "C-c q") #'beancount-query)
+    (define-key beancount-mode-map (kbd "C-c l") #'beancount-check)
+    (define-key beancount-mode-map (kbd "C-c x") #'beancount-context))
+  
   (defun private/beancount-balance-sheet ()
     (interactive)
     (let ((compilation-read-command nil))
       (beancount--run beancount-query-program
                       (file-relative-name buffer-file-name)
                       "select account, sum(units(position)) as position from clear where account ~ 'Assets'or account ~ 'Liabilities'group by account, currency order by account, currency")))
+  
   (advice-add #'beancount-align-number :override
               (lambda (&rest r) ())))
-              
+
 ;;; Terminal 
 ;;;; Eshell
 (with-eval-after-load 'consult
