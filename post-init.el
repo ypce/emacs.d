@@ -255,7 +255,7 @@
   :custom
   (beacon-blink-delay 0.6)
   (beacon-blink-duration 0.6)
-  (beacon-color "#F7433E")
+  (beacon-color "#C7FF00")
   (beacon-push-mark 35)
    :config
   (beacon-mode 1))
@@ -308,6 +308,8 @@
   (window-divider-default-places t)    ; Show dividers on all edges
   (window-divider-default-bottom-width 1)
   (window-divider-default-right-width 1))
+;; Quick window cycling
+(global-set-key (kbd "M-n") 'other-window)               ; Cycle through windows
 
 ;;;; Unique buffer names
 (use-package uniquify
@@ -358,16 +360,18 @@
 (use-package undo-fu
   :commands (undo-fu-only-undo undo-fu-only-redo undo-fu-only-redo-all undo-fu-disable-checkpoint)
   :bind
-  (("C-z" . undo-fu-only-undo)
-   ("C-S-z" . undo-fu-only-redo))
-  :init
-  (global-unset-key (kbd "C-z")))
+  (;; Keep Emacs default C-/ for undo, add only redo binding
+   ("C-?" . undo-fu-only-redo))
+  :config
+  ;; Make default undo command use undo-fu
+  (global-set-key [remap undo] #'undo-fu-only-undo))
 
 ;; The undo-fu-session package complements undo-fu by enabling the saving
 ;; and restoration of undo history across Emacs sessions, even after restarting.
 (use-package undo-fu-session
   :commands undo-fu-session-global-mode
   :hook (after-init . undo-fu-session-global-mode))
+
 
 ;;;; Paren Match Highlighting
 ;; Highlights matching parentheses, brackets, and braces when the cursor is positioned at one of them.
@@ -378,10 +382,12 @@
   :commands which-key-mode
   :hook (after-init . which-key-mode)
   :custom
-  (which-key-idle-delay 1.5)
-  (which-key-idle-secondary-delay 0.25)
+  (which-key-idle-delay 0.5)
+  (which-key-idle-secondary-delay 0.15)
   (which-key-add-column-padding 1)
-  (which-key-max-description-length 40))
+  (which-key-max-description-length 40)
+  (which-key-show-remaining-keys t)         ; Show remaining keys in popup
+  )
 
 ;;; Completion & Search
 ;;;; Hitting TAB behavior
@@ -545,7 +551,12 @@
   :bind (("C-x C-d" . consult-dir)
          :map minibuffer-local-completion-map
          ("C-x C-d" . consult-dir)
-         ("C-x C-j" . consult-dir-jump-file)))
+         ("C-x C-j" . consult-dir-jump-file))
+  :config
+  ;; Configure consult-dir sources
+  (add-to-list 'consult-dir-sources 'consult-dir--source-recentf t)
+  (when (fboundp 'consult-dir-project-source)
+    (add-to-list 'consult-dir-sources 'consult-dir-project-source t)))
 
 ;;; File Management
 ;;;; Dired
@@ -559,7 +570,21 @@
   (dired-recursive-deletes 'top)
   (dired-auto-revert-buffer t)
   (dired-dwim-target t)
-  (dired-create-destination-dirs 'ask))
+  (dired-create-destination-dirs 'ask)
+  :hook
+  (dired-mode . dired-hide-details-mode)
+  :bind (:map dired-mode-map
+              ;; Colemak HNEI navigation bindings
+              ("n" . dired-next-line)
+              ("e" . dired-previous-line)
+              ("i" . dired-find-file)
+              ("h" . dired-up-directory)
+              ;; open with system default app
+              ("o" . crux-open-with)))
+
+;; On macOS, ls doesn't support the --dired option
+(when (string= system-type "darwin")       
+  (setq dired-use-ls-dired nil))
 
 (use-package dired-x
   :ensure nil
@@ -567,37 +592,36 @@
   :config
   (setopt dired-clean-confirm-killing-deleted-buffers nil)
   (setopt dired-omit-verbose nil
-        dired-omit-files
-        (concat dired-omit-files
-                "\\|^\\.DS_Store\\'"
-                "\\|^\\.project\\(?:ile\\)?\\'"
-                "\\|^\\.\\(?:svn\\|git\\)\\'"
-                "\\|^\\.ccls-cache\\'"
-                "\\|\\(?:\\.js\\)?\\.meta\\'"
-                "\\|\\.\\(?:elc\\|o\\|pyo\\|swp\\|class\\)\\'"))
-  (let ((cmd "open"))
-    (setopt dired-guess-shell-alist-user
-          `(("\\.\\(?:docx\\|pdf\\|djvu\\|eps\\)\\'" ,cmd)
-            ("\\.\\(?:jpe?g\\|png\\|gif\\|xpm\\)\\'" ,cmd)
-            ("\\.\\(?:xcf\\)\\'" ,cmd)
-            ("\\.csv\\'" ,cmd)
-            ("\\.tex\\'" ,cmd)
-            ("\\.\\(?:mp4\\|mkv\\|avi\\|flv\\|rm\\|rmvb\\|ogv\\)\\(?:\\.part\\)?\\'" ,cmd)
-            ("\\.\\(?:mp3\\|flac\\)\\'" ,cmd)
-            ("\\.html?\\'" ,cmd)
-            ("\\.md\\'" ,cmd)))))
+          dired-omit-files
+          (concat dired-omit-files
+                  "\\|^\\.DS_Store\\'"
+                  "\\|^\\.project\\(?:ile\\)?\\'"
+                  "\\|^\\.\\(?:svn\\|git\\)\\'"
+                  "\\|^\\.ccls-cache\\'"
+                  "\\|\\(?:\\.js\\)?\\.meta\\'"
+                  "\\|\\.\\(?:elc\\|o\\|pyo\\|swp\\|class\\)\\'")))
+
 
 (use-package dired-aux
-  :ensure nil
-  :after dired
+  :ensure nil      
+  :after dired      ; Load after dired is loaded
   :custom
-  (dired-create-destination-dirs 'always)
-  (dired-do-revert-buffer t)
-  (dired-vc-rename-file t))
+  (dired-create-destination-dirs 'always)  ; Auto-create destination dirs when copying/moving
+  (dired-do-revert-buffer t)               ; Auto-refresh dired buffers after operations
+  (dired-vc-rename-file t))                ; Use version control when renaming files;; Dired fontlock
 
-;; Dired fontlock
-(use-package diredfl
-  :hook (dired-mode . diredfl-mode))
+(use-package dired-rainbow
+  :after dired
+  :config
+  ;; Using official Dracula theme colors
+  (dired-rainbow-define-chmod directory "#bd93f9" "d.*")        ; Purple for directories
+  (dired-rainbow-define html "#ff79c6" ("css" "html" "htm" "xhtml" "jsx" "vue")) ; Pink for web files
+  (dired-rainbow-define media "#ffb86c" ("mp3" "mp4" "mkv" "avi" "mov" "flac" "ogg")) ; Orange for media
+  (dired-rainbow-define document "#8be9fd" ("doc" "docx" "pdf" "odt" "md" "txt" "org" "tex")) ; Cyan for documents
+  (dired-rainbow-define image "#f1fa8c" ("jpg" "png" "jpeg" "gif" "svg" "webp" "bmp")) ; Yellow for images
+  (dired-rainbow-define code "#50fa7b" ("py" "js" "el" "rb" "rs" "java" "c" "cpp" "h" "go" "ts" "sh")) ; Green for code
+  (dired-rainbow-define executable "#ff5555" ("exe" "msi" "app" "dmg" "bin")) ; Red for executables
+  (dired-rainbow-define compressed "#6272a4" ("zip" "rar" "gz" "tar" "7z" "iso"))) ; Comment blue for archives
 
 ;;; Help & Documentation
 ;;;; Better Help
@@ -628,7 +652,7 @@
   :mode
   ("\\.org\\'" . org-mode)
   :custom
-  (org-directory "~/Org/")
+  (org-directory "~/Documents")
   (org-hide-emphasis-markers t)
   (org-pretty-entities t)
   (org-cycle-separator-lines 2)
@@ -677,7 +701,7 @@
 ;;;; Org Roam
 (use-package org-roam
   :custom
-  (org-roam-directory (file-truename "~/Org/Roam"))
+  (org-roam-directory (file-truename "~/Documents"))
   ;; (org-roam-completion-everywhere t)
   :bind (("C-c r l" . org-roam-buffer-toggle)
          ("C-c r f" . org-roam-node-find)
@@ -695,21 +719,22 @@
   ;; If you're using a vertical completion framework, you might want a more informative completion interface
   (setopt org-roam-node-display-template (concat "${title:*} " (propertize "${tags:10}" 'face 'org-tag)))
   (setopt org-roam-dailies-capture-templates
-        '(("d" "default" entry "* %<%I:%M %p>: %?"
-           :if-new (file+head "%<%Y-%m-%d>.org" "#+title: %<%Y-%m-%d>\n"))))
+          '(("d" "default" entry "* %<%I:%M %p>: %?"
+             :if-new (file+head "%<%Y-%m-%d>.org" "#+title: %<%Y-%m-%d>\n"))))
   (org-roam-db-autosync-mode)
   ;; If using org-roam-protocol
   (require 'org-roam-protocol))
 
 ;;;; Org Roam UI
-; (elpaca (org-roam-ui :host github :repo "org-roam/org-roam-ui"))
-; (use-package org-roam-ui
-;   :after org-roam
-;   :config
-;   (setopt org-roam-ui-sync-theme t
-;          org-roam-ui-follow t
-;          org-roam-ui-update-on-save t
-;          org-roam-ui-open-on-start t))
+;; TODO Fix
+                                        ; (elpaca (org-roam-ui :host github :repo "org-roam/org-roam-ui"))
+                                        ; (use-package org-roam-ui
+                                        ;   :after org-roam
+                                        ;   :config
+                                        ;   (setopt org-roam-ui-sync-theme t
+                                        ;          org-roam-ui-follow t
+                                        ;          org-roam-ui-update-on-save t
+                                        ;          org-roam-ui-open-on-start t))
 
 ;;;; Org Agenda
 (use-package org-agenda
@@ -768,30 +793,12 @@
   :after (org-agenda)
   :config
   (setopt org-super-agenda-groups
-        `(
-          (:name "Next" :todo "NEXT")
-          (:name "Todo" :todo "TODO")
-          ))
+          `(
+            (:name "Next" :todo "NEXT")
+            (:name "Todo" :todo "TODO")
+            ))
   (setopt org-super-agenda-header-map (make-sparse-keymap))
   (org-super-agenda-mode 1))
-
-;;;; Denote
-(use-package denote
-  :bind (("C-c n n" . denote)
-         ("C-c n l" . denote-link-or-create)
-         ("C-c n f" . denote-add-front-matter)
-         ("C-c n k" . denote-rename-file-keywords)
-         ("C-c n r" . denote-rename-file))
-  :config
-  (setopt denote-directory "~/Org/Notes")
-  (which-key-add-key-based-replacements "C-c n" "Notes")
-
-  ;; Accept any symbol in a .dir-locals.el file; makes it easier to use silos.
-  ;; See "silos" in the manual: https://protesilaos.com/emacs/denote
-  (put 'denote-file-type 'safe-local-variable-p 'symbolp))
-
-(use-package consult-denote
-    :after denote)
 
 ;;;; Destraction-free writing with darkroom
 (use-package darkroom
