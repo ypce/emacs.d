@@ -50,8 +50,8 @@
 (setopt custom-file (expand-file-name "custom.el" user-emacs-directory))
 (when (file-exists-p custom-file)
   (load custom-file 'noerror))
-; ;; Preventing Emacs from saving custom.el
-; (setopt custom-file null-device)
+                                        ; ;; Preventing Emacs from saving custom.el
+                                        ; (setopt custom-file null-device)
 
 ;;;; Backup Settings
 ;; Enabled backups save your changes to a file intermittently
@@ -200,7 +200,7 @@
                                simple-modeline-segment-major-mode)))
   :config
   (simple-modeline-mode 1))
-  
+
 
 ;; After installing nerd-icons, you need to run M-x nerd-icons-install-fonts once.
 (use-package nerd-icons)
@@ -257,7 +257,7 @@
   (beacon-blink-duration 0.6)
   (beacon-color "#C7FF00")
   (beacon-push-mark 35)
-   :config
+  :config
   (beacon-mode 1))
 
 ;;;; Line numbers
@@ -336,7 +336,7 @@
    ("C-." . xref-find-definitions-other-window)
    ("RET" . newline-and-indent)))
 
-; Disable Ctrl + mouse wheel up/down zooming in/out
+                                        ; Disable Ctrl + mouse wheel up/down zooming in/out
 (global-unset-key (kbd "C-<wheel-up>"))   ;; Unbind Ctrl + Wheel Up
 (global-unset-key (kbd "C-<wheel-down>")) ;; Unbind Ctrl + Wheel Down
 
@@ -379,15 +379,14 @@
 
 ;;;; Key Assistance
 (use-package which-key
-  :commands which-key-mode
-  :hook (after-init . which-key-mode)
   :custom
   (which-key-idle-delay 0.5)
   (which-key-idle-secondary-delay 0.15)
   (which-key-add-column-padding 1)
   (which-key-max-description-length 40)
   (which-key-show-remaining-keys t)         ; Show remaining keys in popup
-  )
+  :config
+  (which-key-mode 1))
 
 ;;; Completion & Search
 ;;;; Hitting TAB behavior
@@ -652,7 +651,7 @@
   :mode
   ("\\.org\\'" . org-mode)
   :custom
-  (org-directory "~/Documents")
+  (org-directory "~/Org")
   (org-hide-emphasis-markers t)
   (org-pretty-entities t)
   (org-cycle-separator-lines 2)
@@ -701,7 +700,7 @@
 ;;;; Org Roam
 (use-package org-roam
   :custom
-  (org-roam-directory (file-truename "~/Documents"))
+  (org-roam-directory (file-truename "~/Org/Roam"))
   ;; (org-roam-completion-everywhere t)
   :bind (("C-c r l" . org-roam-buffer-toggle)
          ("C-c r f" . org-roam-node-find)
