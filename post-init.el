@@ -558,6 +558,15 @@
     (add-to-list 'consult-dir-sources 'consult-dir-project-source t)))
 
 ;;; File Management
+;;;; Recentf
+(use-package recentf
+  :ensure nil
+  :bind ("C-c f" . consult-recent-file)  ;; Add a convenient keybinding
+  :custom
+  (recentf-max-saved-items 200)          ;; Save more recent files
+  (recentf-exclude '("^/tmp/" "/ssh:" "/sudo:" "\\.emacs\\.d/elpa/"))
+  )
+
 ;;;; Dired
 (use-package dired
   :ensure nil
@@ -738,6 +747,7 @@
 ;;;; Org Agenda
 (use-package org-agenda
   :ensure nil
+  :bind (("C-c a" . org-agenda))
   :custom
   (org-agenda-sorting-strategy '((agenda habit-down time-up priority-down category-keep)
                                  (todo tag-up priority-down category-keep)
@@ -792,10 +802,8 @@
   :after (org-agenda)
   :config
   (setopt org-super-agenda-groups
-          `(
-            (:name "Next" :todo "NEXT")
-            (:name "Todo" :todo "TODO")
-            ))
+          '((:name "Next" :todo "NEXT")
+            (:name "Todo" :todo "TODO")))
   (setopt org-super-agenda-header-map (make-sparse-keymap))
   (org-super-agenda-mode 1))
 
