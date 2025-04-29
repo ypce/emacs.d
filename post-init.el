@@ -695,6 +695,9 @@
   (org-mode . org-indent-mode)
   (org-mode . variable-pitch-mode))
 
+(with-eval-after-load 'org
+  (define-key org-mode-map (kbd "C-c o") 'org-open-at-point))
+
 ;;;; Appearance
 (use-package org-appear
   :hook (org-mode . org-appear-mode))
