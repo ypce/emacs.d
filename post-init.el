@@ -940,23 +940,157 @@
               (lambda (&rest r) ())))
 
 ;;; Terminal 
-;;;; Eshell
-(with-eval-after-load 'consult
-  (defvar  +consult--source-term
-    (list :name     "Terminal buffers"
-          :narrow   ?t
-          :category 'buffer
-          :face     'consult-buffer
-          :history  'buffer-name-history
-          :state    #'consult--buffer-state
-          :items (lambda () (consult--buffer-query
-                             :mode '(shell-mode eshell-mode term-mode eat-mode compilation-mode)
-                             :sort 'visibility
-                             :as #'buffer-name))))
-  (add-to-list 'consult-buffer-sources '+consult--source-term 'append))
+;;;; Eshell 
+;; Inherit environment shell 
+(use-package exec-path-from-shell
+  :ensure t
+  :config
+  (exec-path-from-shell-initialize))
 
-;;;; vterm
-(use-package vterm
-  :commands vterm
+(use-package eshell
+  :ensure nil
+  :commands eshell
   :custom
-  (vterm-max-scrollback 10000))
+  ;; Core settings
+  (eshell-history-size 10000)
+  (eshell-hist-ignoredups t)
+  (eshell-glob-case-insensitive t)
+  (eshell-error-if-no-glob nil)
+  (eshell-scroll-to-bottom-on-input 'all)
+  (eshell-scroll-show-maximum-output t)
+  (eshell-destroy-buffer-when-process-dies t)
+  (eshell-highlight-prompt nil)
+  
+  ;; Visual commands (use term for these)
+  (eshell-visual-commands '("htop" "zsh" "vim" "nvim" "less" "more" "top" "ncdu" "docker" "pnpm" "npm"))
+  (eshell-visual-subcommands '(("git" "log" "diff" "show")))
+  (eshell-visual-options '(("git" "--help" "--paginate")))
+  
+  :config
+  
+  ;; Nice modern prompt with git info and exit code
+  (defun eshell-prompt-function ()
+    (let* ((dir (abbreviate-file-name (eshell/pwd)))
+           (branch (when (fboundp 'magit-get-current-branch)
+                     (magit-get-current-branch)))
+           (last-command-status eshell-last-command-status)
+           (status-indicator (if (= last-command-status 0)
+                                 (propertize "❯" 'face '(:foreground "#50fa7b"))
+                               (propertize "❯" 'face '(:foreground "#ff5555"))))
+           (git-info (if branch (concat " " (propertize (format "(%s)" branch) 'face '(:foreground "#bd93f9"))) ""))
+           (path (propertize dir 'face '(:foreground "#8be9fd"))))
+      (concat path git-info "\n" status-indicator " ")))
+  
+  (setq eshell-prompt-regexp "^❯ ")
+
+  ;; Useful aliases
+  (defun eshell/clear ()
+    "Clear the eshell buffer."
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (eshell-send-input)))
+  ;; Set up aliases
+  (defun eshell-setup-aliases ()
+    (eshell/alias "ll" "ls -la $*")
+    (eshell/alias "ff" "find-file $1")
+    (eshell/alias "emacs" "find-file $1")
+    (eshell/alias "e" "find-file $1")
+    (eshell/alias "d" "dired $1")
+    (eshell/alias "md" "mkdir -p $*")
+    (eshell/alias "gst" "magit-status")
+    (eshell/alias "clear" "clear-scrollback"))
+  (add-hook 'eshell-first-time-mode-hook #'eshell-setup-aliases)
+
+  ;; Eshell buffer naming - rename based on directory
+  (defun eshell/rename-buffer (&optional name)
+    (interactive)
+    (let ((new-name (or name (concat "*eshell: " (abbreviate-file-name (eshell/pwd)) "*"))))
+      (rename-buffer new-name t)))
+  (add-hook 'eshell-directory-change-hook #'eshell/rename-buffer))
+
+;; Visual enhancements
+(use-package eshell-syntax-highlighting
+  :after eshell
+  :config (eshell-syntax-highlighting-global-mode +1))
+
+;; Extra command completions for Eshell
+(use-package esh-autosuggest
+  :hook (eshell-mode . esh-autosuggest-mode))
+
+;; Directory jumping like z/autojump
+(use-package eshell-z
+  :after eshell)
+
+;; Better completions with Corfu
+(add-hook 'eshell-mode-hook
+          (lambda ()
+            (setq-local corfu-auto t)
+            (corfu-mode)))
+
+;; Toggle between Eshell and the last buffer
+(defun toggle-eshell ()
+  "Toggle between Eshell and the current buffer."
+  (interactive)
+  (if (string-match-p "\\*eshell" (buffer-name))
+      (switch-to-prev-buffer)
+    (eshell)))
+
+;; Confirmation prompts
+(defadvice eshell/rm (around eshell/rm-interactive activate)
+  "Make `rm' interactive from eshell."
+  (if (or (not (boundp 'eshell-rm-interactive)) eshell-rm-interactive)
+      (let ((args (ad-get-args 0)))
+        (setq args (list "-i" (car args)))
+        (setq ad-return-value (apply 'eshell-external-command "rm" args)))
+    ad-do-it))
+
+(defun project-eshell ()
+  "Open an eshell at the project root."
+  (interactive)
+  (let* ((default-directory (or (project-root (project-current))
+                                default-directory))
+         (name (concat "*eshell: " (project-name (project-current)) "*")))
+    (eshell)
+    (rename-buffer name t)))
+
+;; Use Vterm for better terminal emulation when needed
+(use-package vterm
+  :commands vterm)
+
+;; Add a function to switch between Eshell and Vterm
+(defun eshell-or-vterm (arg)
+  "Launch or switch to an Eshell or Vterm buffer.
+With prefix ARG, use Vterm instead of Eshell."
+  (interactive "P")
+  (if arg
+      (vterm)
+    (eshell)))
+
+(defun eshell/extract (file)
+  "Extract FILE using the appropriate method."
+  (let ((command
+         (cond
+          ((string-match-p ".*\.tar.bz2" file) "tar xjf")
+          ((string-match-p ".*\.tar.gz" file) "tar xzf")
+          ((string-match-p ".*\.bz2" file) "bunzip2")
+          ((string-match-p ".*\.rar" file) "unrar x")
+          ((string-match-p ".*\.gz" file) "gunzip")
+          ((string-match-p ".*\.tar" file) "tar xf")
+          ((string-match-p ".*\.tbz2" file) "tar xjf")
+          ((string-match-p ".*\.tgz" file) "tar xzf")
+          ((string-match-p ".*\.zip" file) "unzip")
+          ((string-match-p ".*\.Z" file) "uncompress")
+          ((string-match-p ".*\.7z" file) "7z x")
+          (t nil))))
+    (if command
+        (eshell-command-result (concat command " " file))
+      (error "Don't know how to extract %s" file))))
+
+
+(defun eshell/qmk-compile (keyboard keymap)
+  "Compile a QMK keymap for the given KEYBOARD and KEYMAP."
+  (eshell-command (format "qmk compile -kb %s -km %s" keyboard keymap)))
+
+(global-set-key (kbd "C-c t") 'eshell-or-vterm)  ; 't' for terminal
+(global-set-key (kbd "C-c p t") 'project-eshell) ; Consistent with project prefix
+(global-set-key (kbd "C-c C-t") 'toggle-eshell)  ; Toggle is a secondary operation
