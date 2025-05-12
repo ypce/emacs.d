@@ -28,14 +28,6 @@
   (setopt mode-line-position-column-line-format '("%l:%C")))
 (add-hook 'after-init-hook #'setup-builtin-modes)
 
-;;;; ASCII character fix
-(setq-default prettify-symbols-alist '())  ;; Clear default prettify symbols
-(global-prettify-symbols-mode -1)          ;; Disable prettify symbols mode
-
-;; Disable composition for backslash sequences
-(add-to-list 'composition-function-table
-             '("\\\\[a-zA-Z]" . nil))
-
 ;;;; Auto-save settings
 (setopt auto-save-default t
         auto-save-interval 300
@@ -172,6 +164,19 @@
   :config (load-theme 'uwu t))
 
 ;;;; Font
+;;;;; Ligatures
+(use-package ligature
+  :ensure t
+  :config
+  ;; Enable ligatures in programming modes
+  (ligature-set-ligatures 'prog-mode '("==" "===" "!==" "!=" ">=" "<=" ">>=" "<<="))
+  
+  ;; Specifically disable backslash ligatures
+  (ligature-set-ligatures 'prog-mode '("\\p" "\\b" "\\f") nil) ; Set to nil to disable
+  
+  ;; Enable the package
+  (global-ligature-mode t))
+
 (defun font-available-p (font-name)
   (find-font (font-spec :name font-name)))
 
