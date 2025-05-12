@@ -561,11 +561,13 @@
 ;;;; Recentf
 (use-package recentf
   :ensure nil
-  :bind ("C-c f" . consult-recent-file)  ;; Add a convenient keybinding
+  :bind
+  (("C-c r" . recentf-open-files)
+   ("C-x C-r" . consult-recent-file)
+   ("C-c R" . recentf-cleanup))
   :custom
-  (recentf-max-saved-items 200)          ;; Save more recent files
-  (recentf-exclude '("^/tmp/" "/ssh:" "/sudo:" "\\.emacs\\.d/elpa/"))
-  )
+  (recentf-max-saved-items 200)   
+  (recentf-exclude '("^/tmp/" "/ssh:" "/sudo:" "\\.emacs\\.d/elpa/")))
 
 ;;;; Dired
 (use-package dired
@@ -697,6 +699,31 @@
 
 (with-eval-after-load 'org
   (define-key org-mode-map (kbd "C-c o") 'org-open-at-point))
+;;;; Tables
+;; Set up the default behavior: text wraps, tables don't
+(defun my-org-table-setup ()
+  "Configure org-mode to wrap text but not tables."
+  (visual-line-mode 1)           ;; Wrap text
+  (setq truncate-lines t)        ;; Don't wrap lines (affects tables)
+  (setq word-wrap t)             ;; Wrap at word boundaries
+  (setq org-startup-truncated t) ;; Keep tables from wrapping
+)
+
+(defun my-org-toggle-table-wrapping ()
+  "Toggle between wrapped text + unwrapped tables and everything wrapped."
+  (interactive)
+  (if truncate-lines
+      (progn
+        (setq truncate-lines nil)
+        (message "Everything wraps (tables may break visually)"))
+    (progn
+      (setq truncate-lines t)
+      (message "Text wraps, tables extend horizontally"))))
+
+(add-hook 'org-mode-hook #'my-org-table-setup)
+
+(with-eval-after-load 'org
+  (define-key org-mode-map (kbd "C-c t w") 'my-org-toggle-table-wrapping))
 
 ;;;; Appearance
 (use-package org-appear
@@ -711,42 +738,42 @@
 
 ;;;; Org Roam
 (use-package org-roam
+  :ensure t
   :custom
-  (org-roam-directory (file-truename "~/Org/Roam"))
-  ;; (org-roam-completion-everywhere t)
-  :bind (("C-c r l" . org-roam-buffer-toggle)
-         ("C-c r f" . org-roam-node-find)
-         ("C-c r g" . org-roam-graph)
-         ("C-c r i" . org-roam-node-insert)
-         ("C-c r c" . org-roam-capture)
-         ;; Dailies
-         ("C-c d c" . org-roam-dailies-capture-today)
-         ("C-c d t" . org-roam-dailies-goto-today)
-         ("C-c d p" . org-roam-dailies-goto-previous-note)
-         ("C-c d n" . org-roam-dailies-goto-next-note)
-         ("C-c d C" . org-roam-dailies-capture-date)
-         ("C-c d d" . org-roam-dailies-goto-date))
+  (org-roam-directory "~/org-roam")
+  (org-roam-capture-templates
+   '(("d" "default" plain "%?"
+      :target (file+head "${slug}.org" "#+title: ${title}\n")
+      :unnarrowed t)))
   :config
-  ;; If you're using a vertical completion framework, you might want a more informative completion interface
-  (setopt org-roam-node-display-template (concat "${title:*} " (propertize "${tags:10}" 'face 'org-tag)))
-  (setopt org-roam-dailies-capture-templates
-          '(("d" "default" entry "* %<%I:%M %p>: %?"
-             :if-new (file+head "%<%Y-%m-%d>.org" "#+title: %<%Y-%m-%d>\n"))))
-  (org-roam-db-autosync-mode)
-  ;; If using org-roam-protocol
-  (require 'org-roam-protocol))
-
-;;;; Org Roam UI
-;; TODO Fix
-                                        ; (elpaca (org-roam-ui :host github :repo "org-roam/org-roam-ui"))
-                                        ; (use-package org-roam-ui
-                                        ;   :after org-roam
-                                        ;   :config
-                                        ;   (setopt org-roam-ui-sync-theme t
-                                        ;          org-roam-ui-follow t
-                                        ;          org-roam-ui-update-on-save t
-                                        ;          org-roam-ui-open-on-start t))
-
+  ;; Generate random 4-char prefix for filenames
+  (defun org-roam-random-prefix ()
+    "Generate a random 4-character a-z string."
+    (let ((chars "abcdefghijklmnopqrstuvwxyz")
+          (prefix ""))
+      (dotimes (_ 4 prefix)
+        (setq prefix (concat prefix (string (aref chars (random 26))))))))
+  
+  ;; Override the file-name creation function
+  (defun org-roam-node--file-name-override (orig-fun &rest args)
+    "Add random prefix to org-roam filenames."
+    (let ((filename (apply orig-fun args)))
+      (concat (org-roam-random-prefix) "-" filename)))
+  
+  (advice-add 'org-roam-node--file-name-default :around #'org-roam-node--file-name-override)
+  
+  :bind (("C-c o l" . org-roam-buffer-toggle)
+         ("C-c o f" . org-roam-node-find)
+         ("C-c o g" . org-roam-graph)
+         ("C-c o i" . org-roam-node-insert)
+         ("C-c o c" . org-roam-capture)
+         ;; Dailies
+         ("C-c o d c" . org-roam-dailies-capture-today)
+         ("C-c o d t" . org-roam-dailies-goto-today)
+         ("C-c o d p" . org-roam-dailies-goto-previous-note)
+         ("C-c o d n" . org-roam-dailies-goto-next-note)
+         ("C-c o d C" . org-roam-dailies-capture-date)
+         ("C-c o d d" . org-roam-dailies-goto-date)))
 ;;;; Org Agenda
 (use-package org-agenda
   :ensure nil
@@ -941,12 +968,6 @@
 
 ;;; Terminal 
 ;;;; Eshell 
-;; Inherit environment shell 
-(use-package exec-path-from-shell
-  :ensure t
-  :config
-  (exec-path-from-shell-initialize))
-
 (use-package eshell
   :ensure nil
   :commands eshell
