@@ -28,6 +28,14 @@
   (setopt mode-line-position-column-line-format '("%l:%C")))
 (add-hook 'after-init-hook #'setup-builtin-modes)
 
+;;;; ASCII character fix
+(setq-default prettify-symbols-alist '())  ;; Clear default prettify symbols
+(global-prettify-symbols-mode -1)          ;; Disable prettify symbols mode
+
+;; Disable composition for backslash sequences
+(add-to-list 'composition-function-table
+             '("\\\\[a-zA-Z]" . nil))
+
 ;;;; Auto-save settings
 (setopt auto-save-default t
         auto-save-interval 300
