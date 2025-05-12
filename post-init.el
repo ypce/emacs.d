@@ -753,7 +753,7 @@
 (use-package org-roam
   :ensure t
   :custom
-  (org-roam-directory "~/org-roam")
+  (org-roam-directory "~/Org/Roam")
   (org-roam-capture-templates
    '(("d" "default" plain "%?"
       :target (file+head "${slug}.org" "#+title: ${title}\n")
