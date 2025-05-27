@@ -47,6 +47,12 @@
                                                      (abbreviate-file-name (buffer-file-name))
                                                    "%b")))))  ; Close use-package emacs
 
+;; Clean scratch buffer and suppress default startup 
+(setq initial-scratch-message nil
+      inhibit-startup-screen t
+      inhibit-startup-echo-area-message user-login-name
+      inhibit-startup-buffer-menu t)
+
 ;;; File Management
 (use-package files
   :ensure nil
@@ -462,19 +468,30 @@
   :hook ((prog-mode text-mode) . goggles-mode)
   :config
   (setq-default goggles-pulse t)) ;; set to nil to disable pulsing
+  
+
 
 (use-package dired
   :ensure nil
-  :hook (dired-mode . dired-hide-details-mode)
+  :init
+  ;; Required for dired-omit-mode
+  (require 'dired-x)
+  :hook 
+  ((dired-mode . dired-hide-details-mode)
+   (dired-mode . dired-omit-mode))  ; Hide .dot files by default
   :custom
   (dired-listing-switches "-alhF")
   (dired-dwim-target t)
+  ;; Ensure dired buffers are named properly
+  (dired-kill-when-opening-new-dired-buffer t)  ; Keep only one dired buffer
   :bind (:map dired-mode-map
               ;; Colemak HNEI navigation bindings
               ("n" . dired-next-line)
               ("e" . dired-previous-line)
               ("i" . dired-find-file)
-              ("h" . dired-up-directory))
+              ("h" . dired-up-directory)
+              ;; Toggle hidden files (Command-Shift-. like macOS Finder)
+              ("s->" . dired-omit-mode))
   :preface
   (defun dired-open-externally (&optional arg)
     "Open marked or file at point in external application."
@@ -487,6 +504,9 @@
         (t (find-file file))))
      arg))
   :config
+  ;; Hide .dot files when in dired-omit-mode
+  (setq dired-omit-files (concat dired-omit-files "\\|^\\..+$"))
+  
   ;; Auto-open non-text files with external app
   (defun dired-find-file-or-external ()
     "Find file, but if it's not a text file, open externally."
@@ -505,6 +525,49 @@
 
 ;; TAB completion in minibuffer
 (keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
+
+;; Multi-cursor
+;;; Multiple Cursors
+(use-package multiple-cursors
+  :ensure t
+  :custom
+  ;; Don't load mc/list file on startup (performance)
+  (mc/always-run-for-all t)
+  :config
+  ;; Store multiple-cursors data in var directory
+  (setq mc/list-file (expand-file-name "mc-lists.el" emacs-var-dir))
+  
+  ;; Global bindings for multiple cursors
+  (bind-keys
+   ;; Mark next/previous like this
+   ("C->" . mc/mark-next-like-this)
+   ("C-<" . mc/mark-previous-like-this)
+   ("C-c C->" . mc/mark-all-like-this)
+   ("C-c C-<" . mc/mark-all-like-this-dwim)
+   
+   ;; Mark all in region
+   ("C-c m r" . mc/mark-all-in-region)
+   ("C-c m R" . mc/mark-all-in-region-regexp)
+   
+   ;; Edit lines
+   ("C-c m l" . mc/edit-lines)
+   ("C-c m n" . mc/insert-numbers)
+   ("C-c m s" . mc/sort-regions)
+   ("C-c m R" . mc/reverse-regions)
+   
+   ;; Rectangle selections
+   ("C-c m SPC" . set-rectangular-region-anchor)
+   
+   ;; Skip/unmark
+   ("C-c m <" . mc/skip-to-previous-like-this)
+   ("C-c m >" . mc/skip-to-next-like-this)
+   ("C-c m u" . mc/unmark-next-like-this)
+   ("C-c m U" . mc/unmark-previous-like-this)
+   
+   ;; Mark by regexp/symbols
+   ("C-c m %" . mc/mark-all-symbols-like-this)
+   ("C-c m w" . mc/mark-all-words-like-this)
+   ("C-c m *" . mc/mark-all-like-this-in-defun)))
 
 ;; Global bindings
 (bind-keys

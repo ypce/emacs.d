@@ -1,4 +1,4 @@
-.netrwhist
+\.netrwhist
 
 # OS X
 .DS_Store
@@ -7,3 +7,4 @@
 var/
 custom.el
 *.elc
+org-roam.db
