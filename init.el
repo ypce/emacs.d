@@ -43,7 +43,7 @@
   (hscroll-margin 1)
   
   ;; Frame title
-  (frame-title-format '("Emacs 30.1 - " (:eval (if (buffer-file-name)
+  (frame-title-format '("Emacs - " (:eval (if (buffer-file-name)
                                                      (abbreviate-file-name (buffer-file-name))
                                                    "%b")))))  ; Close use-package emacs
 
@@ -89,6 +89,19 @@
 (use-package hl-line :ensure nil :config (global-hl-line-mode 1))
 (use-package paren :ensure nil :hook (prog-mode . show-paren-mode))
 (use-package autorevert :ensure nil :config (global-auto-revert-mode 1))
+
+;;; macOS SSH Agent Integration
+;; Inheriting SSH agent environment from shell
+(use-package exec-path-from-shell
+  :ensure t
+  :demand t
+  :when (eq system-type 'darwin)
+  :custom
+  (exec-path-from-shell-variables '("PATH" "SSH_AUTH_SOCK" "SSH_AGENT_PID"))
+  (exec-path-from-shell-arguments '("-l"))
+  :config
+  (exec-path-from-shell-initialize)
+  (message "SSH environment imported: SSH_AUTH_SOCK=%s" (getenv "SSH_AUTH_SOCK")))
 
 ;;; History & Persistence
 (use-package savehist
