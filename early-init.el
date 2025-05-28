@@ -53,7 +53,6 @@
         (setenv "PATH" path-from-shell)
         (setq exec-path (split-string path-from-shell path-separator t))
         (message "PATH imported from shell: %s" (getenv "PATH")))))
-  
   ;; Import PATH early so packages can find tools like ripgrep
   (import-shell-path))
 
