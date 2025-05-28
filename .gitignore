@@ -1,10 +1,7 @@
-\.netrwhist
+# Ignore everything
+*
 
-# OS X
-.DS_Store
-
-# Emacs
-var/
-custom.el
-*.elc
-org-roam.db
+# Include these files
+!early-init.el
+!init.el
+!*.org
