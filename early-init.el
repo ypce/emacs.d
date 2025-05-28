@@ -37,7 +37,7 @@
 (when (eq system-type 'darwin)
   ;; Command key mappings
   (setq mac-command-modifier 'meta
-        mac-option-modifier 'super
+        mac-option-modifier 'none
         mac-control-modifier 'control
         mac-function-modifier 'hyper
         mac-pass-command-to-system nil
