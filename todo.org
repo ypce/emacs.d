@@ -1,0 +1,5 @@
+* Notes
+https://xenodium.com/awesome-emacs-on-macos
+* Setup
+- dired symlink enter
+- moving files out of directory anomaly in icons
