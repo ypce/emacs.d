@@ -90,18 +90,40 @@
 (use-package paren :ensure nil :hook (prog-mode . show-paren-mode))
 (use-package autorevert :ensure nil :config (global-auto-revert-mode 1))
 
-;;; macOS SSH Agent Integration
-;; Inheriting SSH agent environment from shell
+;;; Environment Integration for Git/SSH/GPG
 (use-package exec-path-from-shell
   :ensure t
-  :demand t
   :when (eq system-type 'darwin)
+  :demand t
   :custom
-  (exec-path-from-shell-variables '("PATH" "SSH_AUTH_SOCK" "SSH_AGENT_PID"))
-  (exec-path-from-shell-arguments '("-l"))
+  (exec-path-from-shell-variables 
+   '("PATH" "MANPATH" "SSH_AUTH_SOCK" "SSH_AGENT_PID" "GPG_TTY" "GPG_AGENT_INFO"))
+  (exec-path-from-shell-arguments '("-l" "-i"))  ; Interactive + Login shell
+  (exec-path-from-shell-warn-duration-millis 2000)
+  (exec-path-from-shell-shell-name "/bin/zsh")  ; Explicit shell
   :config
   (exec-path-from-shell-initialize)
-  (message "SSH environment imported: SSH_AUTH_SOCK=%s" (getenv "SSH_AUTH_SOCK")))
+  
+  ;; Fallback: Manually add Homebrew paths if they're missing
+  (let ((homebrew-paths '("/opt/homebrew/bin" "/opt/homebrew/sbin" "/usr/local/bin")))
+    (dolist (path homebrew-paths)
+      (when (and (file-directory-p path)
+                 (not (member path exec-path)))
+        (push path exec-path)
+        (setenv "PATH" (concat path ":" (getenv "PATH")))
+        (message "Added missing path: %s" path))))
+  
+  ;; GPG configuration for commit signing (Emacs 30.1)
+  (when (executable-find "gpg")
+    (unless (getenv "GPG_TTY")
+      (setenv "GPG_TTY" (string-trim-right (shell-command-to-string "tty"))))
+    (setq epg-pinentry-mode 'loopback
+          epa-pinentry-mode 'loopback))
+  
+  (message "Environment: GPG=%s SSH=%s Homebrew=%s" 
+           (if (executable-find "gpg") "✓" "✗")
+           (if (getenv "SSH_AUTH_SOCK") "✓" "✗")
+           (if (member "/opt/homebrew/bin" exec-path) "✓" "✗")))
 
 ;;; History & Persistence
 (use-package savehist
