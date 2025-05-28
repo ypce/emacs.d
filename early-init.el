@@ -33,7 +33,7 @@
   (when (fboundp 'startup-redirect-eln-cache)
     (startup-redirect-eln-cache native-comp-eln-cache-dir)))
 
-;;; macOS Environment & PATH Setup
+;;; macOS Configuration
 (when (eq system-type 'darwin)
   ;; Command key mappings
   (setq mac-command-modifier 'meta
@@ -43,72 +43,40 @@
         mac-pass-command-to-system nil
         mac-pass-control-to-system nil)
   
-  ;; Import PATH from shell to fix Homebrew binary access
-  (defun import-shell-path ()
-    "Import PATH from shell environment on macOS."
-    (let* ((shell (or (getenv "SHELL") "/bin/zsh"))
-           (command (format "%s -l -c 'echo $PATH'" shell))
-           (path-from-shell (string-trim (shell-command-to-string command))))
-      (when (and path-from-shell (not (string-empty-p path-from-shell)))
-        (setenv "PATH" path-from-shell)
-        (setq exec-path (split-string path-from-shell path-separator t))
-        (message "PATH imported from shell: %s" (getenv "PATH")))))
-  ;; Import PATH early so packages can find tools like ripgrep
-  (import-shell-path))
-
-;; macOS Homebrew GCC paths fix for native compilation
-(defun homebrew-gcc-paths ()
-  "Return GCC library paths from Homebrew installations.
-Detects paths for gcc and libgccjit packages to be used in LIBRARY_PATH."
-  (let* ((paths '())
-         (brew-bin (or (executable-find "brew")
-                       (let ((arm-path "/opt/homebrew/bin/brew")
-                             (intel-path "/usr/local/bin/brew"))
-                         (cond
-                          ((file-exists-p arm-path) arm-path)
-                          ((file-exists-p intel-path) intel-path))))))
-    (when brew-bin
-      ;; Get gcc paths.
-      (condition-case nil
-        (let* ((gcc-prefix (string-trim
-                            (shell-command-to-string
-                             (concat brew-bin " --prefix gcc 2>/dev/null"))))
-               (gcc-lib-current (expand-file-name "lib/gcc/current" gcc-prefix)))
-          (when (file-directory-p gcc-lib-current)
-            (push gcc-lib-current paths)
-            ;; Find apple-darwin directory.
-            (let* ((default-directory gcc-lib-current)
-                   (arch-dirs (file-expand-wildcards "gcc/*-apple-darwin*/*[0-9]")))
-              (when arch-dirs
-                (push (expand-file-name
-                       (car (sort arch-dirs #'string>)))
-                      paths)))))
-        (error nil))
-      ;; Get libgccjit paths
-      (condition-case nil
-        (let* ((jit-prefix (string-trim
-                            (shell-command-to-string
-                             (concat brew-bin " --prefix libgccjit 2>/dev/null"))))
-               (jit-lib-current (expand-file-name "lib/gcc/current" jit-prefix)))
-          (when (file-directory-p jit-lib-current)
-            (push jit-lib-current paths)))
-        (error nil)))
-    (nreverse paths)))
-
-(defun setup-macos-native-comp-library-paths ()
-  "Set up LIBRARY_PATH for native compilation on macOS.
-Includes Homebrew GCC paths and CommandLineTools SDK libraries."
-  (let* ((existing-paths (split-string (or (getenv "LIBRARY_PATH") "") ":" t))
-         (gcc-paths (homebrew-gcc-paths))
-         (clt-paths '("/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib"))
-         (unique-paths (delete-dups
-                        (append existing-paths gcc-paths clt-paths))))
-    (setenv "LIBRARY_PATH" (mapconcat #'identity unique-paths ":"))))
-
-;; Set up library paths for native compilation on macOS.
-(when (eq system-type 'darwin)
-  (setup-macos-native-comp-library-paths)
-  ;; Debug: Print the LIBRARY_PATH to verify it's set correctly
+  ;; 1. PATH Setup - Add Homebrew paths early
+  (let ((homebrew-paths '("/opt/homebrew/bin" "/opt/homebrew/sbin" "/usr/local/bin")))
+    (dolist (path homebrew-paths)
+      (when (and (file-directory-p path)
+                 (not (member path exec-path)))
+        (push path exec-path)
+        (setenv "PATH" (concat path ":" (getenv "PATH"))))))
+  
+  ;; 2. LIBRARY_PATH Setup for GCC (native compilation)
+  (defun setup-gcc-library-paths ()
+    "Set up LIBRARY_PATH for native compilation."
+    (let ((paths (split-string (or (getenv "LIBRARY_PATH") "") ":" t)))
+      
+      ;; Add CommandLineTools SDK
+      (let ((clt-path "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib"))
+        (when (file-directory-p clt-path)
+          (push clt-path paths)))
+      
+      ;; Add GCC paths if available
+      (when (executable-find "brew")
+        (ignore-errors
+          (let ((gcc-prefix (string-trim (shell-command-to-string "brew --prefix gcc 2>/dev/null"))))
+            (when (file-directory-p (concat gcc-prefix "/lib/gcc/current"))
+              (push (concat gcc-prefix "/lib/gcc/current") paths))))
+        (ignore-errors
+          (let ((jit-prefix (string-trim (shell-command-to-string "brew --prefix libgccjit 2>/dev/null"))))
+            (when (file-directory-p (concat jit-prefix "/lib/gcc/current"))
+              (push (concat jit-prefix "/lib/gcc/current") paths)))))
+      
+      ;; Set the final LIBRARY_PATH
+      (when paths
+        (setenv "LIBRARY_PATH" (string-join (delete-dups paths) ":")))))
+  
+  (setup-gcc-library-paths)
   (message "LIBRARY_PATH set to: %s" (getenv "LIBRARY_PATH")))
 
 ;;; Frame Configuration
