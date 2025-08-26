@@ -303,28 +303,60 @@
    (org-mode . visual-line-mode)
    (org-mode . variable-pitch-mode))
   :custom
-  (org-ellipsis " ▾")
+  (org-ellipsis " ⤵") 
   (org-hide-emphasis-markers t)
   (org-startup-folded 'content)
   (org-capture-bookmark nil)
   (org-id-locations-file (expand-file-name "org-id-locations" emacs-var-dir))
   (org-clock-persist-file (expand-file-name "org-clock-save.el" emacs-var-dir))
-  (org-directory "~/Documents/Org")
-  (org-default-notes-file (expand-file-name "inbox.org" org-directory)))
+  (org-directory "~/Org")
+  (org-default-notes-file (expand-file-name "inbox.org" org-directory))
+  
+  ;; Simple TODO keywords
+  (org-todo-keywords
+   '((sequence "TODO(t)" "IN-PROGRESS(p)" "WAITING(w)" "|" "DONE(d)"))))
 
 (use-package org-modern
   :ensure t
   :hook (org-mode . org-modern-mode)
   :custom
-  (org-modern-todo-faces '(("TODO" :background "red" :foreground "white")
-                           ("DONE" :background "green" :foreground "white"))))
+  ;; Minimal bullets
+  (org-modern-star ["•" "◦" "▸" "▹"])
+  
+  (org-modern-todo-faces
+   '(("TODO" 
+      :background "#ff6b6b" 
+      :foreground "white" 
+      :weight bold
+      :box nil)
+     ("IN-PROGRESS" 
+      :background "#4ecdc4" 
+      :foreground "white" 
+      :weight bold
+      :box nil)
+     ("WAITING" 
+      :background "#ffe66d" 
+      :foreground "#2c3e50" 
+      :weight bold
+      :box nil)
+     ("DONE" 
+      :background "#95e1d3" 
+      :foreground "#2c3e50" 
+      :weight bold
+      :box nil)))
+  
+  :config
+  (set-face-attribute 'org-modern-todo nil 
+                      :height 1.0 
+                      :box nil 
+                      :weight 'bold))
 
 ;;; Org-roam - Personal Knowledge Management
 (use-package org-roam
   :ensure t
   :demand t
   :custom
-  (org-roam-directory (file-truename "~/Notes"))
+  (org-roam-directory (file-truename "~/Org"))
   (org-roam-dailies-directory "daily/")
   (org-roam-completion-everywhere t)
   (org-roam-capture-templates
@@ -486,58 +518,124 @@
   :hook ((prog-mode text-mode) . goggles-mode)
   :config
   (setq-default goggles-pulse t)) ;; set to nil to disable pulsing
-  
 
 
-(use-package dired
-  :ensure nil
-  :init
-  ;; Required for dired-omit-mode
-  (require 'dired-x)
-  :hook 
-  ((dired-mode . dired-hide-details-mode)
-   (dired-mode . dired-omit-mode))  ; Hide .dot files by default
+;;; Modern File Manager with Dirvish
+(use-package dirvish
+  :ensure t
+  :demand t
   :custom
-  (dired-listing-switches "-alhF")
-  (dired-dwim-target t)
-  ;; Ensure dired buffers are named properly
-  (dired-kill-when-opening-new-dired-buffer t)  ; Keep only one dired buffer
-  :bind (:map dired-mode-map
-              ;; Colemak HNEI navigation bindings
-              ("n" . dired-next-line)
-              ("e" . dired-previous-line)
-              ("i" . dired-find-file)
-              ("h" . dired-up-directory)
-              ;; Toggle hidden files (Command-Shift-. like macOS Finder)
-              ("s->" . dired-omit-mode))
-  :preface
-  (defun dired-open-externally (&optional arg)
-    "Open marked or file at point in external application."
-    (interactive "P")
-    (dired-map-over-marks
-     (let ((file (dired-get-filename)))
-       (cond
-        ((eq system-type 'darwin) (shell-command (concat "open " (shell-quote-argument file))))
-        ((eq system-type 'gnu/linux) (shell-command (concat "xdg-open " (shell-quote-argument file))))
-        (t (find-file file))))
-     arg))
-  :config
-  ;; Hide .dot files when in dired-omit-mode
-  (setq dired-omit-files (concat dired-omit-files "\\|^\\..+$"))
+  ;; Dirvish appearance
+  (dirvish-quick-access-entries
+   '(("h" "~/"                 "Home")
+     ("d" "~/Downloads/"       "Downloads") 
+     ("o" "~/Org/"            "Org")
+     ("p" "~/Projects/"       "Projects")
+     ("t" "/tmp/"             "Temp")))
   
-  ;; Auto-open non-text files with external app
-  (defun dired-find-file-or-external ()
-    "Find file, but if it's not a text file, open externally."
-    (interactive)
-    (let* ((file (dired-get-filename))
-           (extension (file-name-extension file))
-           (text-extensions '("txt" "org" "md" "py" "go" "sh" "el" "lisp" "c" "h" "cpp" "hpp" "js" "html" "css" "json" "yaml" "yml" "xml")))
-      (if (and extension (not (member (downcase extension) text-extensions)))
-          (dired-open-externally)
-        (dired-find-file))))
-  ;; Override default find-file binding
-  (define-key dired-mode-map (kbd "RET") 'dired-find-file-or-external))
+  ;; Enable features
+  (dirvish-attributes '(nerd-icons file-time file-size collapse subtree-state vc-state git-msg))
+  (dirvish-mode-line-format '(:left (sort symlink) :right (omit yank index)))
+  (dirvish-header-line-format '(:left (path) :right (free-space)))
+  
+  ;; Performance and behavior
+  (dirvish-emerge-groups '(("Recent files" (predicate . recent-files-2h))
+                          ("Documents" (extensions "pdf" "tex" "bib" "epub"))
+                          ("Video" (extensions "mp4" "mkv" "webm"))
+                          ("Pictures" (extensions "jpg" "png" "svg" "gif"))
+                          ("Audio" (extensions "mp3" "flac" "wav" "ape"))
+                          ("Archives" (extensions "gz" "rar" "zip"))))
+  
+  (dirvish-path-separators (list "  " "  " "  "))
+  (dirvish-default-layout '(0 0.4 0.6))
+  
+  ;; Preview settings
+  (dirvish-preview-dispatchers 
+   '(image gif video audio epub archive pdf))
+  
+  :config
+  ;; Initialize dirvish
+  (dirvish-override-dired-mode)
+  
+  ;; Colemak navigation bindings
+  (define-key dirvish-mode-map (kbd "n") 'dired-next-line)
+  (define-key dirvish-mode-map (kbd "e") 'dired-previous-line)
+  (define-key dirvish-mode-map (kbd "i") 'dired-find-file)
+  (define-key dirvish-mode-map (kbd "h") 'dired-up-directory)
+  
+  ;; Additional Colemak-friendly bindings
+  (define-key dirvish-mode-map (kbd "N") 'dirvish-fd-jump)      ; Jump with fd
+  (define-key dirvish-mode-map (kbd "E") 'dired-do-flagged-delete) ; Delete flagged
+  (define-key dirvish-mode-map (kbd "I") 'dired-maybe-insert-subdir) ; Insert subdir
+  (define-key dirvish-mode-map (kbd "H") 'dirvish-history-jump) ; History navigation
+  
+  ;; File operations (keeping familiar keys)
+  (define-key dirvish-mode-map (kbd "c") 'dired-do-copy)
+  (define-key dirvish-mode-map (kbd "m") 'dired-mark)
+  (define-key dirvish-mode-map (kbd "u") 'dired-unmark)
+  (define-key dirvish-mode-map (kbd "U") 'dired-unmark-all-marks)
+  (define-key dirvish-mode-map (kbd "d") 'dired-flag-file-deletion)
+  (define-key dirvish-mode-map (kbd "x") 'dired-do-flagged-delete)
+  (define-key dirvish-mode-map (kbd "r") 'dired-do-rename)
+  
+  ;; View and layout controls
+  (define-key dirvish-mode-map (kbd "TAB") 'dirvish-subtree-toggle)
+  (define-key dirvish-mode-map (kbd "M-t") 'dirvish-layout-toggle)
+  (define-key dirvish-mode-map (kbd "M-m") 'dirvish-mark-menu)
+  (define-key dirvish-mode-map (kbd "M-f") 'dirvish-file-info-menu)
+  (define-key dirvish-mode-map (kbd "M-s") 'dirvish-setup-menu)
+  
+  ;; Quick access and utilities
+  (define-key dirvish-mode-map (kbd "q") 'dirvish-quit)
+  (define-key dirvish-mode-map (kbd "?") 'dirvish-dispatch)
+  (define-key dirvish-mode-map (kbd "a") 'dirvish-quick-access)
+  (define-key dirvish-mode-map (kbd ".") 'dired-omit-mode)        ; Toggle hidden files
+  (define-key dirvish-mode-map (kbd "/") 'dirvish-narrow)
+  (define-key dirvish-mode-map (kbd "f") 'dirvish-fd)           ; Find with fd
+  (define-key dirvish-mode-map (kbd "s") 'dirvish-quicksort)
+  
+  ;; Preview controls  
+  (define-key dirvish-mode-map (kbd "v") 'dirvish-vc-menu)
+  (define-key dirvish-mode-map (kbd "p") 'dirvish-show-history)
+  (define-key dirvish-mode-map (kbd "b") 'dirvish-goto-bookmark)
+  
+  ;; External programs
+  (define-key dirvish-mode-map (kbd "E") 
+    (lambda () 
+      (interactive)
+      (let ((file (dired-get-filename)))
+        (cond
+         ((eq system-type 'darwin) 
+          (call-process "open" nil 0 nil file))
+         ((eq system-type 'gnu/linux)
+          (call-process "xdg-open" nil 0 nil file))
+         (t (message "External opening not configured for this system"))))))
+  
+  ;; Navigation shortcuts
+  (define-key dirvish-mode-map (kbd "<backspace>") 'dired-up-directory)
+  (define-key dirvish-mode-map (kbd "~") 
+    (lambda () (interactive) (dirvish "~")))
+  (define-key dirvish-mode-map (kbd "RET") 'dired-find-file)
+  (define-key dirvish-mode-map (kbd "SPC") 'dirvish-show-history))
 
+;; Optional: Dirvish side window for project browsing
+(use-package dirvish-side
+  :ensure nil  ; Part of dirvish
+  :after dirvish
+  :config
+  ;; You can bind this to quickly open a side file browser
+  (global-set-key (kbd "C-c d") 'dirvish-side))
+
+;; Optional: Enhanced dired-x features
+(use-package dired-x
+  :ensure nil
+  :after dirvish
+  :config
+  ;; Hide uninteresting files by default
+  (setq dired-omit-files "^\\.[^.]\\|^\\.\\.$\\|^\\.git$")
+  ;; Enable omit mode by default
+  (add-hook 'dired-mode-hook 'dired-omit-mode))
+  
 ;;; Key Bindings
 (use-package bind-key :ensure nil :demand t)
 
@@ -640,12 +738,30 @@
  ("C-c s" . consult-eglot-symbols))
 
 ;; Dired bindings
-(with-eval-after-load 'dired
-  (bind-keys
-   :map dired-mode-map
-   ("<backspace>" . dired-up-directory)
-   ("~" . (lambda () (interactive) (dired "~")))
-   ("E" . dired-open-externally))) ; External app shortcut
+; (with-eval-after-load 'dired
+;   (bind-keys
+;    :map dired-mode-map
+;    ;; Colemak HNEI navigation bindings
+;    ("n" . dired-next-line)
+;    ("e" . dired-previous-line) 
+;    ("i" . dired-find-file)
+;    ("h" . dired-up-directory)
+;    ;; Toggle hidden files (Command-Shift-. like macOS Finder)
+;    ("," . dired-omit-mode)
+;    ;; Navigation shortcuts
+;    ("<backspace>" . dired-up-directory)
+;    ("~" . (lambda () (interactive) (dired "~")))
+;    ;; Force external opening (fallback)
+;    ("E" . (lambda () 
+;             (interactive)
+;             (let ((file (dired-get-filename)))
+;               (cond
+;                ((eq system-type 'darwin) 
+;                 (call-process "open" nil 0 nil file))
+;                ((eq system-type 'gnu/linux)
+;                 (call-process "xdg-open" nil 0 nil file))
+;                (t (message "External opening not configured for this system"))))))))
+
 
 ;; Isearch bindings
 (bind-keys
@@ -660,3 +776,4 @@
 
 (provide 'init)
 ;;; init.el ends here
+(put 'downcase-region 'disabled nil)
