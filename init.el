@@ -385,9 +385,10 @@
   ;; Initialize the database
   (org-roam-db-autosync-mode)
   
-  ;; Add org-roam files to org-agenda if needed
-  (setq org-agenda-files (append org-agenda-files
-                                 (list org-roam-directory))))
+  ;; Add org-roam files to org-agenda
+  (setq org-agenda-files 
+      (append org-agenda-files
+              (directory-files-recursively org-roam-directory "\\.org$"))))
 
 ;; Enhanced search for org-roam with content previews
 (use-package consult-org-roam
@@ -398,6 +399,40 @@
   :config
   ;; Activate the minor mode
   (consult-org-roam-mode 1))
+
+;; TODO Improve how its shown. Maybe show project title or daily. Add a dashboard for next 3 days as well.
+(use-package org-agenda
+  :ensure nil
+  :after org
+  :custom
+  ;; Remove filename/category completely from todo view
+  (org-agenda-prefix-format
+   '((agenda . " %i %?-12t% s")     ; Agenda: just time and status
+     (todo . " ")                   ; Todo: just the task, no filename/category
+     (tags . " ")                   ; Tags: just the task  
+     (search . " ")))               ; Search: just the task
+  
+  ;; Hide tags to reduce clutter
+  (org-agenda-remove-tags t)
+  
+  ;; Clean separator
+  (org-agenda-block-separator ?─)
+  
+  :config  
+  ;; Custom agenda command for clean todo list
+  (setq org-agenda-custom-commands
+        '(("n" "Clean Todo List" todo ""
+           ((org-agenda-overriding-header "📋 Tasks")
+            (org-agenda-prefix-format "  ")           ; Just indent, nothing else
+            (org-agenda-remove-tags t)
+            (org-agenda-todo-ignore-scheduled 'future))))))
+
+;; Even cleaner: bind this to org keybinding
+(with-eval-after-load 'org
+  (bind-keys
+   :prefix "C-c o"
+   :prefix-map org-prefix-map
+   ("t" . (lambda () (interactive) (org-agenda nil "n")))))  ; Clean todo list
 
 ;;; Tree-sitter & Language Support
 (use-package treesit
