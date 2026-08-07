@@ -101,7 +101,7 @@ The theme has to be reloaded after changing anything in this group."
                     (list :weight 'bold :foreground dracula-pro-pro-pink)))
                (read-multiple-choice-face :inherit completions-first-difference)
                (region :inherit match :extend t)
-               (trailing-whitespace :foreground nil :background ,dracula-pro-pro-orange)
+               (trailing-whitespace :foreground unspecified :background ,dracula-pro-pro-orange)
                (vertical-border :foreground ,dracula-pro-pro-bg2)
                (success :foreground ,dracula-pro-pro-green)
                (warning :foreground ,dracula-pro-pro-orange)
@@ -258,7 +258,7 @@ The theme has to be reloaded after changing anything in this group."
                (helm-grep-file :foreground ,dracula-pro-pro-fg :background ,dracula-pro-pro-bg)
                (helm-grep-finish :foreground ,dracula-pro-pro-fg2 :background ,dracula-pro-pro-bg)
                (helm-grep-lineno :foreground ,dracula-pro-pro-fg :background ,dracula-pro-pro-bg)
-               (helm-grep-match :foreground nil :background nil :inherit helm-match)
+               (helm-grep-match :foreground unspecified :background unspecified :inherit helm-match)
                (helm-grep-running :foreground ,dracula-pro-pro-green :background ,dracula-pro-pro-bg)
                (helm-header :foreground ,dracula-pro-pro-fg2 :background ,dracula-pro-pro-bg :underline nil :box nil)
                (helm-moccur-buffer :foreground ,dracula-pro-pro-green :background ,dracula-pro-pro-bg)
@@ -421,7 +421,7 @@ The theme has to be reloaded after changing anything in this group."
                           :box ,dracula-pro-pro-current :inverse-video nil
                           ,@(if dracula-pro-pro-alternate-mode-line-and-minibuffer
                                 (list :foreground dracula-pro-pro-fg3)
-                              (list :foreground nil)))
+                              (list :foreground 'unspecified)))
                (mode-line-inactive
                 :inverse-video nil
                 ,@(if dracula-pro-pro-alternate-mode-line-and-minibuffer
@@ -610,9 +610,18 @@ The theme has to be reloaded after changing anything in this group."
                (graphic-colors (mapcar #'cadr colors))
                (term-colors (mapcar #'car (mapcar #'cddr colors)))
                (tty-colors (mapcar #'car (mapcar #'last colors)))
+               ;; nil colors (tty column) are fine inside nested plists
+               ;; like :box, but deprecated as top-level attribute values
+               ;; (Emacs warns per face per frame) — emit `unspecified'.
                (expand-for-kind (lambda (kind spec)
-                                  (cl-progv color-names kind
-                                    (eval `(backquote ,spec))))))
+                                  (let ((attrs (cl-progv color-names kind
+                                                 (eval `(backquote ,spec)))))
+                                    (cl-loop for (key val) on attrs by #'cddr
+                                             append (list key
+                                                          (if (and (memq key '(:foreground :background))
+                                                                   (null val))
+                                                              'unspecified
+                                                            val)))))))
            (cl-loop for (face . spec) in faces
                     collect `(,face
                               ((((min-colors 16777216)) ; fully graphical envs

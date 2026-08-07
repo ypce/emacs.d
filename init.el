@@ -1,814 +1,740 @@
-;;; init.el --- Main configuration -*- lexical-binding: t; no-byte-compile: t -*-
+;;; init.el --- init -*- lexical-binding: t; -*-
+;;; Code:
 
-(elpaca-wait)
+;; Nix bin path (guarded so config still works on non-Nix systems)
+(let ((nix-bin "/etc/profiles/per-user/vp/bin"))
+  (when (file-directory-p nix-bin)
+    (add-to-list 'exec-path nix-bin)
+    (setenv "PATH" (concat nix-bin ":" (getenv "PATH")))))
 
-;;; Core Emacs Settings
+;; Homebrew bin path (guarded so config still works on non-Homebrew systems)
+(let ((brew-bin "/opt/homebrew/bin"))
+  (when (file-directory-p brew-bin)
+    (add-to-list 'exec-path brew-bin)
+    (setenv "PATH" (concat brew-bin ":" (getenv "PATH")))))
+
+;; NOTE on daemon truecolor: Emacs detects 24-bit tty color via C getenv
+;; (COLORTERM) or terminfo flags — lisp setenv can't influence it, and the
+;; launchd daemon has no COLORTERM. Terminals must therefore advertise
+;; truecolor through terminfo (Tc flag) installed in ~/.terminfo; see
+;; README.org "Daemon truecolor".
+
+
+;;; Package setup (built-in package.el) -----
+;; GNU + NonGNU ELPA are the built-in defaults; MELPA added for the rest.
+;; No lockfiles — versions float; M-x package-upgrade-all to update.
+(require 'package)
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+(unless (bound-and-true-p package--initialized)
+  (package-initialize))          ; normal startup activates earlier; --batch doesn't
+(unless package-archive-contents
+  (package-refresh-contents))    ; fresh machine: fetch archive indexes once
+
+(require 'use-package)
+(setq use-package-always-ensure t)   ; built-ins opt out with :ensure nil
+
+(use-package kkp   ; GNU ELPA
+  :config (global-kkp-mode +1))
+
+
+;;; Mode line -----
+(defun vp/mode-line ()
+  "Custom mode-line format."
+  '(" - "
+    (:eval (propertize (buffer-name) 'face 'font-lock-constant-face))
+    "%6l:%c (%o) "
+    (:eval (when vc-mode
+             (concat " | ⇅ " (substring-no-properties vc-mode 5))))
+    mode-line-format-right-align
+    (:eval (concat "  " (symbol-name major-mode)))
+    "  " mode-line-misc-info))
+
+
+;;; Basic Emacs options -----
 (use-package emacs
   :ensure nil
   :init
-  ;; Directory organization (consistent with early-init.el)
-  (defvar emacs-var-dir (expand-file-name "var/" user-emacs-directory))
-  (unless (file-exists-p emacs-var-dir) (make-directory emacs-var-dir t))
-  
-  ;; User info
-  (setq user-mail-address "vp@paulaus.com"
-        user-full-name "Vytautas Paulauskas")
-  
-  :custom
-  ;; Basic settings
-  (use-short-answers t)
-  (enable-recursive-minibuffers t)
-  (indent-tabs-mode nil)
-  (tab-width 2)
-  (truncate-lines t)
-  (require-final-newline t)
-  
-  ;; Performance
-  (auto-window-vscroll nil)
-  (frame-resize-pixelwise t)
-  (window-resize-pixelwise t)
-  (bidi-paragraph-direction 'left-to-right)
-  (so-long-threshold 1000)
-  
-  ;; Completion (Emacs 30.1)
-  (completion-cycle-threshold 3)
-  (completions-detailed t)
-  (read-buffer-completion-ignore-case t)
-  (read-file-name-completion-ignore-case t)
-  
-  ;; Scrolling
-  (scroll-margin 8)
-  (scroll-preserve-screen-position t)
-  (hscroll-step 1)
-  (hscroll-margin 1)
-  
-  ;; Frame title
-  (frame-title-format '("Emacs - " (:eval (if (buffer-file-name)
-                                                     (abbreviate-file-name (buffer-file-name))
-                                                   "%b")))))  ; Close use-package emacs
-
-;; Clean scratch buffer and suppress default startup 
-(setq initial-scratch-message nil
-      inhibit-startup-screen t
-      inhibit-startup-echo-area-message user-login-name
-      inhibit-startup-buffer-menu t)
-
-;;; File Management
-(use-package files
-  :ensure nil
-  :custom
-  ;; Backup organization
-  (backup-by-copying t)
-  (create-lockfiles nil)
-  (backup-directory-alist `(("." . ,(expand-file-name "backups/" emacs-var-dir))))
-  (auto-save-file-name-transforms `((".*" ,(expand-file-name "auto-save/" emacs-var-dir) t)))
-  (auto-save-no-message t)
-  (auto-save-interval 100)
+  ;; Customize would otherwise append custom-set-variables blobs to this
+  ;; hand-maintained file; everything here is set in lisp, so discard them.
+  (setq custom-file null-device)
+  (setq use-short-answers t
+        scroll-conservatively 101
+        confirm-kill-emacs 'yes-or-no-p
+        help-window-select t
+        help-window-keep-selected t
+        backup-by-copying t
+        backup-directory-alist `(("." . ,(file-name-concat user-emacs-directory "backup/")))
+        create-lockfiles nil
+        delete-by-moving-to-trash t
+        initial-scratch-message ""
+        initial-major-mode 'text-mode
+        ring-bell-function 'ignore
+        custom-safe-themes t
+        initial-buffer-choice t)
+  :hook ((prog-mode . display-line-numbers-mode)
+         (prog-mode . show-paren-mode))
   :config
-  (let ((auto-save-dir (expand-file-name "auto-save/" emacs-var-dir)))
-    (unless (file-exists-p auto-save-dir)
-      (make-directory auto-save-dir t))))
+  (setq-default truncate-lines t
+                display-line-numbers-width 3
+                indent-tabs-mode nil
+                fill-column 100
+                tab-width 4
+                mode-line-format (vp/mode-line))
 
-(use-package cus-edit
+  (auto-save-visited-mode 1)
+  (tool-bar-mode -1)
+  (menu-bar-mode -1)
+  (scroll-bar-mode -1)
+  (xterm-mouse-mode 1)
+  ;; smooth trackpad scrolling in GUI frames (no-op on tty).
+  ;; (repeat-mode is deliberately absent: its post-command transient map
+  ;; outranks meow's normal state.)
+  (pixel-scroll-precision-mode 1)
+  ;; tty truncation indicator: a dim … instead of the ancient `$'
+  ;; (GUI frames use fringe arrows and never consult this)
+  (unless standard-display-table
+    (setq standard-display-table (make-display-table)))
+  (set-display-table-slot standard-display-table 'truncation
+                          (make-glyph-code ?… 'shadow))
+  (set-display-table-slot standard-display-table 'wrap
+                          (make-glyph-code ?↩ 'shadow))
+
+  :bind (("M-u" . capitalize-word)
+         ("M-=" . count-words)
+         ;; stock C-x C-b is the ancient list-buffers; ibuffer succeeds it
+         ("C-x C-b" . ibuffer)
+         ;; buffer-switch reflex (outline nav: built-in M-g i imenu)
+         ("M-b" . switch-to-buffer)
+         ("<escape>" . keyboard-escape-quit)))
+
+(keymap-global-unset "C-x C-z")   ; suspend-frame, too easy to fat-finger
+
+(use-package help-mode
   :ensure nil
-  :custom
-  (custom-file (expand-file-name "custom.el" emacs-var-dir))
-  :hook (elpaca-after-init . (lambda () (load custom-file :noerror))))
+  :bind (:map help-mode-map
+         ("q" . kill-buffer-and-window)
+         ("<escape>" . kill-buffer-and-window)))
 
-;;; Memory & Performance
-(use-package gcmh
-  :ensure t
-  :demand t
-  :config (gcmh-mode 1))
 
-;;; Essential UI
-(use-package menu-bar :ensure nil :config (menu-bar-mode 1)) ; Keep on macOS
-(use-package tool-bar :ensure nil :config (tool-bar-mode -1))
-(use-package scroll-bar :ensure nil :config (scroll-bar-mode -1))
-(use-package delsel :ensure nil :config (delete-selection-mode 1))
-(use-package hl-line :ensure nil :config (global-hl-line-mode 1))
-(use-package paren :ensure nil :hook (prog-mode . show-paren-mode))
-(use-package autorevert :ensure nil :config (global-auto-revert-mode 1))
+;;; Clipboard -----
+;; tty kills reach the system clipboard via OSC 52 (xterm.el's
+;; setSelection). That code only runs for terminals whose TERM resolves
+;; to a term/ init file: ghostty's TERM=xterm-ghostty falls back to
+;; term/xterm.el by prefix, but wezterm's TERM=wezterm matches nothing —
+;; alias it. NOT forcing modifyOtherKeys: kkp owns the keyboard protocol.
+(add-to-list 'term-file-aliases '("wezterm" . "xterm-256color"))
+(setq xterm-extra-capabilities '(setSelection))
 
-;;; GPG Setup
-(use-package exec-path-from-shell
-  :ensure t
-  :when (eq system-type 'darwin)
-  :demand t
-  :custom
-  (exec-path-from-shell-variables '("PATH" "MANPATH" "SSH_AUTH_SOCK"))
-  (exec-path-from-shell-arguments '("-l"))
-  (exec-path-from-shell-shell-name "/bin/zsh")
+;; …and the reverse direction: OSC 52 is write-only (terminals refuse
+;; clipboard READS for security), so on tty frames C-y additionally
+;; consults the macOS pasteboard via pbpaste. GUI frames keep the
+;; native path. Returning nil means "kill-ring already has it".
+(defun vp/interprogram-paste ()
+  "System-clipboard text for `yank', on GUI and tty frames alike."
+  (if (display-graphic-p)
+      (gui-selection-value)
+    (let ((text (with-temp-buffer
+                  (call-process "pbpaste" nil t nil)
+                  (buffer-string))))
+      (unless (or (string-empty-p text)
+                  (equal text (car kill-ring)))
+        text))))
+(setq interprogram-paste-function #'vp/interprogram-paste)
+
+
+;;; Modal editing: meow -----
+;; Kakoune-style selection-first grammar, zero dependencies. Official
+;; Colemak layout from meow's KEYBINDING_COLEMAK.org.
+;; SPC is the leader in normal state — it opens `vp/leader-map' (see
+;; Command menu; keypad translation chains are disabled there).
+;; Special modes (dired, agenda) keep their native keys via motion
+;; state.
+(use-package meow
   :config
-  (exec-path-from-shell-initialize))
+  (defun meow-setup ()
+    (setq meow-cheatsheet-layout meow-cheatsheet-layout-colemak)
+    (meow-motion-define-key
+     ;; Use e to move up, n to move down.
+     ;; Since special modes usually use n to move down, we only overwrite e here.
+     '("e" . meow-prev)
+     '("<escape>" . ignore))
+    (meow-normal-define-key
+     '("0" . meow-expand-0)
+     '("1" . meow-expand-1)
+     '("2" . meow-expand-2)
+     '("3" . meow-expand-3)
+     '("4" . meow-expand-4)
+     '("5" . meow-expand-5)
+     '("6" . meow-expand-6)
+     '("7" . meow-expand-7)
+     '("8" . meow-expand-8)
+     '("9" . meow-expand-9)
+     '("-" . negative-argument)
+     '(";" . meow-reverse)
+     '("," . meow-inner-of-thing)
+     '("." . meow-bounds-of-thing)
+     '("[" . meow-beginning-of-thing)
+     '("]" . meow-end-of-thing)
+     '("/" . meow-visit)
+     '("a" . meow-append)
+     '("A" . meow-open-below)
+     '("b" . meow-back-word)
+     '("B" . meow-back-symbol)
+     '("c" . meow-change)
+     '("e" . meow-prev)
+     '("E" . meow-prev-expand)
+     '("f" . meow-find)
+     '("g" . meow-cancel-selection)
+     '("G" . meow-grab)
+     '("h" . meow-left)
+     '("H" . meow-left-expand)
+     '("i" . meow-right)
+     '("I" . meow-right-expand)
+     '("j" . meow-join)
+     '("k" . meow-kill)
+     '("l" . meow-line)
+     '("L" . meow-goto-line)
+     '("m" . meow-mark-word)
+     '("M" . meow-mark-symbol)
+     '("n" . meow-next)
+     '("N" . meow-next-expand)
+     '("o" . meow-block)
+     '("O" . meow-to-block)
+     '("p" . meow-yank)
+     '("q" . meow-quit)
+     '("r" . meow-replace)
+     '("s" . meow-insert)
+     '("S" . meow-open-above)
+     '("t" . meow-till)
+     '("u" . meow-undo)
+     ;; kak parity: U redoes (meow-undo-in-selection is M-x-only)
+     '("U" . undo-redo)
+     '("v" . meow-search)
+     '("w" . meow-next-word)
+     '("W" . meow-next-symbol)
+     '("x" . meow-delete)
+     '("X" . meow-backward-delete)
+     '("y" . meow-save)
+     '("z" . meow-pop-selection)
+     '("'" . repeat)
+     '("<escape>" . ignore)))
+  (meow-setup)
+  ;; Shells/terminals open in insert state — typing must reach the prompt
+  ;; (meow's default drops unlisted modes into normal state, where letters
+  ;; are editing commands). ESC still pops to normal for copying output;
+  ;; s re-enters insert.
+  (dolist (mode '((eshell-mode  . insert)
+                  (ghostel-mode . insert)))
+    (add-to-list 'meow-mode-state-list mode))
+  (meow-global-mode 1))
 
-(when (and (eq system-type 'darwin) (executable-find "gpg"))
-  (unless (getenv "GPG_TTY")
-    (setenv "GPG_TTY" (string-trim-right (shell-command-to-string "tty"))))
-  (setq epg-pinentry-mode 'loopback))
 
+;;; Saving + Recent -----
+(use-package recentf
+  :ensure nil
+  :hook (after-init . recentf-mode)
+  :custom (recentf-max-saved-items 60))
 
-;;; History & Persistence
 (use-package savehist
   :ensure nil
-  :custom
-  (history-length 100)
-  (savehist-file (expand-file-name "history" emacs-var-dir))
-  :config (savehist-mode 1))
+  :hook (after-init . savehist-mode))
 
 (use-package saveplace
   :ensure nil
-  :custom
-  (save-place-file (expand-file-name "places" emacs-var-dir))
   :config (save-place-mode 1))
 
-(use-package recentf
-  :ensure nil
-  :custom
-  (recentf-max-menu-items 50)
-  (recentf-max-saved-items 100)
-  (recentf-save-file (expand-file-name "recentf" emacs-var-dir))
-  (recentf-exclude `(,(regexp-quote emacs-var-dir) "\\.git/"))
-  :config (recentf-mode 1))
 
-;;; Fonts & Typography
-(use-package font-setup
-  :ensure nil
-  :hook (after-init . setup-fonts)
-  :preface
-  (defun font-available-p (font-name)
-    "Check if FONT-NAME is available."
-    (find-font (font-spec :name font-name)))
-  
-  (defun setup-fonts ()
-    "Setup fonts optimized for macOS."
-    (let* ((mono-fonts '("Aeonik Mono", "SF Mono" "Menlo" "Monaco"))
-           (prop-fonts '("Codelia", "SF Pro Text" "Helvetica Neue" "Helvetica"))
-           (mono-font (cl-find-if #'font-available-p mono-fonts))
-           (prop-font (cl-find-if #'font-available-p prop-fonts)))
+;;; Themes + Visuals -----
+(add-to-list 'custom-theme-load-path (expand-file-name "themes" user-emacs-directory))
+(setq frame-background-mode 'dark)
+;; uniform text size everywhere — org headings by color/bold only
+;; (consulted when the theme builds its face specs, so set before load)
+(setq dracula-pro-pro-enlarge-headings nil)
+(load-theme 'dracula-pro-pro t)
 
-      (when mono-font
-        (set-face-attribute 'default nil :family mono-font :height 200)
-        (set-face-attribute 'fixed-pitch nil :family mono-font))
-      
-      (when prop-font
-        (set-face-attribute 'variable-pitch nil :family prop-font :height 1.0))
-      
-      (message "Fonts: mono='%s' prop='%s'" (or mono-font "default") (or prop-font "default"))))
-  (provide 'font-setup))
+;; Font — match wezterm/ghostty: Aeonik Mono Medium 18pt.
+;; Only affects GUI frames; terminal frames use the terminal's own font.
+(set-face-attribute 'default nil
+                    :family "Aeonik Mono" :weight 'medium :height 180)
 
-;;; Theme
-(use-package uwu-theme
-  :ensure t
-  :demand t
-  :custom
-  (uwu-distinct-line-numbers nil)
-  (uwu-height-title-3 1.1)
-  (uwu-scale-org-headlines t)
-  (uwu-use-variable-pitch t)
-  :config
-  (load-theme 'uwu t))
+(defun vp/transparent-background ()
+  "Unset the default background in terminal frames for true transparency."
+  (unless (display-graphic-p)
+    (set-face-background 'default "unspecified-bg" (selected-frame))))
 
-;;; Icons
-(use-package nerd-icons
-  :ensure t
-  :demand t)
+(add-hook 'window-setup-hook            #'vp/transparent-background)
+(add-hook 'server-after-make-frame-hook #'vp/transparent-background)
 
-(use-package doom-modeline
-  :ensure t
-  :demand t
-  :after nerd-icons
-  :custom
-  (doom-modeline-height 25)
-  (doom-modeline-bar-width 3)
-  (doom-modeline-icon t)
-  (doom-modeline-major-mode-icon t)
-  (doom-modeline-major-mode-color-icon t)
-  (doom-modeline-buffer-file-name-style 'truncate-upto-project)
-  (doom-modeline-buffer-state-icon t)
-  (doom-modeline-buffer-modification-icon t)
-  (doom-modeline-minor-modes nil)
-  (doom-modeline-enable-word-count nil)
-  (doom-modeline-buffer-encoding nil)
-  (doom-modeline-indent-info nil)
-  (doom-modeline-checker-simple-format t)
-  (doom-modeline-vcs-max-length 15)
-  :config
-  (doom-modeline-mode 1))
 
-;;; Completion Framework
-;; Enhanced completion settings
-(setopt completion-cycle-threshold 1                   ; TAB cycles candidates
-        completion-auto-help 'always                   ; Open completion always; `lazy' another option
-        completions-max-height 20                      ; This is arbitrary
-        completions-detailed t
-        completions-format 'one-column
-        completions-group t
-        completion-auto-select 'second-tab)            ; Much more eager
+;;; Completions (all built-in) -----
+;; Minibuffer: fido-vertical, flex matching.
+(fido-vertical-mode 1)
 
-(use-package vertico
-  :ensure t
-  :demand t
-  :custom
-  (vertico-cycle t)
-  (vertico-scroll-margin 2)
-  :config (vertico-mode 1))
+;; In-buffer: completion-preview ghost text from the buffer's capf
+;; sources (eglot feeds these) — TAB accepts, M-i/M-n/M-p cycle.
+;; Hook-based, NOT global: in eshell it would re-run pcomplete on
+;; every keystroke, which lags typing.
+(add-hook 'prog-mode-hook #'completion-preview-mode)
+(add-hook 'text-mode-hook #'completion-preview-mode)
 
-(use-package marginalia
-  :ensure t
-  :demand t
-  :config (marginalia-mode 1))
+;; project-find-regexp (SPC /) searches with ripgrep; `r' in its
+;; results buffer is project-wide query-replace
+(setq xref-search-program 'ripgrep)
 
-(use-package orderless
-  :ensure t
-  :demand t
-  :custom
-  (completion-styles '(orderless basic))
-  (completion-category-overrides 
-   '((file (styles basic partial-completion))
-     (command (styles orderless))
-     (variable (styles orderless))
-     (symbol (styles orderless)))))
 
-(use-package corfu
-  :ensure t
-  :demand t
-  :custom
-  (corfu-auto t)
-  (corfu-cycle t)
-  (corfu-scroll-margin 2)
-  (corfu-quit-no-match 'separator)
-  (corfu-preview-current 'insert)
-  :config (global-corfu-mode 1))
+;;; Custom tools + programming domain -----
+;; tools.el: self-contained commands (ask-ai, file ops, zoxide, eshell)
+;; programming.el: treesit, eglot, flymake, languages, git
+(dolist (f '("tools.el" "programming.el"))
+  (let ((path (expand-file-name f user-emacs-directory)))
+    (when (file-exists-p path) (load path nil 'nomessage))))
 
-(use-package cape
-  :ensure t
-  :config
-  (add-to-list 'completion-at-point-functions #'cape-dabbrev)
-  (add-to-list 'completion-at-point-functions #'cape-file))
 
-;;; Nerd Icons Integrations
-;; For Marginalia
-(use-package nerd-icons-completion
-  :ensure t
-  :after marginalia
-  :config
-  (add-hook 'marginalia-mode-hook #'nerd-icons-completion-marginalia-setup))
+;;; Dired -----
+;; Nerd Font glyphs — terminal frames get them via ghostty/wezterm font
+;; fallback; GUI frames via Symbols Nerd Font (brew cask, see README).
+(use-package nerd-icons :defer t)
 
-;; For Corfu
-(use-package nerd-icons-corfu
-  :ensure t
-  :after corfu
-  :config
-  (add-to-list 'corfu-margin-formatters #'nerd-icons-corfu-formatter))
-
-;; For dired
 (use-package nerd-icons-dired
-  :ensure t
   :hook (dired-mode . nerd-icons-dired-mode))
 
-;;; Search & Navigation
-(use-package isearch
-  :ensure nil
+;; TAB unfolds a directory inline (yazi/modern-editor tree behavior)
+(use-package dired-subtree
+  :after dired
+  :bind (:map dired-mode-map
+         ("TAB" . dired-subtree-toggle))
   :custom
-  (isearch-lazy-count t)
-  (search-default-mode #'char-fold-to-regexp))
+  (dired-subtree-use-backgrounds nil))
 
-(use-package consult
-  :ensure t
-  :custom
-  (xref-show-xrefs-function #'consult-xref)
-  (xref-show-definitions-function #'consult-xref)
-  (consult-narrow-key "<"))
-
-(use-package which-key
-  :ensure t
-  :custom (which-key-idle-delay 0.8)
-  :config (which-key-mode 1))
-
-(use-package ace-window
-  :ensure t
-  :custom (aw-keys '(?a ?s ?d ?f ?g ?h ?j ?k ?l))
-  :config (ace-window-display-mode 1))
-
-;;; Org Mode
-(use-package calendar
+(use-package dired
   :ensure nil
-  :custom (calendar-week-start-day 1))
+  :hook ((dired-mode . dired-hide-details-mode)
+         (dired-mode . hl-line-mode))
+  :init
+  ;; --group-directories-first is GNU-only; on macOS use coreutils gls if
+  ;; available, else fall back to switches BSD ls understands.
+  (when (and (eq system-type 'darwin) (executable-find "gls"))
+    (setq insert-directory-program "gls"))
+  :custom
+  (dired-listing-switches
+   (if (or (not (eq system-type 'darwin)) (executable-find "gls"))
+       "-alh --group-directories-first"
+     "-alh"))
+  (dired-kill-when-opening-new-dired-buffer t)
+  ;; with two dired windows open, copy/move defaults to the other one
+  (dired-dwim-target t)
+  ;; yazi/colemak navigation: h up, i enter (n/e via meow motion).
+  ;; Everything situational (sort, details, marks…) is stock keys + `?'.
+  :bind (:map dired-mode-map
+         ("h" . dired-up-directory)
+         ("i" . dired-find-file)))
 
+;; casual — its tmenu commands are package autoloads; loading eagerly
+;; would drag the whole suite + transient (~300ms) into the first dired
+;; buffer, so only the key bindings are wired here.
+;; Convention: bare ? = "this buffer's menu" in special modes; C-? in
+;; editing modes (where ? self-inserts). casual covers more modes
+;; (calc, man, bookmarks, image, …) — a mode earns its line here the
+;; day a real session wants it.
+(use-package casual :defer t)
+;; preloaded maps bind directly; the rest bind when their mode loads
+(keymap-set isearch-mode-map    "?"   #'casual-isearch-tmenu)
+(keymap-set emacs-lisp-mode-map "C-?" #'casual-elisp-tmenu)
+(pcase-dolist (`(,feature ,map ,key ,cmd)
+               '((dired      dired-mode-map       "?"   casual-dired-tmenu)
+                 (ibuffer    ibuffer-mode-map     "?"   casual-ibuffer-tmenu)
+                 (info       Info-mode-map        "?"   casual-info-tmenu)
+                 (org-agenda org-agenda-mode-map  "?"   casual-agenda-tmenu)
+                 (calendar   calendar-mode-map    "?"   casual-calendar-tmenu)
+                 (help-mode  help-mode-map        "?"   casual-help-tmenu)
+                 (compile    compilation-mode-map "?"   casual-compile-tmenu)
+                 (org        org-mode-map         "C-?" casual-org-tmenu)))
+  (with-eval-after-load feature
+    (keymap-set (symbol-value map) key cmd)))
+
+;; ediff builds its keymap at session start (ediff-mode-map is defvar'd
+;; nil), so binding the map symbol at init breaks whenever ediff.el got
+;; loaded early — use ediff's own keymap-setup hook.
+(defun vp/ediff-casual-key ()
+  (define-key ediff-mode-map "?" #'casual-ediff-tmenu))
+(add-hook 'ediff-keymap-setup-hook #'vp/ediff-casual-key)
+
+;;; Org Mode -----
+(defun vp/all-org-files ()
+  "All org files under `org-directory' (refile targets)."
+  (directory-files-recursively org-directory "\\.org$"))
+
+(defun vp/refresh-agenda-files (&rest _)
+  "Set `org-agenda-files' to the curated agenda set.
+Always inbox.org and agenda.org, plus any indexed file that carries the
+:agenda: filetag — the per-project opt-in: put `#+filetags: :agenda:'
+at the top of a file and its todos join the agenda. Everything else
+(legacy todos, project READMEs) stays out of the agenda but remains
+searchable through the org-mem index (SPC n f, SPC n /)."
+  (interactive)
+  (setq org-agenda-files
+        (delete-dups
+         (append
+          (list (expand-file-name "inbox.org" org-directory)
+                (expand-file-name "agenda.org" org-directory))
+          (when (fboundp 'org-mem-all-entries)
+            (mapcar #'org-mem-entry-file
+                    (seq-filter
+                     (lambda (e) (member "agenda" (org-mem-entry-tags e)))
+                     (org-mem-all-entries))))))))
+
+;; Emacs 30 bundles org 9.7 — the built-in satisfies org-modern/org-node
+;; version requirements, so package.el never downloads org.
 (use-package org
   :ensure nil
-  :hook 
-  ((org-mode . org-indent-mode)
-   (org-mode . visual-line-mode)
-   (org-mode . variable-pitch-mode))
+  :hook (org-mode . visual-line-mode)
   :custom
-  (org-ellipsis " ⤵") 
-  (org-hide-emphasis-markers t)
+  (org-ellipsis " ⤵")
+  (org-startup-indented t)
   (org-startup-folded 'content)
-  (org-capture-bookmark nil)
-  (org-id-locations-file (expand-file-name "org-id-locations" emacs-var-dir))
-  (org-clock-persist-file (expand-file-name "org-clock-save.el" emacs-var-dir))
-  (org-directory "~/Org")
-  (org-default-notes-file (expand-file-name "inbox.org" org-directory))
-  
-  ;; Simple TODO keywords
-  (org-todo-keywords
-   '((sequence "TODO(t)" "IN-PROGRESS(p)" "WAITING(w)" "|" "DONE(d)"))))
-
-(use-package org-modern
-  :ensure t
-  :hook (org-mode . org-modern-mode)
-  :custom
-  ;; Minimal bullets
-  (org-modern-star ["•" "◦" "▸" "▹"])
-  
-  (org-modern-todo-faces
-   '(("TODO" 
-      :background "#ff6b6b" 
-      :foreground "white" 
-      :weight bold
-      :box nil)
-     ("IN-PROGRESS" 
-      :background "#4ecdc4" 
-      :foreground "white" 
-      :weight bold
-      :box nil)
-     ("WAITING" 
-      :background "#ffe66d" 
-      :foreground "#2c3e50" 
-      :weight bold
-      :box nil)
-     ("DONE" 
-      :background "#95e1d3" 
-      :foreground "#2c3e50" 
-      :weight bold
-      :box nil)))
-  
-  :config
-  (set-face-attribute 'org-modern-todo nil 
-                      :height 1.0 
-                      :box nil 
-                      :weight 'bold))
-
-;;; Org-roam - Personal Knowledge Management
-(use-package org-roam
-  :ensure t
-  :demand t
-  :custom
-  (org-roam-directory (file-truename "~/Org"))
-  (org-roam-dailies-directory "daily/")
-  (org-roam-completion-everywhere t)
-  (org-roam-capture-templates
-   '(("d" "default" plain "%?"
-      :target (file+head "%<%Y%m%d%H%M%S>-${slug}.org"
-                         "#+title: ${title}\n")
-      :unnarrowed t)
-     ("n" "note" plain "%?"
-      :target (file+head "%<%Y%m%d%H%M%S>-${slug}.org"
-                         "#+title: ${title}\n#+filetags: :note:\n")
-      :unnarrowed t)
-     ("p" "project" plain "%?"
-      :target (file+head "%<%Y%m%d%H%M%S>-${slug}.org"
-                         "#+title: ${title}\n#+filetags: :project:\n")
-      :unnarrowed t)))
-  (org-roam-dailies-capture-templates
-   '(("d" "default" entry
-      "* %?"
-      :target (file+head "%<%Y-%m-%d>.org"
-                         "#+title: %<%Y-%m-%d>\n"))))
-  :config
-  ;; Ensure directory exists
-  (unless (file-directory-p org-roam-directory)
-    (make-directory org-roam-directory t))
-  
-  ;; Initialize the database
-  (org-roam-db-autosync-mode)
-  
-  ;; Add org-roam files to org-agenda
-  (setq org-agenda-files 
-      (append org-agenda-files
-              (directory-files-recursively org-roam-directory "\\.org$"))))
-
-;; Enhanced search for org-roam with content previews
-(use-package consult-org-roam
-  :ensure t
-  :after (consult org-roam)
-  :custom
-  (consult-org-roam-grep-func #'consult-ripgrep)
-  :config
-  ;; Activate the minor mode
-  (consult-org-roam-mode 1))
-
-;; TODO Improve how its shown. Maybe show project title or daily. Add a dashboard for next 3 days as well.
-(use-package org-agenda
-  :ensure nil
-  :after org
-  :custom
-  ;; Remove filename/category completely from todo view
-  (org-agenda-prefix-format
-   '((agenda . " %i %?-12t% s")     ; Agenda: just time and status
-     (todo . " ")                   ; Todo: just the task, no filename/category
-     (tags . " ")                   ; Tags: just the task  
-     (search . " ")))               ; Search: just the task
-  
-  ;; Hide tags to reduce clutter
-  (org-agenda-remove-tags t)
-  
-  ;; Clean separator
+  (org-cycle-separator-lines 1)
+  (org-hide-emphasis-markers t)
+  (org-log-done 'time)
+  (org-log-into-drawer t)
+  (org-tags-column 0)
+  (org-fold-catch-invisible-edits 'show-and-error)
+  (org-special-ctrl-a/e t)
+  (org-insert-heading-respects-content t)
+  (org-clock-persist 'history)
+  (org-clock-out-when-done t)
+  (org-clock-into-drawer t)
+  ;; Don't run org startup options (indent etc.) in files the agenda visits
+  (org-agenda-inhibit-startup t)
+  ;; No splits: agenda and src-block editing take over the current window
+  (org-agenda-window-setup 'current-window)
+  (org-src-window-setup 'current-window)
+  ;; De-noise the agenda: no category gutter column, no done-item echoes,
+  ;; hide the :agenda: plumbing tag, thin block separator
+  (org-agenda-prefix-format '((agenda . "  %?-12t% s")
+                              (todo   . "  ")
+                              (tags   . "  ")
+                              (search . "  ")))
+  (org-agenda-hide-tags-regexp "\\`agenda\\'")
   (org-agenda-block-separator ?─)
-  
-  :config  
-  ;; Custom agenda command for clean todo list
+  (org-agenda-skip-scheduled-if-done t)
+  (org-agenda-skip-deadline-if-done t)
+  :config
+  (setq org-directory (file-truename "~/Notes"))
+  (make-directory org-directory t)
+  ;; The two agenda anchors always exist (the agenda errors on missing files)
+  (dolist (f '("inbox.org" "agenda.org"))
+    (let ((path (expand-file-name f org-directory)))
+      (unless (file-exists-p path)
+        (with-temp-file path (insert "#+title: " (file-name-base f) "\n")))))
+  (vp/refresh-agenda-files)
+
+  ;; The daily-driver view is `o'. `n' is re-added explicitly: it is not a
+  ;; dispatcher built-in but the DEFAULT VALUE of this variable, so setting
+  ;; the variable without it silently removes the "view all" entry.
   (setq org-agenda-custom-commands
-        '(("n" "Clean Todo List" todo ""
-           ((org-agenda-overriding-header "📋 Tasks")
-            (org-agenda-prefix-format "  ")           ; Just indent, nothing else
-            (org-agenda-remove-tags t)
-            (org-agenda-todo-ignore-scheduled 'future))))))
+        `(("n" "Agenda and all TODOs"
+           ((agenda "") (alltodo "")))
+          ("o" "Overview: today · next · waiting · inbox"
+           ((agenda "" ((org-agenda-span 'day)
+                        (org-agenda-overriding-header "Today")))
+            (todo "NEXT" ((org-agenda-overriding-header "Next")))
+            (todo "WAIT" ((org-agenda-overriding-header "Waiting")))
+            (todo "TODO"
+                  ((org-agenda-files (list ,(expand-file-name "inbox.org" org-directory)))
+                   (org-agenda-overriding-header "Inbox")))))))
 
-;; Even cleaner: bind this to org keybinding
-(with-eval-after-load 'org
-  (bind-keys
-   :prefix "C-c o"
-   :prefix-map org-prefix-map
-   ("t" . (lambda () (interactive) (org-agenda nil "n")))))  ; Clean todo list
+  (setq org-todo-keywords
+        '((sequence "TODO(t)" "NEXT(n)" "WAIT(w)" "|" "DONE(d)" "CANCELLED(c)")))
 
-;;; Tree-sitter & Language Support
-(use-package treesit
-  :ensure nil
-  :when (treesit-available-p)
+  (setq org-todo-keyword-faces
+        '(("NEXT"      . (:foreground "#50fa7b" :weight bold))
+          ("WAIT"      . (:foreground "#f1fa8c"))
+          ("CANCELLED" . (:foreground "#6272a4" :strike-through t))))
+
+  (setq org-capture-templates
+        `(("i" "Inbox" entry
+           (file ,(expand-file-name "inbox.org" org-directory))
+           "* TODO %?\n/Captured/ %U\n")
+
+          ("m" "Meeting" entry
+           (file+headline ,(expand-file-name "agenda.org" org-directory) "Meetings")
+           ,(concat "* %? :meeting:\n"
+                    "<%<%Y-%m-%d %a %H:00>>\n\n"
+                    "** Attendees\n\n"
+                    "** Notes\n\n"
+                    "** Actions\n"))
+
+          ("e" "Event" entry
+           (file+headline ,(expand-file-name "agenda.org" org-directory) "Events")
+           "* %?\n<%<%Y-%m-%d %a %H:00>>")))
+
+  ;; Refile across ALL notes, not just the narrowed agenda set
+  (setq org-refile-targets '((vp/all-org-files :maxlevel . 3))
+        org-refile-use-outline-path 'file
+        org-outline-path-complete-in-steps nil)
+
+  (org-clock-persistence-insinuate)
+  (add-hook 'org-capture-mode-hook #'delete-other-windows))
+
+;;; Command menu (SPC leader) -----
+;; A dedicated keymap: SPC is ONLY this menu — meow's keypad
+;; translation chains (SPC x → C-x C-… etc.) are disabled below, so
+;; every letter is a menu key and real chords are typed as real chords
+;; (C-x C-f, C-h k — muscle memory stays portable). C-c stays purely
+;; mode-specific (org C-c C-*, eglot C-c e, …). Bindings are
+;; (LABEL . COMMAND) menu items — which-key shows LABEL natively.
+(defvar-keymap vp/leader-file-map)
+(pcase-dolist (`(,key ,label ,cmd)
+               '(("r" "rename/move file"   rename-visited-file)
+                 ("o" "reveal in Finder"   vp/file-reveal)
+                 ("O" "open (default app)" vp/file-open-default)
+                 ("y" "copy file path"     vp/file-copy-path)))
+  (keymap-set vp/leader-file-map key (cons label cmd)))
+
+(defvar-keymap vp/leader-notes-map)
+(pcase-dolist (`(,key ,label ,cmd)
+               '(("f" "find/create note"   org-node-find)
+                 ("i" "insert link"        org-node-insert-link)
+                 ("/" "grep notes"         org-node-grep)
+                 ("b" "backlinks/context"  org-node-context-toggle)
+                 ("d" "daily note (today)" vp/daily-today)
+                 ("s" "browse dailies"     org-node-seq-dispatch)))
+  (keymap-set vp/leader-notes-map key (cons label cmd)))
+
+(defvar-keymap vp/leader-map)
+(pcase-dolist (`(,key ,label ,cmd)
+               `(("f" "find file (project)" project-find-file)
+                 ("." "find file (path)"    find-file)
+                 ("F" "file ops"             ,vp/leader-file-map)
+                 ("r" "recent files"         recentf-open)
+                 ("j" "jump dir (z)"         vp/zoxide-jump)
+                 ("D" "dired here"           dired-jump)
+                 ("b" "switch buffer"        switch-to-buffer)
+                 ("/" "grep project"         project-find-regexp)
+                 ("d" "close buffer"         kill-current-buffer)
+                 ("a" "agenda"               org-agenda)
+                 ("v" "git status"           magit-status)
+                 ("c" "capture"              org-capture)
+                 ("n" "notes"                ,vp/leader-notes-map)
+                 ("h" "help"                 ,help-map)
+                 ("i" "ask ai"               vp/ai-ask)
+                 ("I" "ask ai (follow-up)"   vp/ai-ask-more)
+                 ("t" "claude code"          claude-code-ide-menu)
+                 ;; the everything-else menu: rectangles, registers, sort…
+                 ("o" "edit menu (casual)"   casual-editkit-main-tmenu)
+                 ("s" "eshell here"          vp/eshell-here)
+                 ("?" "cheatsheet"           meow-cheatsheet)))
+  (keymap-set vp/leader-map key (cons label cmd)))
+
+;; no keypad translation chains — SPC dispatches straight into the menu
+(setq meow-keypad-start-keys nil
+      meow-keypad-meta-prefix nil
+      meow-keypad-ctrl-meta-prefix nil
+      meow-keypad-literal-prefix nil
+      meow-keypad-leader-dispatch vp/leader-map)
+
+
+;;; Org Extensions -----
+(use-package org-modern
+  :after org
+  :hook ((org-mode . org-modern-mode)
+         (org-agenda-finalize . org-modern-agenda))
   :custom
-  (major-mode-remap-alist
-   '((python-mode . python-ts-mode)
-     (bash-mode . bash-ts-mode)
-     (go-mode . go-ts-mode)
-     (markdown-mode . markdown-ts-mode)))
-  :config
-  (setq treesit-language-source-alist
-        '((bash "https://github.com/tree-sitter/tree-sitter-bash")
-          (go "https://github.com/tree-sitter/tree-sitter-go")
-          (python "https://github.com/tree-sitter/tree-sitter-python")
-          (markdown "https://github.com/ikatyang/tree-sitter-markdown"))))
+  (org-modern-star 'replace)
+  (org-modern-replace-stars "❯")
+  (org-modern-list '((?* . "•") (?+ . "›") (?- . "–")))
+  (org-modern-checkbox '((?X . "✓") (?\s . "☐") (?- . "–")))
+  (org-modern-table-vertical 1)
+  (org-modern-table-horizontal 0.2)
+  ;; no pill labels — flat is the aesthetic here; TODO states render as
+  ;; glyphs instead (see vp/org-prettify-todos below)
+  (org-modern-todo nil)
+  (org-modern-tag nil)
+  (org-modern-timestamp nil))
 
-;;; Development Tools
-(use-package eglot
+;; TODO states as glyphs — built-in prettify-symbols composes the
+;; keyword into a symbol; the real text stays underneath (point on it
+;; expands the word for editing). org-todo-keyword-faces still colors
+;; them. Note: the agenda shows the plain words — it isn't org-mode.
+(defun vp/org-prettify-todos ()
+  (setq-local prettify-symbols-alist
+              '(("TODO"      . ?☐)
+                ("NEXT"      . ?▸)
+                ("WAIT"      . ?◷)
+                ("DONE"      . ?✓)
+                ("CANCELLED" . ?✗))
+              prettify-symbols-unprettify-at-point 'right-edge)
+  (prettify-symbols-mode 1))
+(add-hook 'org-mode-hook #'vp/org-prettify-todos)
+
+;; Author recommends :config (not :hook) and a high hook depth so this attaches
+;; after org-indent has set up. See https://github.com/jdtsmith/org-modern-indent
+(use-package org-modern-indent   ; github-only, fetched by package-vc
+  ;; :ensure nil is REQUIRED next to :vc under use-package-always-ensure,
+  ;; else the ensure and vc handlers both install and collide.
   :ensure nil
-  :hook
-  ((python-mode python-ts-mode) . eglot-ensure)
-  ((go-mode go-ts-mode) . eglot-ensure)
-  ((markdown-mode markdown-ts-mode) . eglot-ensure)
+  :vc (:url "https://github.com/jdtsmith/org-modern-indent" :rev :newest)
+  :after org
+  :config
+  (add-hook 'org-mode-hook #'org-modern-indent-mode 90))
+
+(use-package org-appear
+  :hook (org-mode . org-appear-mode)
   :custom
-  (eglot-autoshutdown t)
-  (eglot-extend-to-xref t)
-  (eglot-connect-timeout 10)
+  (org-appear-autoemphasis t)
+  (org-appear-autolinks t)
+  (org-appear-autosubmarkers t))
+
+
+;;; Org Node -----
+;; org-roam replacement: no SQLite database, nodes indexed by org-mem.
+;; Creating a new node is just `org-node-find' with a name that doesn't exist.
+(use-package org-node
+  :after org
+  :demand t   ; load with org so indexing modes come on, not on first C-c n
+  :init
+  ;; Index org files EVERYWHERE notes live — ~/Notes plus org files nested
+  ;; in code projects. This feeds find/grep/backlinks (SPC n …), NOT the
+  ;; agenda: agenda membership is curated, see `vp/refresh-agenda-files'.
+  (setq org-mem-do-sync-with-org-id t
+        org-mem-watch-dirs
+        (seq-filter #'file-directory-p
+                    (list org-directory "~/Projects" "~/Git")))
   :config
-  (add-to-list 'eglot-server-programs '((go-mode go-ts-mode) . ("gopls")))
-  (add-to-list 'eglot-server-programs '((python-mode python-ts-mode) . ("pylsp")))
-  (add-to-list 'eglot-server-programs '((markdown-mode markdown-ts-mode) . ("marksman"))))
+  (org-mem-updater-mode)
+  (org-node-cache-mode)
+  ;; Keep the narrowed agenda list current as org-mem (re)scans notes
+  (add-hook 'org-mem-post-full-scan-functions #'vp/refresh-agenda-files)
+  (add-hook 'org-mem-post-targeted-scan-functions #'vp/refresh-agenda-files)
+  ;; Dailies: YYYY-MM-DD.org files under <notes>/daily as a node sequence
+  ;; (org-node-seq-dispatch browses/creates by calendar date)
+  (require 'org-node-seq)
+  (setq org-node-seq-defs
+        (list (org-node-seq-def-on-filepath-sort-by-basename
+               "d" "Daily" (file-name-concat org-directory "daily") nil t)))
+  (org-node-seq-mode))
 
-(use-package consult-eglot
-  :ensure t
-  :after (consult eglot))
+(autoload 'org-node-seq-dispatch "org-node-seq" nil t)
 
-(use-package eldoc
-  :ensure nil
-  :custom (eldoc-echo-area-use-multiline-p nil))
+(defun vp/daily-today ()
+  "Open today's daily note, creating it as a node if missing.
+Mirrors the `:creator' of the \"d\" sequence so created files get an
+ID and join the sequence."
+  (interactive)
+  (require 'org)       ; org's config sets org-directory, loads org-node
+  (let* ((dir (file-name-concat org-directory "daily"))
+         (file (file-name-concat dir (format-time-string "%Y-%m-%d.org"))))
+    (make-directory dir t)
+    (if (file-exists-p file)
+        (find-file file)
+      (let ((org-node-creation-fn #'org-node-new-file)
+            (org-node-file-directory-ask dir))
+        (org-node-create (format-time-string "%Y-%m-%d") (org-id-new) "d")))))
 
-;;; Language Modes
-(use-package go-mode
-  :ensure t
+
+;;; Claude Code (MCP-integrated coding agent) -----
+;; claude-code-ide bridges the Claude Code CLI into Emacs over MCP:
+;; Claude sees buffers/selections, uses xref/imenu/flymake as tools, and
+;; proposes edits through ediff. ghostel (libghostty — the Ghostty core
+;; as an Emacs module) hosts its heavy TUI: fewest rendering artifacts
+;; of the backends; pure-elisp terminals can't redraw it smoothly.
+(use-package ghostel
   :defer t
   :custom
-  (gofmt-command "goimports")
-  :hook (before-save . gofmt-before-save))
+  ;; outside elpa/ so package upgrades can't clobber a loaded module
+  (ghostel-module-directory (expand-file-name "ghostel/" user-emacs-directory))
+  (ghostel-module-auto-install 'download))   ; prebuilt, from GitHub releases
 
-(use-package markdown-mode
-  :ensure t
-  :defer t
-  :hook (markdown-mode . visual-line-mode))
-
-;;; Git
-;; Ensure transient is updated first to meet Magit's requirements
-(use-package transient
-  :ensure t
-  :demand t)
-
-(use-package magit
-  :ensure t
-  :defer t
-  :after transient
+(use-package claude-code-ide   ; github-only, fetched by package-vc
+  :ensure nil                  ; required next to :vc, see org-modern-indent
+  :vc (:url "https://github.com/manzaltu/claude-code-ide.el" :rev :newest)
+  :commands (claude-code-ide-menu)   ; bound to SPC t in the leader map
   :custom
-  (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1)
-  (magit-diff-refine-hunk 'all))
-
-(use-package diff-hl
-  :ensure t
-  :hook ((magit-pre-refresh . diff-hl-magit-pre-refresh)
-         (magit-post-refresh . diff-hl-magit-post-refresh))
-  :config (global-diff-hl-mode 1))
-
-;;; Utilities
-(use-package vundo
-  :ensure t
-  :defer t)
-
-(use-package reverse-im
-  :ensure t
-  :defer 2
-  :custom
-  (reverse-im-char-fold t)
-  (reverse-im-input-methods '("russian-computer"))
-  :config (reverse-im-mode 1))
-
-;;; Golden Ratio
-;; Automatically resize windows so the working window is always large enough.
-(use-package golden-ratio
-  :ensure t
-  :diminish golden-ratio-mode
-  :custom
-  (golden-ratio-auto-scale t)
+  (claude-code-ide-terminal-backend 'ghostel)
   :config
-  (golden-ratio-mode 1))
-
-;;; Cursor
-;; Adaptive cursor width: make cursor the width of the character it is under. i.e. full width of a TAB.
-;; https://pragmaticemacs.wordpress.com/2017/10/01/adaptive-cursor-width/
-(setopt x-stretch-cursor t)
-
-;;; Cursor trail on focus
-(use-package beacon
-  :ensure t
-  :custom
-  (beacon-blink-delay 0.6)
-  (beacon-blink-duration 0.6)
-  (beacon-color "#C7FF00")
-  (beacon-push-mark 35)
-  :config
-  (beacon-mode 1))
-
-;;; Visual feedback for operations
-(use-package goggles
-  :ensure t
-  :hook ((prog-mode text-mode) . goggles-mode)
-  :config
-  (setq-default goggles-pulse t)) ;; set to nil to disable pulsing
+  (claude-code-ide-emacs-tools-setup))
 
 
-;;; Modern File Manager with Dirvish
-(use-package dirvish
-  :ensure t
-  :demand t
-  :custom
-  ;; Dirvish appearance
-  (dirvish-quick-access-entries
-   '(("h" "~/"                 "Home")
-     ("d" "~/Downloads/"       "Downloads") 
-     ("o" "~/Org/"            "Org")
-     ("p" "~/Projects/"       "Projects")
-     ("t" "/tmp/"             "Temp")))
-  
-  ;; Enable features
-  (dirvish-attributes '(nerd-icons file-time file-size collapse subtree-state vc-state git-msg))
-  (dirvish-mode-line-format '(:left (sort symlink) :right (omit yank index)))
-  (dirvish-header-line-format '(:left (path) :right (free-space)))
-  
-  ;; Performance and behavior
-  (dirvish-emerge-groups '(("Recent files" (predicate . recent-files-2h))
-                          ("Documents" (extensions "pdf" "tex" "bib" "epub"))
-                          ("Video" (extensions "mp4" "mkv" "webm"))
-                          ("Pictures" (extensions "jpg" "png" "svg" "gif"))
-                          ("Audio" (extensions "mp3" "flac" "wav" "ape"))
-                          ("Archives" (extensions "gz" "rar" "zip"))))
-  
-  (dirvish-path-separators (list "  " "  " "  "))
-  (dirvish-default-layout '(0 0.4 0.6))
-  
-  ;; Preview settings
-  (dirvish-preview-dispatchers 
-   '(image gif video audio epub archive pdf))
-  
-  :config
-  ;; Initialize dirvish
-  (dirvish-override-dired-mode)
-  
-  ;; Colemak navigation bindings
-  (define-key dirvish-mode-map (kbd "n") 'dired-next-line)
-  (define-key dirvish-mode-map (kbd "e") 'dired-previous-line)
-  (define-key dirvish-mode-map (kbd "i") 'dired-find-file)
-  (define-key dirvish-mode-map (kbd "h") 'dired-up-directory)
-  
-  ;; Additional Colemak-friendly bindings
-  (define-key dirvish-mode-map (kbd "N") 'dirvish-fd-jump)      ; Jump with fd
-  (define-key dirvish-mode-map (kbd "E") 'dired-do-flagged-delete) ; Delete flagged
-  (define-key dirvish-mode-map (kbd "I") 'dired-maybe-insert-subdir) ; Insert subdir
-  (define-key dirvish-mode-map (kbd "H") 'dirvish-history-jump) ; History navigation
-  
-  ;; File operations (keeping familiar keys)
-  (define-key dirvish-mode-map (kbd "c") 'dired-do-copy)
-  (define-key dirvish-mode-map (kbd "m") 'dired-mark)
-  (define-key dirvish-mode-map (kbd "u") 'dired-unmark)
-  (define-key dirvish-mode-map (kbd "U") 'dired-unmark-all-marks)
-  (define-key dirvish-mode-map (kbd "d") 'dired-flag-file-deletion)
-  (define-key dirvish-mode-map (kbd "x") 'dired-do-flagged-delete)
-  (define-key dirvish-mode-map (kbd "r") 'dired-do-rename)
-  
-  ;; View and layout controls
-  (define-key dirvish-mode-map (kbd "TAB") 'dirvish-subtree-toggle)
-  (define-key dirvish-mode-map (kbd "M-t") 'dirvish-layout-toggle)
-  (define-key dirvish-mode-map (kbd "M-m") 'dirvish-mark-menu)
-  (define-key dirvish-mode-map (kbd "M-f") 'dirvish-file-info-menu)
-  (define-key dirvish-mode-map (kbd "M-s") 'dirvish-setup-menu)
-  
-  ;; Quick access and utilities
-  (define-key dirvish-mode-map (kbd "q") 'dirvish-quit)
-  (define-key dirvish-mode-map (kbd "?") 'dirvish-dispatch)
-  (define-key dirvish-mode-map (kbd "a") 'dirvish-quick-access)
-  (define-key dirvish-mode-map (kbd ".") 'dired-omit-mode)        ; Toggle hidden files
-  (define-key dirvish-mode-map (kbd "/") 'dirvish-narrow)
-  (define-key dirvish-mode-map (kbd "f") 'dirvish-fd)           ; Find with fd
-  (define-key dirvish-mode-map (kbd "s") 'dirvish-quicksort)
-  
-  ;; Preview controls  
-  (define-key dirvish-mode-map (kbd "v") 'dirvish-vc-menu)
-  (define-key dirvish-mode-map (kbd "p") 'dirvish-show-history)
-  (define-key dirvish-mode-map (kbd "b") 'dirvish-goto-bookmark)
-  
-  ;; External programs
-  (define-key dirvish-mode-map (kbd "E") 
-    (lambda () 
-      (interactive)
-      (let ((file (dired-get-filename)))
-        (cond
-         ((eq system-type 'darwin) 
-          (call-process "open" nil 0 nil file))
-         ((eq system-type 'gnu/linux)
-          (call-process "xdg-open" nil 0 nil file))
-         (t (message "External opening not configured for this system"))))))
-  
-  ;; Navigation shortcuts
-  (define-key dirvish-mode-map (kbd "<backspace>") 'dired-up-directory)
-  (define-key dirvish-mode-map (kbd "~") 
-    (lambda () (interactive) (dirvish "~")))
-  (define-key dirvish-mode-map (kbd "RET") 'dired-find-file)
-  (define-key dirvish-mode-map (kbd "SPC") 'dirvish-show-history))
-
-;; Optional: Dirvish side window for project browsing
-(use-package dirvish-side
-  :ensure nil  ; Part of dirvish
-  :after dirvish
-  :config
-  ;; You can bind this to quickly open a side file browser
-  (global-set-key (kbd "C-c d") 'dirvish-side))
-
-;; Optional: Enhanced dired-x features
-(use-package dired-x
+;;; Remote (TRAMP, built-in) -----
+;; No "connect" step: remote is path syntax. SPC . /ssh:host:path
+;; (hosts TAB-complete from ~/.ssh/config), eshell cd /ssh:host:…
+;; runs builtins remotely, /docker:name:/… for containers,
+;; /ssh:host|sudo:: for root. One ssh channel per host, multiplexed
+;; automatically; M-x tramp-cleanup-all-connections when one wedges.
+(use-package tramp
   :ensure nil
-  :after dirvish
-  :config
-  ;; Hide uninteresting files by default
-  (setq dired-omit-files "^\\.[^.]\\|^\\.\\.$\\|^\\.git$")
-  ;; Enable omit mode by default
-  (add-hook 'dired-mode-hook 'dired-omit-mode))
-  
-;;; Key Bindings
-(use-package bind-key :ensure nil :demand t)
-
-;; TAB completion in minibuffer
-(keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
-
-;; Multi-cursor
-;;; Multiple Cursors
-(use-package multiple-cursors
-  :ensure t
+  :defer t
   :custom
-  ;; Don't load mc/list file on startup (performance)
-  (mc/always-run-for-all t)
+  ;; auto-save-visited-mode would re-save remote buffers over the
+  ;; network on every idle pause; keep that a local-files behavior
+  (remote-file-name-inhibit-auto-save-visited t)
+  ;; trust cached remote file attributes for 60s instead of 10 —
+  ;; browsing re-stats far less; a stale listing costs a `g' revert
+  (remote-file-name-inhibit-cache 60)
   :config
-  ;; Store multiple-cursors data in var directory
-  (setq mc/list-file (expand-file-name "mc-lists.el" emacs-var-dir))
-  
-  ;; Global bindings for multiple cursors
-  (bind-keys
-   ;; Mark next/previous like this
-   ("C->" . mc/mark-next-like-this)
-   ("C-<" . mc/mark-previous-like-this)
-   ("C-c C->" . mc/mark-all-like-this)
-   ("C-c C-<" . mc/mark-all-like-this-dwim)
-   
-   ;; Mark all in region
-   ("C-c m r" . mc/mark-all-in-region)
-   ("C-c m R" . mc/mark-all-in-region-regexp)
-   
-   ;; Edit lines
-   ("C-c m l" . mc/edit-lines)
-   ("C-c m n" . mc/insert-numbers)
-   ("C-c m s" . mc/sort-regions)
-   ("C-c m R" . mc/reverse-regions)
-   
-   ;; Rectangle selections
-   ("C-c m SPC" . set-rectangular-region-anchor)
-   
-   ;; Skip/unmark
-   ("C-c m <" . mc/skip-to-previous-like-this)
-   ("C-c m >" . mc/skip-to-next-like-this)
-   ("C-c m u" . mc/unmark-next-like-this)
-   ("C-c m U" . mc/unmark-previous-like-this)
-   
-   ;; Mark by regexp/symbols
-   ("C-c m %" . mc/mark-all-symbols-like-this)
-   ("C-c m w" . mc/mark-all-words-like-this)
-   ("C-c m *" . mc/mark-all-like-this-in-defun)))
-
-;; Global bindings
-(bind-keys
- ("M-o" . ace-window)
- ("M-u" . vundo)
- ("M-g i" . consult-imenu)
- ("M-g g" . consult-goto-line)
- ("M-s r" . consult-ripgrep)
- ("M-s l" . consult-line)
- ("C-x b" . consult-buffer)
- ("C-x r b" . consult-bookmark)
- ("C-x C-r" . recentf)
- ("M-y" . consult-yank-pop))
-
-;; Org bindings
-(with-eval-after-load 'org
-  (bind-keys
-   :prefix "C-c o"
-   :prefix-map org-prefix-map
-   ("a" . org-agenda)
-   ("c" . org-capture)
-   ("l" . org-store-link)))
-
-;; Org-roam bindings
-(with-eval-after-load 'org-roam
-  (bind-keys
-   :prefix "C-c n"
-   :prefix-map org-roam-prefix-map
-   ("f" . org-roam-node-find)
-   ("r" . org-roam-node-random)
-   ("i" . org-roam-node-insert)
-   ("c" . org-roam-capture)
-   ("j" . org-roam-dailies-capture-today)
-   ("d" . org-roam-dailies-goto-today)
-   ("D" . org-roam-dailies-goto-date)
-   ("n" . org-roam-dailies-goto-next-note)
-   ("p" . org-roam-dailies-goto-previous-note)
-   ("t" . org-roam-tag-add)
-   ("T" . org-roam-tag-remove)
-   ("b" . org-roam-buffer-toggle)
-   ("g" . org-roam-graph)
-   ("s" . consult-org-roam-search)           ; Search note contents
-   ("S" . consult-org-roam-forward-links)    ; Search forward links
-   ("B" . consult-org-roam-backlinks)))      ; Search backlinks
-
-;; Development bindings
-(bind-keys
- :map prog-mode-map
- ("C-c f" . eglot-format-buffer)
- ("C-c r" . eglot-rename)
- ("C-c a" . eglot-code-actions)
- ("C-c s" . consult-eglot-symbols))
-
-;; Dired bindings
-; (with-eval-after-load 'dired
-;   (bind-keys
-;    :map dired-mode-map
-;    ;; Colemak HNEI navigation bindings
-;    ("n" . dired-next-line)
-;    ("e" . dired-previous-line) 
-;    ("i" . dired-find-file)
-;    ("h" . dired-up-directory)
-;    ;; Toggle hidden files (Command-Shift-. like macOS Finder)
-;    ("," . dired-omit-mode)
-;    ;; Navigation shortcuts
-;    ("<backspace>" . dired-up-directory)
-;    ("~" . (lambda () (interactive) (dired "~")))
-;    ;; Force external opening (fallback)
-;    ("E" . (lambda () 
-;             (interactive)
-;             (let ((file (dired-get-filename)))
-;               (cond
-;                ((eq system-type 'darwin) 
-;                 (call-process "open" nil 0 nil file))
-;                ((eq system-type 'gnu/linux)
-;                 (call-process "xdg-open" nil 0 nil file))
-;                (t (message "External opening not configured for this system"))))))))
+  ;; don't probe VC through the connection on every remote find-file —
+  ;; the main remote slowdown; magit still works when invoked
+  (setq vc-ignore-dir-regexp
+        (format "%s\\|%s" vc-ignore-dir-regexp tramp-file-name-regexp)))
 
 
-;; Isearch bindings
-(bind-keys
- :map isearch-mode-map
- ("M-s l" . consult-line))
+;;; Which Key (built-in since Emacs 30) -----
+;; Full-width bottom panel (the minibuffer display crams everything into
+;; an unreadable wall). Sorted by description so it reads like a menu;
+;; C-h while it's up pages through long maps (C-h n / C-h p).
+(use-package which-key
+  :ensure nil
+  :custom
+  (which-key-idle-delay 0.4)
+  (which-key-sort-order 'which-key-description-order)
+  (which-key-max-description-length 40)
+  (which-key-add-column-padding 2)
+  :config
+  (which-key-mode))
 
-;;; Performance Restoration
-(add-hook 'elpaca-after-init-hook
-          (lambda ()
-            (setq gc-cons-threshold (* 16 1024 1024)
-                  gc-cons-percentage 0.1)))
 
-(provide 'init)
+;;; Mail (mu4e) -----
+;; mu4e ships with mu (Nix-provided on nix-config machines); the whole mail
+;; setup is skipped on machines where it isn't installed.
+(let ((nix-mu4e-file (expand-file-name "nix-mu4e.el" user-emacs-directory)))
+  (when (file-exists-p nix-mu4e-file)
+    (load nix-mu4e-file nil 'nomessage)))
+
+(setq shr-use-colors nil)
+(use-package mu4e
+  :ensure nil                                ; Nix-provided; never from archives
+  :when (locate-library "mu4e")
+  :commands (mu4e mu4e-update-mail-and-index)
+  :init
+  (keymap-set vp/leader-map "m" (cons "mail" #'mu4e))
+  :custom
+  (mu4e-get-mail-command "mbsync -a")
+  (mu4e-change-filenames-when-moving t)      ; REQUIRED with mbsync, else UID clashes
+  (mu4e-confirm-quit nil)
+  (mu4e-sent-messages-behavior 'delete)      ; Proton saves Sent server-side; no 2nd copy
+  :config
+  ;; Folders are relative to the mu root (~/Mail). Account subdir is `proton`.
+  ;; VERIFY exact names with `ls ~/Mail/proton` and adjust if needed.
+  (setq mu4e-drafts-folder "/proton/Drafts"
+        mu4e-sent-folder   "/proton/Sent"
+        mu4e-trash-folder  "/proton/Trash"
+        mu4e-refile-folder "/proton/Archive")
+
+  (setq mu4e-maildir-shortcuts
+        '((:maildir "/proton/Inbox"   :key ?i)
+          (:maildir "/proton/Sent"    :key ?s)
+          (:maildir "/proton/Drafts"  :key ?d)
+          (:maildir "/proton/Archive" :key ?a)
+          (:maildir "/proton/Trash"   :key ?t)))
+
+  ;; Send via msmtp -> Bridge. f-is-evil + --read-envelope-from is the canonical
+  ;; msmtp/message-mode pairing; account is picked from the From: header.
+  (setq sendmail-program (executable-find "msmtp")
+        message-send-mail-function #'message-send-mail-with-sendmail
+        message-sendmail-f-is-evil t
+        message-sendmail-extra-arguments '("--read-envelope-from")
+        message-kill-buffer-on-exit t)
+
+  (setq user-mail-address "vp@paulaus.com"
+        user-full-name "Vytautas"))
 ;;; init.el ends here
-(put 'downcase-region 'disabled nil)
