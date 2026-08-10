@@ -169,7 +169,6 @@ In dired, opens the file at point (falls back to the directory)."
 (defun vp/recentf-open ()
   "Open a recent file; the list stays in most-recent-first order."
   (interactive)
-  (unless recentf-mode (recentf-mode 1))
   (let* ((files (mapcar #'abbreviate-file-name recentf-list))
          (table (lambda (str pred action)
                   (if (eq action 'metadata)

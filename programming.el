@@ -30,7 +30,6 @@
   ;; ts-modes. (markdown stays on markdown-mode; markdown-ts-mode is much
   ;; poorer and not installed everywhere.)
   (pcase-dolist (`(,lang ,from ,to) '((python python-mode python-ts-mode)
-                                      (bash   bash-mode   bash-ts-mode)
                                       (bash   sh-mode     bash-ts-mode)
                                       (go     go-mode     go-ts-mode)))
     (when (treesit-language-available-p lang)
@@ -50,7 +49,7 @@
   :hook ((python-ts-mode
           go-ts-mode
           bash-ts-mode sh-mode
-          markdown-mode markdown-ts-mode) . eglot-ensure)
+          markdown-mode) . eglot-ensure)
   :bind (:map eglot-mode-map
          ("C-c C-d" . eldoc-doc-buffer))
   :custom
@@ -72,7 +71,7 @@
   (dolist (entry '(((python-ts-mode)            . ("pylsp"))
                    ((go-ts-mode)                . ("gopls"))
                    ((bash-ts-mode sh-mode)      . ("bash-language-server" "start"))
-                   ((markdown-mode markdown-ts-mode) . ("marksman"))))
+                   ((markdown-mode)             . ("marksman"))))
     (add-to-list 'eglot-server-programs entry)))
 
 (use-package eldoc
@@ -108,13 +107,6 @@
       (setq gofmt-command "goimports"))
     (add-hook 'before-save-hook #'gofmt-before-save nil t)))
 
-;; Python (built-in)
-(use-package python
-  :ensure nil
-  :defer t
-  :custom
-  (python-indent-offset 4))
-
 ;; Markdown
 (use-package markdown-mode
   :defer t
@@ -128,10 +120,8 @@
   (markdown-command "pandoc")
   (markdown-fontify-code-blocks-natively t))
 
-;; Fish shell
-(use-package fish-mode
-  :defer t
-  :mode "\\.fish\\'")
+;; Fish shell (auto-mode entry comes from the package autoloads)
+(use-package fish-mode :defer t)
 
 ;; Nix
 (use-package nix-mode :defer t)
@@ -178,7 +168,7 @@ always meaningless there (/var/log isn't a repo)."
 
 
 ;;; Utilities -----
-;; Built-in since Emacs 30 (the kak config loads this too)
+;; Built-in since Emacs 30
 (use-package editorconfig
   :ensure nil
   :config (editorconfig-mode 1))

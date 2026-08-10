@@ -69,10 +69,8 @@
         initial-scratch-message ""
         initial-major-mode 'text-mode
         ring-bell-function 'ignore
-        custom-safe-themes t
         initial-buffer-choice t)
-  :hook ((prog-mode . display-line-numbers-mode)
-         (prog-mode . show-paren-mode))
+  :hook (prog-mode . display-line-numbers-mode)
   :config
   (setq-default truncate-lines t
                 display-line-numbers-width 3
@@ -387,8 +385,7 @@
 ;;; Dired -----
 ;; Nerd Font glyphs - terminal frames get them via ghostty/wezterm font
 ;; fallback; GUI frames via Symbols Nerd Font (brew cask, see README).
-(use-package nerd-icons :defer t)
-
+;; nerd-icons itself installs as this package's dependency.
 (use-package nerd-icons-dired
   :hook (dired-mode . nerd-icons-dired-mode))
 
