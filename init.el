@@ -229,9 +229,8 @@
   (meow-global-mode 1))
 
 ;; Meow command menu (SPC ?) in the casual style: a transient that
-;; shows the normal-state keys in groups. The keys in the menu are the
-;; real meow keys, so the menu also teaches the bindings. The static
-;; keyboard drawing stays available on ? inside the menu. transient
+;; shows the full normal-state map in groups. The keys in the menu are
+;; the real meow keys, so the menu also teaches the bindings. transient
 ;; loads on first use, not at startup (same reason as casual below).
 (with-eval-after-load 'transient
   (transient-define-prefix vp/meow-tmenu ()
@@ -243,6 +242,8 @@
       ("n" "down"          meow-next)
       ("b" "back word"     meow-back-word)
       ("w" "next word"     meow-next-word)
+      ("B" "back symbol"   meow-back-symbol)
+      ("W" "next symbol"   meow-next-symbol)
       ("L" "goto line"     meow-goto-line)]
      ["Find"
       ("f" "find char"     meow-find)
@@ -281,10 +282,14 @@
       ("a" "append"        meow-append)
       ("S" "open above"    meow-open-above)
       ("A" "open below"    meow-open-below)]
+     ["Expand"
+      ("H" "left"          meow-left-expand)
+      ("I" "right"         meow-right-expand)
+      ("E" "up"            meow-prev-expand)
+      ("N" "down"          meow-next-expand)]
      ["Other"
       ("'" "repeat"        repeat)
-      ("q" "quit window"   meow-quit)
-      ("?" "keyboard layout" meow-cheatsheet)]]))
+      ("q" "quit window"   meow-quit)]]))
 
 (defun vp/meow-menu ()
   "Open the meow command menu, a transient in the casual style."
