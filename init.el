@@ -600,7 +600,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                `(("f" "find file (project)" project-find-file)
                  ("." "find file (path)"    find-file)
                  ("F" "file ops"             ,vp/leader-file-map)
-                 ("r" "recent files"         recentf-open)
+                 ("r" "recent files"         vp/recentf-open)
                  ("j" "jump dir (z)"         vp/zoxide-jump)
                  ("D" "dired here"           dired-jump)
                  ("b" "switch buffer"        switch-to-buffer)

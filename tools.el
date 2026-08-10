@@ -162,6 +162,24 @@ In dired, opens the file at point (falls back to the directory)."
     (message "%s" p)))
 
 
+;;; Recent files -----
+;; recentf-list is most-recent-first, but recentf-open feeds a plain
+;; list to completing-read and fido re-sorts it. This table pins the
+;; recency order, the same trick as the zoxide picker below.
+(defun vp/recentf-open ()
+  "Open a recent file; the list stays in most-recent-first order."
+  (interactive)
+  (unless recentf-mode (recentf-mode 1))
+  (let* ((files (mapcar #'abbreviate-file-name recentf-list))
+         (table (lambda (str pred action)
+                  (if (eq action 'metadata)
+                      '(metadata (category . file)
+                                 (display-sort-function . identity)
+                                 (cycle-sort-function . identity))
+                    (complete-with-action action files str pred)))))
+    (find-file (completing-read "Recent: " table nil t))))
+
+
 ;;; Zoxide -----
 ;; The shell's `z` inside Emacs, against the SAME frecency database:
 ;; visiting files/dirs here bumps entries zsh sees and vice versa.
