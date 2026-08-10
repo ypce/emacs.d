@@ -138,10 +138,44 @@
 
 ;; CSV/TSV - field-wise editing: C-c C-k kills a column, C-c C-s sorts
 ;; by one. Alignment is display-only; the file stays plain CSV.
+;; Commands act on the region; without one they auto-select all
+;; records around point and prompt.
 (use-package csv-mode
   :defer t
   :mode "\\.[ct]sv\\'"
-  :hook (csv-mode . csv-align-mode))
+  :hook (csv-mode . csv-align-mode)
+  :bind (:map csv-mode-map ("C-?" . vp/csv-menu)))
+
+;; Menu on C-? (the editing-mode convention, same as org and elisp).
+;; csv-mode ships the commands but no discoverable menu.
+(with-eval-after-load 'transient
+  (transient-define-prefix vp/csv-tmenu ()
+    "csv-mode commands (columns are 1-based field numbers)."
+    [["Columns"
+      ("k" "kill column(s)"    csv-kill-fields)
+      ("i" "insert column"     csv-insert-column)
+      ("y" "yank column(s)"    csv-yank-fields)
+      ("Y" "yank as new table" csv-yank-as-new-table)
+      ("t" "transpose"         csv-transpose)]
+     ["Sort"
+      ("s" "sort by column"    csv-sort-fields)
+      ("n" "sort numeric"      csv-sort-numeric-fields)
+      ("r" "reverse rows"      csv-reverse-region)
+      ("d" "toggle descending" csv-toggle-descending)]
+     ["Display"
+      ("a" "align (toggle)"    csv-align-mode)
+      ("u" "unalign"           csv-unalign-fields)
+      ("h" "header line"       csv-header-line)
+      ("v" "hide separators"   csv-toggle-invisibility)]
+     ["Separator"
+      ("," "set separator"     csv-set-separator)
+      ("g" "guess separator"   csv-guess-set-separator)]]))
+
+(defun vp/csv-menu ()
+  "Open the csv-mode command menu, a transient in the casual style."
+  (interactive)
+  (require 'transient)
+  (vp/csv-tmenu))
 
 
 ;;; Version Control -----
