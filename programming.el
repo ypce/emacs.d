@@ -136,6 +136,13 @@
 ;; Nix
 (use-package nix-mode :defer t)
 
+;; CSV/TSV - field-wise editing: C-c C-k kills a column, C-c C-s sorts
+;; by one. Alignment is display-only; the file stays plain CSV.
+(use-package csv-mode
+  :defer t
+  :mode "\\.[ct]sv\\'"
+  :hook (csv-mode . csv-align-mode))
+
 
 ;;; Version Control -----
 ;; SPC v opens the status buffer; everything else lives in magit's
