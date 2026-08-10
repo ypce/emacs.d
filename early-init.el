@@ -18,7 +18,7 @@
 (setq read-process-output-max (* 1024 1024))
 
 ;; Adaptive buffering batches small process outputs for throughput at the
-;; cost of latency — the wrong trade for terminal echo (eat/claude-code).
+;; cost of latency - the wrong trade for terminal echo (eat/claude-code).
 (setq process-adaptive-read-buffering nil)
 
 ;; Rounded corners

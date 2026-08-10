@@ -612,7 +612,7 @@ The theme has to be reloaded after changing anything in this group."
                (tty-colors (mapcar #'car (mapcar #'last colors)))
                ;; nil colors (tty column) are fine inside nested plists
                ;; like :box, but deprecated as top-level attribute values
-               ;; (Emacs warns per face per frame) — emit `unspecified'.
+               ;; (Emacs warns per face per frame) - emit `unspecified'.
                (expand-for-kind (lambda (kind spec)
                                   (let ((attrs (cl-progv color-names kind
                                                  (eval `(backquote ,spec)))))

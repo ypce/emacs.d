@@ -1,7 +1,16 @@
-# Ignore everything
+# Ignore everything by default; whitelist config files explicitly.
 *
 
-# Include these files
-!early-init.el
-!init.el
-!*.org
+!/.gitignore
+!/LICENSE
+!/README.org
+!/early-init.el
+!/init.el
+!/programming.el
+!/tools.el
+!/emacs-ask.md
+!/themes/
+!/themes/*.el
+
+# Never track machine-generated Nix glue (written by home-manager)
+nix-mu4e.el

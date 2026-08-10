@@ -14,7 +14,7 @@
     (setenv "PATH" (concat brew-bin ":" (getenv "PATH")))))
 
 ;; NOTE on daemon truecolor: Emacs detects 24-bit tty color via C getenv
-;; (COLORTERM) or terminfo flags — lisp setenv can't influence it, and the
+;; (COLORTERM) or terminfo flags - lisp setenv can't influence it, and the
 ;; launchd daemon has no COLORTERM. Terminals must therefore advertise
 ;; truecolor through terminfo (Tc flag) installed in ~/.terminfo; see
 ;; README.org "Daemon truecolor".
@@ -22,7 +22,7 @@
 
 ;;; Package setup (built-in package.el) -----
 ;; GNU + NonGNU ELPA are the built-in defaults; MELPA added for the rest.
-;; No lockfiles — versions float; M-x package-upgrade-all to update.
+;; No lockfiles - versions float; M-x package-upgrade-all to update.
 (require 'package)
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
 (unless (bound-and-true-p package--initialized)
@@ -120,7 +120,7 @@
 ;; tty kills reach the system clipboard via OSC 52 (xterm.el's
 ;; setSelection). That code only runs for terminals whose TERM resolves
 ;; to a term/ init file: ghostty's TERM=xterm-ghostty falls back to
-;; term/xterm.el by prefix, but wezterm's TERM=wezterm matches nothing —
+;; term/xterm.el by prefix, but wezterm's TERM=wezterm matches nothing -
 ;; alias it. NOT forcing modifyOtherKeys: kkp owns the keyboard protocol.
 (add-to-list 'term-file-aliases '("wezterm" . "xterm-256color"))
 (setq xterm-extra-capabilities '(setSelection))
@@ -145,7 +145,7 @@
 ;;; Modal editing: meow -----
 ;; Kakoune-style selection-first grammar, zero dependencies. Official
 ;; Colemak layout from meow's KEYBINDING_COLEMAK.org.
-;; SPC is the leader in normal state — it opens `vp/leader-map' (see
+;; SPC is the leader in normal state - it opens `vp/leader-map' (see
 ;; Command menu; keypad translation chains are disabled there).
 ;; Special modes (dired, agenda) keep their native keys via motion
 ;; state.
@@ -219,7 +219,7 @@
      '("'" . repeat)
      '("<escape>" . ignore)))
   (meow-setup)
-  ;; Shells/terminals open in insert state — typing must reach the prompt
+  ;; Shells/terminals open in insert state - typing must reach the prompt
   ;; (meow's default drops unlisted modes into normal state, where letters
   ;; are editing commands). ESC still pops to normal for copying output;
   ;; s re-enters insert.
@@ -247,12 +247,12 @@
 ;;; Themes + Visuals -----
 (add-to-list 'custom-theme-load-path (expand-file-name "themes" user-emacs-directory))
 (setq frame-background-mode 'dark)
-;; uniform text size everywhere — org headings by color/bold only
+;; uniform text size everywhere - org headings by color/bold only
 ;; (consulted when the theme builds its face specs, so set before load)
 (setq dracula-pro-pro-enlarge-headings nil)
 (load-theme 'dracula-pro-pro t)
 
-;; Font — match wezterm/ghostty: Aeonik Mono Medium 18pt.
+;; Font - match wezterm/ghostty: Aeonik Mono Medium 18pt.
 ;; Only affects GUI frames; terminal frames use the terminal's own font.
 (set-face-attribute 'default nil
                     :family "Aeonik Mono" :weight 'medium :height 180)
@@ -271,7 +271,7 @@
 (fido-vertical-mode 1)
 
 ;; In-buffer: completion-preview ghost text from the buffer's capf
-;; sources (eglot feeds these) — TAB accepts, M-i/M-n/M-p cycle.
+;; sources (eglot feeds these) - TAB accepts, M-i/M-n/M-p cycle.
 ;; Hook-based, NOT global: in eshell it would re-run pcomplete on
 ;; every keystroke, which lags typing.
 (add-hook 'prog-mode-hook #'completion-preview-mode)
@@ -291,7 +291,7 @@
 
 
 ;;; Dired -----
-;; Nerd Font glyphs — terminal frames get them via ghostty/wezterm font
+;; Nerd Font glyphs - terminal frames get them via ghostty/wezterm font
 ;; fallback; GUI frames via Symbols Nerd Font (brew cask, see README).
 (use-package nerd-icons :defer t)
 
@@ -329,12 +329,12 @@
          ("h" . dired-up-directory)
          ("i" . dired-find-file)))
 
-;; casual — its tmenu commands are package autoloads; loading eagerly
+;; casual - its tmenu commands are package autoloads; loading eagerly
 ;; would drag the whole suite + transient (~300ms) into the first dired
 ;; buffer, so only the key bindings are wired here.
 ;; Convention: bare ? = "this buffer's menu" in special modes; C-? in
 ;; editing modes (where ? self-inserts). casual covers more modes
-;; (calc, man, bookmarks, image, …) — a mode earns its line here the
+;; (calc, man, bookmarks, image, …) - a mode earns its line here the
 ;; day a real session wants it.
 (use-package casual :defer t)
 ;; preloaded maps bind directly; the rest bind when their mode loads
@@ -354,7 +354,7 @@
 
 ;; ediff builds its keymap at session start (ediff-mode-map is defvar'd
 ;; nil), so binding the map symbol at init breaks whenever ediff.el got
-;; loaded early — use ediff's own keymap-setup hook.
+;; loaded early - use ediff's own keymap-setup hook.
 (defun vp/ediff-casual-key ()
   (define-key ediff-mode-map "?" #'casual-ediff-tmenu))
 (add-hook 'ediff-keymap-setup-hook #'vp/ediff-casual-key)
@@ -367,7 +367,7 @@
 (defun vp/refresh-agenda-files (&rest _)
   "Set `org-agenda-files' to the curated agenda set.
 Always inbox.org and agenda.org, plus any indexed file that carries the
-:agenda: filetag — the per-project opt-in: put `#+filetags: :agenda:'
+:agenda: filetag - the per-project opt-in: put `#+filetags: :agenda:'
 at the top of a file and its todos join the agenda. Everything else
 (legacy todos, project READMEs) stays out of the agenda but remains
 searchable through the org-mem index (SPC n f, SPC n /)."
@@ -383,7 +383,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                      (lambda (e) (member "agenda" (org-mem-entry-tags e)))
                      (org-mem-all-entries))))))))
 
-;; Emacs 30 bundles org 9.7 — the built-in satisfies org-modern/org-node
+;; Emacs 30 bundles org 9.7 - the built-in satisfies org-modern/org-node
 ;; version requirements, so package.el never downloads org.
 (use-package org
   :ensure nil
@@ -477,12 +477,12 @@ searchable through the org-mem index (SPC n f, SPC n /)."
   (add-hook 'org-capture-mode-hook #'delete-other-windows))
 
 ;;; Command menu (SPC leader) -----
-;; A dedicated keymap: SPC is ONLY this menu — meow's keypad
+;; A dedicated keymap: SPC is ONLY this menu - meow's keypad
 ;; translation chains (SPC x → C-x C-… etc.) are disabled below, so
 ;; every letter is a menu key and real chords are typed as real chords
-;; (C-x C-f, C-h k — muscle memory stays portable). C-c stays purely
+;; (C-x C-f, C-h k - muscle memory stays portable). C-c stays purely
 ;; mode-specific (org C-c C-*, eglot C-c e, …). Bindings are
-;; (LABEL . COMMAND) menu items — which-key shows LABEL natively.
+;; (LABEL . COMMAND) menu items - which-key shows LABEL natively.
 (defvar-keymap vp/leader-file-map)
 (pcase-dolist (`(,key ,label ,cmd)
                '(("r" "rename/move file"   rename-visited-file)
@@ -526,7 +526,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                  ("?" "cheatsheet"           meow-cheatsheet)))
   (keymap-set vp/leader-map key (cons label cmd)))
 
-;; no keypad translation chains — SPC dispatches straight into the menu
+;; no keypad translation chains - SPC dispatches straight into the menu
 (setq meow-keypad-start-keys nil
       meow-keypad-meta-prefix nil
       meow-keypad-ctrl-meta-prefix nil
@@ -546,16 +546,16 @@ searchable through the org-mem index (SPC n f, SPC n /)."
   (org-modern-checkbox '((?X . "✓") (?\s . "☐") (?- . "–")))
   (org-modern-table-vertical 1)
   (org-modern-table-horizontal 0.2)
-  ;; no pill labels — flat is the aesthetic here; TODO states render as
+  ;; no pill labels - flat is the aesthetic here; TODO states render as
   ;; glyphs instead (see vp/org-prettify-todos below)
   (org-modern-todo nil)
   (org-modern-tag nil)
   (org-modern-timestamp nil))
 
-;; TODO states as glyphs — built-in prettify-symbols composes the
+;; TODO states as glyphs - built-in prettify-symbols composes the
 ;; keyword into a symbol; the real text stays underneath (point on it
 ;; expands the word for editing). org-todo-keyword-faces still colors
-;; them. Note: the agenda shows the plain words — it isn't org-mode.
+;; them. Note: the agenda shows the plain words - it isn't org-mode.
 (defun vp/org-prettify-todos ()
   (setq-local prettify-symbols-alist
               '(("TODO"      . ?☐)
@@ -593,7 +593,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
   :after org
   :demand t   ; load with org so indexing modes come on, not on first C-c n
   :init
-  ;; Index org files EVERYWHERE notes live — ~/Notes plus org files nested
+  ;; Index org files EVERYWHERE notes live - ~/Notes plus org files nested
   ;; in code projects. This feeds find/grep/backlinks (SPC n …), NOT the
   ;; agenda: agenda membership is curated, see `vp/refresh-agenda-files'.
   (setq org-mem-do-sync-with-org-id t
@@ -635,7 +635,7 @@ ID and join the sequence."
 ;;; Claude Code (MCP-integrated coding agent) -----
 ;; claude-code-ide bridges the Claude Code CLI into Emacs over MCP:
 ;; Claude sees buffers/selections, uses xref/imenu/flymake as tools, and
-;; proposes edits through ediff. ghostel (libghostty — the Ghostty core
+;; proposes edits through ediff. ghostel (libghostty - the Ghostty core
 ;; as an Emacs module) hosts its heavy TUI: fewest rendering artifacts
 ;; of the backends; pure-elisp terminals can't redraw it smoothly.
 (use-package ghostel
@@ -668,11 +668,11 @@ ID and join the sequence."
   ;; auto-save-visited-mode would re-save remote buffers over the
   ;; network on every idle pause; keep that a local-files behavior
   (remote-file-name-inhibit-auto-save-visited t)
-  ;; trust cached remote file attributes for 60s instead of 10 —
+  ;; trust cached remote file attributes for 60s instead of 10 -
   ;; browsing re-stats far less; a stale listing costs a `g' revert
   (remote-file-name-inhibit-cache 60)
   :config
-  ;; don't probe VC through the connection on every remote find-file —
+  ;; don't probe VC through the connection on every remote find-file -
   ;; the main remote slowdown; magit still works when invoked
   (setq vc-ignore-dir-regexp
         (format "%s\\|%s" vc-ignore-dir-regexp tramp-file-name-regexp)))
