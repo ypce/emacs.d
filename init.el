@@ -228,6 +228,70 @@
     (add-to-list 'meow-mode-state-list mode))
   (meow-global-mode 1))
 
+;; Meow command menu (SPC ?) in the casual style: a transient that
+;; shows the normal-state keys in groups. The keys in the menu are the
+;; real meow keys, so the menu also teaches the bindings. The static
+;; keyboard drawing stays available on ? inside the menu. transient
+;; loads on first use, not at startup (same reason as casual below).
+(with-eval-after-load 'transient
+  (transient-define-prefix vp/meow-tmenu ()
+    "Meow normal-state commands (digits 0-9 expand the last motion)."
+    [["Move"
+      ("h" "left"          meow-left)
+      ("i" "right"         meow-right)
+      ("e" "up"            meow-prev)
+      ("n" "down"          meow-next)
+      ("b" "back word"     meow-back-word)
+      ("w" "next word"     meow-next-word)
+      ("L" "goto line"     meow-goto-line)]
+     ["Find"
+      ("f" "find char"     meow-find)
+      ("t" "till char"     meow-till)
+      ("/" "visit regexp"  meow-visit)
+      ("v" "search next"   meow-search)
+      (";" "reverse"       meow-reverse)
+      ("z" "pop selection" meow-pop-selection)]
+     ["Select"
+      ("l" "line"          meow-line)
+      ("m" "word"          meow-mark-word)
+      ("M" "symbol"        meow-mark-symbol)
+      ("o" "block"         meow-block)
+      ("O" "to block"      meow-to-block)
+      ("g" "cancel"        meow-cancel-selection)
+      ("G" "grab"          meow-grab)]
+     ["Thing"
+      ("," "inner"         meow-inner-of-thing)
+      ("." "bounds"        meow-bounds-of-thing)
+      ("[" "begin"         meow-beginning-of-thing)
+      ("]" "end"           meow-end-of-thing)]]
+    [["Edit"
+      ("k" "kill"          meow-kill)
+      ("x" "delete"        meow-delete)
+      ("X" "delete back"   meow-backward-delete)
+      ("c" "change"        meow-change)
+      ("r" "replace"       meow-replace)
+      ("j" "join"          meow-join)]
+     ["Copy/Undo"
+      ("y" "copy"          meow-save)
+      ("p" "paste"         meow-yank)
+      ("u" "undo"          meow-undo)
+      ("U" "redo"          undo-redo)]
+     ["Insert"
+      ("s" "insert"        meow-insert)
+      ("a" "append"        meow-append)
+      ("S" "open above"    meow-open-above)
+      ("A" "open below"    meow-open-below)]
+     ["Other"
+      ("'" "repeat"        repeat)
+      ("q" "quit window"   meow-quit)
+      ("?" "keyboard layout" meow-cheatsheet)]]))
+
+(defun vp/meow-menu ()
+  "Open the meow command menu, a transient in the casual style."
+  (interactive)
+  (require 'transient)
+  (vp/meow-tmenu))
+
 
 ;;; Saving + Recent -----
 (use-package recentf
@@ -523,7 +587,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                  ;; the everything-else menu: rectangles, registers, sort…
                  ("o" "edit menu (casual)"   casual-editkit-main-tmenu)
                  ("s" "eshell here"          vp/eshell-here)
-                 ("?" "cheatsheet"           meow-cheatsheet)))
+                 ("?" "meow menu"            vp/meow-menu)))
   (keymap-set vp/leader-map key (cons label cmd)))
 
 ;; no keypad translation chains - SPC dispatches straight into the menu

@@ -100,8 +100,10 @@ touch /Applications/Emacs*.app && killall Dock
 * Usage notes
 
 Modal editing is *meow* (Colemak layout, selection first). =SPC=
-opens the leader menu, and which-key shows the labels. =SPC ?= shows
-the full cheatsheet. All other commands use standard Emacs chords.
+opens the leader menu, and which-key shows the labels. =SPC ?= opens
+the meow command menu (a transient, casual style). The =?= key in
+that menu shows the keyboard layout. All other commands use standard
+Emacs chords.
 Completion is built-in (fido-vertical and completion-preview).
 =org-directory= is =~/Notes=. The agenda reads =inbox.org=,
 =agenda.org=, and each file that has =#+filetags: :agenda:=.
