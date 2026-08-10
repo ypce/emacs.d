@@ -339,12 +339,30 @@
 ;; Minibuffer: fido-vertical, flex matching.
 (fido-vertical-mode 1)
 
-;; Clip long candidates at the window edge, one line each, like fzf.
-;; Without this, long paths (SPC j, recentf) soft-wrap and the list
-;; turns into a ragged block.
+;; One line per candidate, like fzf. Without this, long paths (SPC j,
+;; recentf) soft-wrap and the list turns into a ragged block.
+;; truncate-lines is the backstop; the advice below does the real work.
 (defun vp/icomplete-truncate ()
   (setq-local truncate-lines t))
 (add-hook 'icomplete-minibuffer-setup-hook #'vp/icomplete-truncate)
+
+;; Keep the tail of over-wide candidates (fzf --keep-right): paths
+;; differ at the leaf, so clip the left and prefix an ellipsis.
+;; icomplete pads every line with spaces to the longest candidate, so
+;; strip that padding first; without this one long entry makes every
+;; line measure as over-wide and all of them get clipped.
+;; Display-only: the advice edits the rendered text, not the candidates.
+(defun vp/icomplete-clip-left (ret)
+  (let ((w (max 20 (1- (window-width (or (active-minibuffer-window)
+                                         (selected-window)))))))
+    (mapconcat (lambda (line)
+                 (let ((line (string-trim-right line)))
+                   (if (> (string-width line) w)
+                       (concat "…" (substring line (- (length line) (- w 1))))
+                     line)))
+               (split-string ret "\n")
+               "\n")))
+(advice-add 'icomplete-completions :filter-return #'vp/icomplete-clip-left)
 
 ;; In-buffer: completion-preview ghost text from the buffer's capf
 ;; sources (eglot feeds these) - TAB accepts, M-i/M-n/M-p cycle.
