@@ -156,6 +156,7 @@
       ("a" "align (toggle)"    csv-align-mode)
       ("u" "unalign"           csv-unalign-fields)
       ("h" "header line"       csv-header-line)
+      ("w" "hide/cap column"   csv-align-set-column-width)
       ("v" "hide separators"   csv-toggle-invisibility)]
      ["Separator"
       ("," "set separator"     csv-set-separator)
