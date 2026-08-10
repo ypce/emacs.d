@@ -339,6 +339,13 @@
 ;; Minibuffer: fido-vertical, flex matching.
 (fido-vertical-mode 1)
 
+;; Clip long candidates at the window edge, one line each, like fzf.
+;; Without this, long paths (SPC j, recentf) soft-wrap and the list
+;; turns into a ragged block.
+(defun vp/icomplete-truncate ()
+  (setq-local truncate-lines t))
+(add-hook 'icomplete-minibuffer-setup-hook #'vp/icomplete-truncate)
+
 ;; In-buffer: completion-preview ghost text from the buffer's capf
 ;; sources (eglot feeds these) - TAB accepts, M-i/M-n/M-p cycle.
 ;; Hook-based, NOT global: in eshell it would re-run pcomplete on
