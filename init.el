@@ -363,7 +363,8 @@
 (advice-add 'icomplete-completions :filter-return #'vp/icomplete-clip-left)
 
 ;; In-buffer: completion-preview ghost text from the buffer's capf
-;; sources (eglot feeds these) - TAB accepts, M-i/M-n/M-p cycle.
+;; sources (eglot feeds these) - TAB accepts, M-i completes up to the
+;; shared prefix and lists the candidates.
 ;; Hook-based, NOT global: in eshell it would re-run pcomplete on
 ;; every keystroke, which lags typing.
 (add-hook 'prog-mode-hook #'completion-preview-mode)
