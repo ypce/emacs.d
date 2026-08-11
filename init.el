@@ -137,7 +137,9 @@
       (unless (or (string-empty-p text)
                   (equal text (car kill-ring)))
         text))))
-(setq interprogram-paste-function #'vp/interprogram-paste)
+;; pbpaste is macOS-only; other systems keep the stock paste function
+(when (executable-find "pbpaste")
+  (setq interprogram-paste-function #'vp/interprogram-paste))
 
 
 ;;; Modal editing: meow -----
