@@ -55,8 +55,11 @@
   :ensure nil
   :init
   ;; Customize would otherwise append custom-set-variables blobs to this
-  ;; hand-maintained file; everything here is set in lisp, so discard them.
-  (setq custom-file null-device)
+  ;; hand-maintained file; everything here is set in lisp, so send them to a
+  ;; throwaway temp file that is gone on reboot. Do not use null-device here:
+  ;; custom-save-all reads the file back, and reading /dev/null overflows the
+  ;; buffer-size limit and aborts init.
+  (setq custom-file (make-temp-file "emacs-custom-"))
   (setq use-short-answers t
         scroll-conservatively 101
         confirm-kill-emacs 'yes-or-no-p
