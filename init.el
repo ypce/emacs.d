@@ -339,6 +339,13 @@
 ;; Minibuffer: fido-vertical, flex matching.
 (fido-vertical-mode 1)
 
+;; No blackout while the filter is short: stock icomplete hides the
+;; list on empty input and, over 400 candidates, for the first 2
+;; typed chars too (a 90s CPU guard). The list then pops in late and
+;; the minibuffer jumps. Show it from the first moment instead.
+(setq icomplete-show-matches-on-no-input t
+      icomplete-max-delay-chars 0)
+
 ;; One line per candidate, like fzf. Without this, long paths (SPC j,
 ;; recentf) soft-wrap and the list turns into a ragged block.
 ;; truncate-lines is the backstop; the advice below does the real work.
