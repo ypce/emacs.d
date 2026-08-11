@@ -431,6 +431,10 @@
 ;; (calc, man, bookmarks, image, …) - a mode earns its line here the
 ;; day a real session wants it.
 (use-package casual :defer t)
+;; <escape> closes a transient like it closes everything else here;
+;; stock transient leaves it unbound and only C-g backs out
+(with-eval-after-load 'transient
+  (keymap-set transient-map "<escape>" #'transient-quit-one))
 ;; preloaded maps bind directly; the rest bind when their mode loads
 (keymap-set isearch-mode-map    "?"   #'casual-isearch-tmenu)
 (keymap-set emacs-lisp-mode-map "C-?" #'casual-elisp-tmenu)
