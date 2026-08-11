@@ -234,13 +234,20 @@ In dired, opens the file at point (falls back to the directory)."
     (eshell-kill-input)
     (insert cmd)))
 
+;; Long prompts (deep OneDrive paths) with the global truncate-lines
+;; hscroll the whole window and hide previous output. Terminals wrap;
+;; do the same here.
+(defun vp/eshell-wrap-lines ()
+  (setq-local truncate-lines nil))
+
 ;; esh-mode, not eshell: eshell-mode-map lives in esh-mode.el, so a
 ;; binding hung on the eshell feature fires before the map exists.
 (use-package esh-mode
   :ensure nil
   ;; commands that read $EDITOR (git commit, crontab …) open a buffer
   ;; in THIS Emacs - with-editor ships with magit
-  :hook (eshell-mode . with-editor-export-editor)
+  :hook ((eshell-mode . with-editor-export-editor)
+         (eshell-mode . vp/eshell-wrap-lines))
   :bind (:map eshell-mode-map
          ("C-r" . vp/eshell-history)))
 
