@@ -172,6 +172,16 @@
   (require 'transient)
   (vp/csv-tmenu))
 
+;; Beancount (plain-text accounting). Syntax highlighting, posting
+;; alignment, and account/payee completion through completion-at-point,
+;; which fido and completion-preview pick up. The in-mode commands live
+;; on C-c (which-key lists them); `beancount-fava' starts fava and opens
+;; the ledger in the browser.
+(use-package beancount
+  :defer t
+  :mode (("\\.beancount\\'" . beancount-mode)
+         ("\\.bean\\'"      . beancount-mode)))
+
 
 ;;; Version Control -----
 ;; SPC v opens the status buffer; everything else lives in magit's
