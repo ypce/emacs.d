@@ -437,7 +437,10 @@
 (with-eval-after-load 'transient
   (keymap-set transient-map "<escape>" #'transient-quit-one))
 ;; preloaded maps bind directly; the rest bind when their mode loads
-(keymap-set isearch-mode-map    "?"   #'casual-isearch-tmenu)
+;; C-?, not bare ?: in isearch every printing char extends the search
+;; string, so isearch counts as an editing context under the menu
+;; convention (bare ? only where keys don't self-insert)
+(keymap-set isearch-mode-map    "C-?" #'casual-isearch-tmenu)
 (keymap-set emacs-lisp-mode-map "C-?" #'casual-elisp-tmenu)
 (pcase-dolist (`(,feature ,map ,key ,cmd)
                '((dired      dired-mode-map       "?"   casual-dired-tmenu)
