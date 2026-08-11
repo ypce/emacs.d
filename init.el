@@ -334,6 +334,10 @@
 (add-hook 'window-setup-hook            #'vp/transparent-background)
 (add-hook 'server-after-make-frame-hook #'vp/transparent-background)
 
+;; shr (the HTML renderer behind eww and HTML mail) uses theme faces,
+;; not the document's own colors - they clash with a dark theme
+(setq shr-use-colors nil)
+
 
 ;;; Completions (all built-in) -----
 ;; Minibuffer: fido-vertical, flex matching.
@@ -802,7 +806,6 @@ ID and join the sequence."
   (when (file-exists-p nix-mu4e-file)
     (load nix-mu4e-file nil 'nomessage)))
 
-(setq shr-use-colors nil)
 (use-package mu4e
   :ensure nil                                ; Nix-provided; never from archives
   :when (locate-library "mu4e")
