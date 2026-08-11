@@ -339,15 +339,6 @@
 ;; Minibuffer: fido-vertical, flex matching.
 (fido-vertical-mode 1)
 
-;; Render the candidate list unconditionally. At or below this char
-;; count icomplete "waits for the next keystroke" with an
-;; interruptible sit-for - but under xterm-mouse-mode any trackpad
-;; contact is an input event that aborts the wait, so with a big
-;; candidate set the list often never appears. -1 covers the
-;; empty-input case; the exhibit test is (> chars this-var).
-;; (fido itself already forces icomplete-show-matches-on-no-input.)
-(setq icomplete-max-delay-chars -1)
-
 ;; One line per candidate, like fzf. Without this, long paths (SPC j,
 ;; recentf) soft-wrap and the list turns into a ragged block.
 ;; truncate-lines is the backstop; the advice below does the real work.
