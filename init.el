@@ -339,12 +339,14 @@
 ;; Minibuffer: fido-vertical, flex matching.
 (fido-vertical-mode 1)
 
-;; No blackout while the filter is short: stock icomplete hides the
-;; list on empty input and, over 400 candidates, for the first 2
-;; typed chars too (a 90s CPU guard). The list then pops in late and
-;; the minibuffer jumps. Show it from the first moment instead.
-(setq icomplete-show-matches-on-no-input t
-      icomplete-max-delay-chars 0)
+;; Render the candidate list unconditionally. At or below this char
+;; count icomplete "waits for the next keystroke" with an
+;; interruptible sit-for - but under xterm-mouse-mode any trackpad
+;; contact is an input event that aborts the wait, so with a big
+;; candidate set the list often never appears. -1 covers the
+;; empty-input case; the exhibit test is (> chars this-var).
+;; (fido itself already forces icomplete-show-matches-on-no-input.)
+(setq icomplete-max-delay-chars -1)
 
 ;; One line per candidate, like fzf. Without this, long paths (SPC j,
 ;; recentf) soft-wrap and the list turns into a ragged block.
