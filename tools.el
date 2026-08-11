@@ -228,6 +228,19 @@ In dired, opens the file at point (falls back to the directory)."
 ;; no login banner; a shell starts at its prompt
 (setq eshell-banner-message "")
 
+;; Prompt: only the last directory name - deep OneDrive paths drown
+;; the command line otherwise. The full path is one `pwd' away.
+;; Remote dirs keep their /ssh:host: prefix so a remote shell is
+;; never mistaken for a local one.
+(defun vp/eshell-prompt ()
+  "Basename-only eshell prompt; remote dirs show their TRAMP prefix."
+  (let ((base (file-name-nondirectory
+               (directory-file-name (abbreviate-file-name default-directory)))))
+    (concat (or (file-remote-p default-directory) "")
+            (if (string-empty-p base) "/" base)
+            " $ ")))
+(setq eshell-prompt-function #'vp/eshell-prompt)
+
 (defun vp/eshell-history ()
   "Insert a history entry picked with minibuffer completion (C-r reflex)."
   (interactive)
