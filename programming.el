@@ -180,7 +180,10 @@
 (use-package beancount
   :defer t
   :mode (("\\.beancount\\'" . beancount-mode)
-         ("\\.bean\\'"      . beancount-mode)))
+         ("\\.bean\\'"      . beancount-mode)
+         ;; .ledger is the Ledger-format convention, but this ledger is
+         ;; beancount syntax in .ledger files, so send it to beancount-mode.
+         ("\\.ledger\\'"    . beancount-mode)))
 
 
 ;;; Version Control -----
