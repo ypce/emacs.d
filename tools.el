@@ -234,7 +234,9 @@ In dired, opens the file at point (falls back to the directory)."
     (eshell-kill-input)
     (insert cmd)))
 
-(use-package eshell
+;; esh-mode, not eshell: eshell-mode-map lives in esh-mode.el, so a
+;; binding hung on the eshell feature fires before the map exists.
+(use-package esh-mode
   :ensure nil
   ;; commands that read $EDITOR (git commit, crontab …) open a buffer
   ;; in THIS Emacs - with-editor ships with magit
