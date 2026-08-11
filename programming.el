@@ -99,13 +99,17 @@
   :defer t
   :hook (go-ts-mode . vp/go-setup)
   :preface
+  ;; gofmt-before-save belongs to the go-mode package, which is not
+  ;; installed; gopls formats through eglot instead. Guarded so a save
+  ;; still works when no server is attached.
+  (defun vp/eglot-format-on-save ()
+    "Format the buffer with eglot before save, when a server is attached."
+    (when (eglot-managed-p) (eglot-format-buffer)))
   (defun vp/go-setup ()
-    "Per-buffer Go setup: tabs for indent, gofmt on save."
+    "Per-buffer Go setup: tabs for indent, format on save via gopls."
     (setq-local tab-width 4
                 indent-tabs-mode t)
-    (when (executable-find "goimports")
-      (setq gofmt-command "goimports"))
-    (add-hook 'before-save-hook #'gofmt-before-save nil t)))
+    (add-hook 'before-save-hook #'vp/eglot-format-on-save nil t)))
 
 ;; Markdown
 (use-package markdown-mode
