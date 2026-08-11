@@ -2,6 +2,9 @@
 *
 
 !/.gitignore
+!/.claude/
+!/.claude/skills/
+!/.claude/skills/**
 !/LICENSE
 !/README.org
 !/early-init.el
