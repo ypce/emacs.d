@@ -225,6 +225,9 @@ In dired, opens the file at point (falls back to the directory)."
 ;; Claude Code; `ghostel CMD' runs any command there ad hoc.
 (add-hook 'eshell-load-hook #'ghostel-eshell-visual-command-mode)
 
+;; no login banner; a shell starts at its prompt
+(setq eshell-banner-message "")
+
 (defun vp/eshell-history ()
   "Insert a history entry picked with minibuffer completion (C-r reflex)."
   (interactive)
