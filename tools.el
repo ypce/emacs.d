@@ -241,6 +241,21 @@ In dired, opens the file at point (falls back to the directory)."
             " $ ")))
 (setq eshell-prompt-function #'vp/eshell-prompt)
 
+;; TAB completion through the minibuffer: fido's flex matching does
+;; the narrowing (type to target, fzf-style) instead of the stock
+;; *Completions* window and its M-<up>/<down> navigation. Local to
+;; eshell; prog buffers keep completion-preview ghost text.
+(defun vp/completion-in-region-minibuffer (start end collection &optional predicate)
+  "Complete the START..END region with `completing-read'."
+  (let ((choice (completing-read "Complete: " collection predicate nil
+                                 (buffer-substring-no-properties start end))))
+    (delete-region start end)
+    (insert (substring-no-properties choice))
+    t))
+
+(defun vp/eshell-minibuffer-completion ()
+  (setq-local completion-in-region-function #'vp/completion-in-region-minibuffer))
+
 (defun vp/eshell-history ()
   "Insert a history entry picked with minibuffer completion (C-r reflex)."
   (interactive)
@@ -263,7 +278,8 @@ In dired, opens the file at point (falls back to the directory)."
   ;; commands that read $EDITOR (git commit, crontab …) open a buffer
   ;; in THIS Emacs - with-editor ships with magit
   :hook ((eshell-mode . with-editor-export-editor)
-         (eshell-mode . vp/eshell-wrap-lines))
+         (eshell-mode . vp/eshell-wrap-lines)
+         (eshell-mode . vp/eshell-minibuffer-completion))
   :bind (:map eshell-mode-map
          ("C-r" . vp/eshell-history)))
 
