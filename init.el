@@ -374,7 +374,8 @@
 
 ;; project-find-regexp (SPC /) searches with ripgrep; `r' in its
 ;; results buffer is project-wide query-replace
-(setq xref-search-program 'ripgrep)
+(when (executable-find "rg")
+  (setq xref-search-program 'ripgrep))
 
 
 ;;; Custom tools + programming domain -----
