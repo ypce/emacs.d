@@ -429,7 +429,9 @@
   ;; Everything situational (sort, details, marks…) is stock keys + `?'.
   :bind (:map dired-mode-map
          ("h" . dired-up-directory)
-         ("i" . dired-find-file)))
+         ("i" . dired-find-file)
+         ("RET" . vp/dired-find-file-smart)
+         ("<mouse-1>" . vp/dired-find-file-smart)))
 
 ;; casual - its tmenu commands are package autoloads; loading eagerly
 ;; would drag the whole suite + transient (~300ms) into the first dired

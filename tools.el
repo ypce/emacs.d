@@ -154,6 +154,30 @@ In dired, opens the file at point (falls back to the directory)."
                               (dired-get-filename nil t))
                          default-directory))))))
 
+(defvar vp/dired-emacs-extensions
+  '("" "el" "org" "md" "markdown" "txt" "py" "js" "jsx" "ts" "tsx"
+    "json" "yaml" "yml" "toml" "sh" "zsh" "bash" "conf" "cfg" "ini" "log"
+    "csv" "html" "css" "scss" "go" "rs" "c" "h" "hpp" "cpp" "cc" "java"
+    "rb" "lua" "nix" "xml" "sql" "gitignore" "dockerfile")
+  "Extensions (no dot, lower-case; empty string is extensionless files)
+that dired opens inside Emacs. Anything else opens with the macOS
+default app.")
+
+(defun vp/dired-emacs-file-p (file)
+  "Return non-nil if FILE should open inside Emacs, not the system app."
+  (or (file-directory-p file)
+      (member (downcase (or (file-name-extension file) ""))
+              vp/dired-emacs-extensions)))
+
+(defun vp/dired-find-file-smart ()
+  "Open the file at point: text/code in Emacs, else the macOS default app.
+Bypass this and always open in Emacs with `dired-find-file' (bound to i)."
+  (interactive)
+  (let ((file (dired-get-filename nil t)))
+    (if (or (null file) (vp/dired-emacs-file-p file))
+        (dired-find-file)
+      (vp/file-open-default))))
+
 (defun vp/file-copy-path ()
   "Copy the current file's absolute path."
   (interactive)
