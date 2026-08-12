@@ -132,7 +132,7 @@
   (vp/ai-ask--run question t))
 
 
-;;; File ops (SPC F): act on the visited file itself -----
+;;; File ops (SPC u): act on the visited file itself -----
 (defun vp/file-reveal ()
   "Reveal the current file (or directory) in Finder."
   (interactive)
