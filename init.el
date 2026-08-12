@@ -612,6 +612,13 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                  ("s" "browse dailies"     org-node-seq-dispatch)))
   (keymap-set vp/leader-notes-map key (cons label cmd)))
 
+(defvar-keymap vp/leader-ai-map)
+(pcase-dolist (`(,key ,label ,cmd)
+               '(("a" "ask ai"             vp/ai-ask)
+                 ("m" "ask ai (follow-up)" vp/ai-ask-more)
+                 ("c" "claude code"        claude-code-ide-menu)))
+  (keymap-set vp/leader-ai-map key (cons label cmd)))
+
 (defvar-keymap vp/leader-map)
 (pcase-dolist (`(,key ,label ,cmd)
                `(("f" "find file (project)" project-find-file)
@@ -628,9 +635,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                  ("c" "capture"              org-capture)
                  ("n" "notes"                ,vp/leader-notes-map)
                  ("h" "help"                 ,help-map)
-                 ("i" "ask ai"               vp/ai-ask)
-                 ("m" "ask ai (follow-up)"   vp/ai-ask-more)
-                 ("t" "claude code"          claude-code-ide-menu)
+                 ("i" "ai"                   ,vp/leader-ai-map)
                  ;; the everything-else menu: rectangles, registers, sort…
                  ("o" "edit menu (casual)"   casual-editkit-main-tmenu)
                  ("s" "eshell here"          vp/eshell-here)
@@ -759,7 +764,7 @@ ID and join the sequence."
 (use-package claude-code-ide   ; github-only, fetched by package-vc
   :ensure nil                  ; required next to :vc, see org-modern-indent
   :vc (:url "https://github.com/manzaltu/claude-code-ide.el" :rev :newest)
-  :commands (claude-code-ide-menu)   ; bound to SPC t in the leader map
+  :commands (claude-code-ide-menu)   ; bound to SPC i c in the leader map
   :custom
   (claude-code-ide-terminal-backend 'ghostel)
   :config
