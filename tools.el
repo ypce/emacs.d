@@ -216,8 +216,11 @@ Bypass this and always open in Emacs with `dired-find-file' (bound to i)."
               ((file-directory-p dir))
               ((executable-find "zoxide")))
     (call-process "zoxide" nil 0 nil "add" (expand-file-name dir))))
+;; --- tier:4 | hooks: find-file, dired-mode (shells out to zoxide) ---
+(my/at-tier 4
 (add-hook 'find-file-hook #'vp/zoxide-add)
 (add-hook 'dired-mode-hook #'vp/zoxide-add)
+)
 
 (defun vp/zoxide-pick ()
   "Pick a frecent directory from zoxide's database (frecency order)."

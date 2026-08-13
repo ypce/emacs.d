@@ -6,6 +6,8 @@
 ;;; Code:
 
 ;;; Tree-sitter (Emacs 29+) -----
+;; --- tier:2 | built-in, but runs per-grammar availability checks at startup ---
+(my/at-tier 2
 (use-package treesit
   :ensure nil
   :when (and (fboundp 'treesit-available-p) (treesit-available-p))
@@ -40,9 +42,12 @@
     (add-to-list 'auto-mode-alist '("\\.go\\'" . go-ts-mode)))
   (when (treesit-language-available-p 'gomod)
     (add-to-list 'auto-mode-alist '("/go\\.mod\\'" . go-mod-ts-mode))))
+)
 
 
 ;;; Language Server Protocol (eglot - built-in, drives flymake) -----
+;; --- tier:3 | coupled stack: eglot + eldoc + flymake ---
+(my/at-tier 3
 (use-package eglot
   :ensure nil
   :commands (eglot eglot-ensure)
@@ -78,9 +83,12 @@
   :ensure nil
   :custom
   (eldoc-echo-area-use-multiline-p nil))
+)
 
 
 ;;; Flymake bindings (used by eglot for diagnostics) -----
+;; --- tier:4 | hook: prog-mode | deps: flymake (built-in) ---
+(my/at-tier 4
 (use-package flymake
   :ensure nil
   :hook (prog-mode . flymake-mode)
@@ -88,11 +96,14 @@
          ("M-n" . flymake-goto-next-error)
          ("M-p" . flymake-goto-prev-error)
          ("C-c l" . flymake-show-buffer-diagnostics)))
+)
 
 
 ;;; Language modes -----
 
 ;; Go (ts-mode only; major-mode-remap-alist redirects go-mode to it)
+;; --- tier:3 | deps: treesit, eglot (format-on-save hook) ---
+(my/at-tier 3
 (use-package go-ts-mode
   :ensure nil
   :when (and (fboundp 'treesit-available-p) (treesit-available-p))
@@ -110,8 +121,11 @@
     (setq-local tab-width 4
                 indent-tabs-mode t)
     (add-hook 'before-save-hook #'vp/eglot-format-on-save nil t)))
+)
 
 ;; Markdown
+;; --- tier:2 | standalone language modes ---
+(my/at-tier 2
 (use-package markdown-mode
   :defer t
   :mode (("\\.md\\'"       . markdown-mode)
@@ -184,6 +198,7 @@
          ;; .ledger is the Ledger-format convention, but this ledger is
          ;; beancount syntax in .ledger files, so send it to beancount-mode.
          ("\\.ledger\\'"    . beancount-mode)))
+)
 
 
 ;;; Version Control -----
@@ -193,9 +208,14 @@
 ;; file notifications instead of magit-auto-revert-mode, whose per-buffer
 ;; "is this file git-tracked?" probe spawned git on EVERY file open
 ;; (~65ms - the "dired open feels slower than helix" tax).
+;; --- tier:4 | global mode: file-notification revert ---
+(my/at-tier 4
 (setq auto-revert-avoid-polling t)
 (global-auto-revert-mode 1)
+)
 
+;; --- tier:2 | standalone: git UI (fully deferred) ---
+(my/at-tier 2
 (use-package magit
   :defer t   ; magit-status is autoloaded; bound to SPC v in the leader map
   :custom
@@ -205,6 +225,7 @@
   ;; no splits: magit reuses the current window (diffs still split, which
   ;; is the one case a split earns its keep)
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
+)
 
 (defun vp/diff-hl-dired-maybe ()
   "Enable the dired git gutter for local directories only.
@@ -213,6 +234,8 @@ always meaningless there (/var/log isn't a repo)."
   (unless (file-remote-p default-directory)
     (diff-hl-dired-mode 1)))
 
+;; --- tier:4 | hooks: prog-mode, dired-mode, magit refresh ---
+(my/at-tier 4
 (use-package diff-hl
   :hook ((prog-mode  . diff-hl-mode)
          (dired-mode . vp/diff-hl-dired-maybe)
@@ -231,10 +254,13 @@ always meaningless there (/var/log isn't a repo)."
   (with-eval-after-load 'diff-hl-dired
     (set-face-attribute 'diff-hl-dired-unknown nil
                         :inherit 'diff-hl-dired-insert)))
+)
 
 
 ;;; Utilities -----
 ;; Built-in since Emacs 30
+;; --- tier:4 | global modes: editorconfig, direnv ---
+(my/at-tier 4
 (use-package editorconfig
   :ensure nil
   :config (editorconfig-mode 1))
@@ -244,5 +270,6 @@ always meaningless there (/var/log isn't a repo)."
   :hook (after-init . direnv-mode)
   :custom
   (direnv-always-show-summary nil))
+)
 
 ;;; programming.el ends here
