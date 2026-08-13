@@ -12,6 +12,8 @@
 !/programming.el
 !/tools.el
 !/emacs-ask.md
+!/emacs-refactor.md
+!/BENCHMARKS.md
 !/themes/
 !/themes/*.el
 
