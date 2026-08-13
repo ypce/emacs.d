@@ -231,10 +231,10 @@
     (add-to-list 'meow-mode-state-list mode))
   (meow-global-mode 1))
 
-;; Meow command menu (SPC ?) in the casual style: a transient that
-;; shows the full normal-state map in groups. The keys in the menu are
-;; the real meow keys, so the menu also teaches the bindings. transient
-;; loads on first use, not at startup (same reason as casual below).
+;; Meow command menu (SPC ?): a transient that shows the full
+;; normal-state map in groups. The keys in the menu are the real meow
+;; keys, so the menu also teaches the bindings. transient loads on
+;; first use, not at startup.
 (with-eval-after-load 'transient
   (transient-define-prefix vp/meow-tmenu ()
     "Meow normal-state commands (digits 0-9 expand the last motion)."
@@ -295,7 +295,7 @@
       ("q" "quit window"   meow-quit)]]))
 
 (defun vp/meow-menu ()
-  "Open the meow command menu, a transient in the casual style."
+  "Open the meow command menu, a transient over the normal-state map."
   (interactive)
   (require 'transient)
   (vp/meow-tmenu))
@@ -433,42 +433,10 @@
          ("RET" . vp/dired-find-file-smart)
          ("<mouse-1>" . vp/dired-find-file-smart)))
 
-;; casual - its tmenu commands are package autoloads; loading eagerly
-;; would drag the whole suite + transient (~300ms) into the first dired
-;; buffer, so only the key bindings are wired here.
-;; Convention: bare ? = "this buffer's menu" in special modes; C-? in
-;; editing modes (where ? self-inserts). casual covers more modes
-;; (calc, man, bookmarks, image, …) - a mode earns its line here the
-;; day a real session wants it.
-(use-package casual :defer t)
 ;; <escape> closes a transient like it closes everything else here;
 ;; stock transient leaves it unbound and only C-g backs out
 (with-eval-after-load 'transient
   (keymap-set transient-map "<escape>" #'transient-quit-one))
-;; preloaded maps bind directly; the rest bind when their mode loads
-;; C-?, not bare ?: in isearch every printing char extends the search
-;; string, so isearch counts as an editing context under the menu
-;; convention (bare ? only where keys don't self-insert)
-(keymap-set isearch-mode-map    "C-?" #'casual-isearch-tmenu)
-(keymap-set emacs-lisp-mode-map "C-?" #'casual-elisp-tmenu)
-(pcase-dolist (`(,feature ,map ,key ,cmd)
-               '((dired      dired-mode-map       "?"   casual-dired-tmenu)
-                 (ibuffer    ibuffer-mode-map     "?"   casual-ibuffer-tmenu)
-                 (info       Info-mode-map        "?"   casual-info-tmenu)
-                 (org-agenda org-agenda-mode-map  "?"   casual-agenda-tmenu)
-                 (calendar   calendar-mode-map    "?"   casual-calendar-tmenu)
-                 (help-mode  help-mode-map        "?"   casual-help-tmenu)
-                 (compile    compilation-mode-map "?"   casual-compile-tmenu)
-                 (org        org-mode-map         "C-?" casual-org-tmenu)))
-  (with-eval-after-load feature
-    (keymap-set (symbol-value map) key cmd)))
-
-;; ediff builds its keymap at session start (ediff-mode-map is defvar'd
-;; nil), so binding the map symbol at init breaks whenever ediff.el got
-;; loaded early - use ediff's own keymap-setup hook.
-(defun vp/ediff-casual-key ()
-  (define-key ediff-mode-map "?" #'casual-ediff-tmenu))
-(add-hook 'ediff-keymap-setup-hook #'vp/ediff-casual-key)
 
 ;;; Org Mode -----
 (defun vp/all-org-files ()
@@ -636,8 +604,6 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                  ("n" "notes"                ,vp/leader-notes-map)
                  ("h" "help"                 ,help-map)
                  ("i" "ai"                   ,vp/leader-ai-map)
-                 ;; the everything-else menu: rectangles, registers, sort…
-                 ("o" "edit menu (casual)"   casual-editkit-main-tmenu)
                  ("s" "eshell here"          vp/eshell-here)
                  ("?" "meow menu"            vp/meow-menu)))
   (keymap-set vp/leader-map key (cons label cmd)))

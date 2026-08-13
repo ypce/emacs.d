@@ -167,7 +167,7 @@
       ("g" "guess separator"   csv-guess-set-separator)]]))
 
 (defun vp/csv-menu ()
-  "Open the csv-mode command menu, a transient in the casual style."
+  "Open the csv-mode command menu, a transient over csv-mode commands."
   (interactive)
   (require 'transient)
   (vp/csv-tmenu))
