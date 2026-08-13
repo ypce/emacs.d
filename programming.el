@@ -189,9 +189,19 @@
 ;;; Version Control -----
 ;; SPC v opens the status buffer; everything else lives in magit's
 ;; own transient menus (? inside the status buffer).
+;; Buffers pick up on-disk changes (git checkout, external edits…) via
+;; file notifications instead of magit-auto-revert-mode, whose per-buffer
+;; "is this file git-tracked?" probe spawned git on EVERY file open
+;; (~65ms - the "dired open feels slower than helix" tax).
+(setq auto-revert-avoid-polling t)
+(global-auto-revert-mode 1)
+
 (use-package magit
   :defer t   ; magit-status is autoloaded; bound to SPC v in the leader map
   :custom
+  ;; redundant given global-auto-revert-mode above, and its per-buffer
+  ;; git probe is what made opening any file slow
+  (magit-auto-revert-mode nil)
   ;; no splits: magit reuses the current window (diffs still split, which
   ;; is the one case a split earns its keep)
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
