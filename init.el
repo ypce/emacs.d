@@ -625,19 +625,8 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 (add-hook 'org-mode-hook #'vp/org-prettify-todos)
 )
 
-;; Author recommends :config (not :hook) and a high hook depth so this attaches
-;; after org-indent has set up. See https://github.com/jdtsmith/org-modern-indent
 ;; --- tier:3 | coupled stack: org visuals ---
 (my/at-tier 3
-(use-package org-modern-indent   ; github-only, fetched by package-vc
-  ;; :ensure nil is REQUIRED next to :vc under use-package-always-ensure,
-  ;; else the ensure and vc handlers both install and collide.
-  :ensure nil
-  :vc (:url "https://github.com/jdtsmith/org-modern-indent" :rev :newest)
-  :after org
-  :config
-  (add-hook 'org-mode-hook #'org-modern-indent-mode 90))
-
 (use-package org-appear
   :hook (org-mode . org-appear-mode)
   :custom
@@ -809,7 +798,9 @@ ID and join the sequence."
   (ghostel-module-auto-install 'download))   ; prebuilt, from GitHub releases
 
 (use-package claude-code-ide   ; github-only, fetched by package-vc
-  :ensure nil                  ; required next to :vc, see org-modern-indent
+  ;; :ensure nil is REQUIRED next to :vc under use-package-always-ensure,
+  ;; else the ensure and vc handlers both install and collide.
+  :ensure nil
   :vc (:url "https://github.com/manzaltu/claude-code-ide.el" :rev :newest)
   :commands (claude-code-ide-menu)   ; bound to SPC i c in the leader map
   :custom
