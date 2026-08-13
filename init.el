@@ -34,33 +34,12 @@
 (unless (bound-and-true-p package--activated)
   (package-initialize))
 
-;; Audit instrumentation (Phase A, temporary; see emacs-refactor.md).
-;; Collects per-package load times; read them with `use-package-report'.
-(setq use-package-compute-statistics t)
-
 (require 'use-package)
 (setq use-package-always-ensure t)   ; built-ins opt out with :ensure nil
 
-;; Tier gates (Phase A, temporary; see emacs-refactor.md). Blocks
-;; tagged tier:2+ are wrapped in `my/at-tier'; benchmark processes set
-;; `my/tier-max' before load to bring the config up floor-first
-;; (0+1, +2, +3, ...). Normal startup loads everything. Phase B
-;; deletes this machinery and unwraps every surviving block.
-(defvar my/tier-max (string-to-number (or (getenv "EMACS_TIER_MAX") "5")))
-(defmacro my/at-tier (n &rest body)
-  "Run BODY only when tier N is enabled by `my/tier-max'."
-  (declare (indent 1))
-  `(when (<= ,n my/tier-max) ,@body))
-
-;; --- tier:0 | audit instrumentation: startup profiler ---
-(use-package esup
-  :defer t)
-
 ;; --- tier:2 | standalone: terminal keyboard protocol ---
-(my/at-tier 2
 (use-package kkp   ; GNU ELPA
   :config (global-kkp-mode +1))
-)
 
 
 ;;; Mode line -----
@@ -179,7 +158,6 @@
 ;; Special modes (dired, agenda) keep their native keys via motion
 ;; state.
 ;; --- tier:5 | keybindings: modal editing | injects-into: eshell/ghostel modes ---
-(my/at-tier 5
 (use-package meow
   :config
   (defun meow-setup ()
@@ -258,7 +236,6 @@
                   (ghostel-mode . insert)))
     (add-to-list 'meow-mode-state-list mode))
   (meow-global-mode 1))
-)
 
 
 ;;; Saving + Recent -----
@@ -278,7 +255,6 @@
 
 ;;; Themes + Visuals -----
 ;; --- tier:2 | standalone: theme, font, tty transparency ---
-(my/at-tier 2
 (add-to-list 'custom-theme-load-path (expand-file-name "themes" user-emacs-directory))
 (setq frame-background-mode 'dark)
 ;; uniform text size everywhere - org headings by color/bold only
@@ -302,7 +278,6 @@
 ;; shr (the HTML renderer behind eww and HTML mail) uses theme faces,
 ;; not the document's own colors - they clash with a dark theme
 (setq shr-use-colors nil)
-)
 
 
 ;;; Completions (all built-in) -----
@@ -361,10 +336,8 @@
 ;; fallback; GUI frames via Symbols Nerd Font (brew cask, see README).
 ;; nerd-icons itself installs as this package's dependency.
 ;; --- tier:4 | hook: dired-mode | deps: nerd-icons ---
-(my/at-tier 4
 (use-package nerd-icons-dired
   :hook (dired-mode . nerd-icons-dired-mode))
-)
 
 (use-package dired
   :ensure nil
@@ -394,10 +367,8 @@
 ;; <escape> closes a transient like it closes everything else here;
 ;; stock transient leaves it unbound and only C-g backs out
 ;; --- tier:2 | deps: transient (loads on demand) ---
-(my/at-tier 2
 (with-eval-after-load 'transient
   (keymap-set transient-map "<escape>" #'transient-quit-one))
-)
 
 ;;; Org Mode -----
 (defun vp/all-org-files ()
@@ -426,7 +397,6 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 ;; Emacs 30 bundles org 9.7 - the built-in satisfies org-modern/org-node
 ;; version requirements, so package.el never downloads org.
 ;; --- tier:3 | coupled stack: org (loads on first org buffer / agenda) ---
-(my/at-tier 3
 (use-package org
   :ensure nil
   :hook (org-mode . visual-line-mode)
@@ -517,7 +487,6 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 
   (org-clock-persistence-insinuate)
   (add-hook 'org-capture-mode-hook #'delete-other-windows))
-)
 
 ;;; Command menu (SPC leader) -----
 ;; A dedicated keymap: SPC is ONLY this menu - meow's keypad
@@ -527,7 +496,6 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 ;; mode-specific (org C-c C-*, eglot C-c e, …). Bindings are
 ;; (LABEL . COMMAND) menu items - which-key shows LABEL natively.
 ;; --- tier:5 | keybindings: SPC leader | deps: meow (keypad dispatch) ---
-(my/at-tier 5
 (defvar-keymap vp/leader-file-map)
 (pcase-dolist (`(,key ,label ,cmd)
                '(("r" "rename/move file"   rename-visited-file)
@@ -586,12 +554,10 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 ;; tier 5 keymap.
 (when (locate-library "mu4e")
   (keymap-set vp/leader-map "m" (cons "mail" #'mu4e)))
-)
 
 
 ;;; Org Extensions -----
 ;; --- tier:3 | coupled stack: org visuals ---
-(my/at-tier 3
 (use-package org-modern
   :after org
   :hook ((org-mode . org-modern-mode)
@@ -623,24 +589,20 @@ searchable through the org-mem index (SPC n f, SPC n /)."
               prettify-symbols-unprettify-at-point 'right-edge)
   (prettify-symbols-mode 1))
 (add-hook 'org-mode-hook #'vp/org-prettify-todos)
-)
 
 ;; --- tier:3 | coupled stack: org visuals ---
-(my/at-tier 3
 (use-package org-appear
   :hook (org-mode . org-appear-mode)
   :custom
   (org-appear-autoemphasis t)
   (org-appear-autolinks t)
   (org-appear-autosubmarkers t))
-)
 
 
 ;;; Org Node -----
 ;; org-roam replacement: no SQLite database, nodes indexed by org-mem.
 ;; Creating a new node is just `org-node-find' with a name that doesn't exist.
 ;; --- tier:3 | coupled stack: org-node + org-mem notes index ---
-(my/at-tier 3
 (use-package org-node
   :after org
   :demand t   ; load with org so indexing modes come on, not on first C-c n
@@ -669,7 +631,6 @@ searchable through the org-mem index (SPC n f, SPC n /)."
   (org-node-seq-mode))
 
 (autoload 'org-node-seq-dispatch "org-node-seq" nil t)
-)
 
 ;; org-node-grep hard-requires consult; this is the same search through
 ;; xref instead, so SPC n / behaves like SPC / (type regexp, RET,
@@ -789,7 +750,6 @@ ID and join the sequence."
 ;; as an Emacs module) hosts its heavy TUI: fewest rendering artifacts
 ;; of the backends; pure-elisp terminals can't redraw it smoothly.
 ;; --- tier:3 | coupled stack: ghostel + claude-code-ide ---
-(my/at-tier 3
 (use-package ghostel
   :defer t
   :custom
@@ -812,7 +772,6 @@ ID and join the sequence."
   (claude-code-ide-emacs-tools-setup)
   (add-to-list 'display-buffer-alist
                '("\\*claude-code\\[" (display-buffer-full-frame))))
-)
 
 
 ;;; Remote (TRAMP, built-in) -----
@@ -843,7 +802,6 @@ ID and join the sequence."
 ;; an unreadable wall). Sorted by description so it reads like a menu;
 ;; C-h while it's up pages through long maps (C-h n / C-h p).
 ;; --- tier:5 | keybindings: binding discovery panel ---
-(my/at-tier 5
 (use-package which-key
   :ensure nil
   :custom
@@ -853,14 +811,12 @@ ID and join the sequence."
   (which-key-add-column-padding 2)
   :config
   (which-key-mode))
-)
 
 
 ;;; Mail (mu4e) -----
 ;; mu4e ships with mu (Nix-provided on nix-config machines); the whole mail
 ;; setup is skipped on machines where it isn't installed.
 ;; --- tier:3 | coupled stack: mu4e + msmtp (skipped when mu is absent) ---
-(my/at-tier 3
 (let ((nix-mu4e-file (expand-file-name "nix-mu4e.el" user-emacs-directory)))
   (when (file-exists-p nix-mu4e-file)
     (load nix-mu4e-file nil 'nomessage)))
@@ -899,5 +855,4 @@ ID and join the sequence."
 
   (setq user-mail-address "vp@paulaus.com"
         user-full-name "Vytautas"))
-)
 ;;; init.el ends here
