@@ -606,13 +606,15 @@ searchable through the org-mem index (SPC n f, SPC n /)."
   :after org
   :demand t   ; load with org so indexing modes come on, not on first C-c n
   :init
-  ;; Index org files EVERYWHERE notes live - ~/Notes plus org files nested
-  ;; in code projects. This feeds find/grep/backlinks (SPC n …), NOT the
-  ;; agenda: agenda membership is curated, see `vp/refresh-agenda-files'.
+  ;; Watch ONLY ~/Notes. Watch dirs are re-traversed in the MAIN thread
+  ;; (stat on every file) by a repeating idle timer - pointing them at
+  ;; ~/Projects, ~/Git and OneDrive meant walking ~75k files (some of
+  ;; them cloud placeholders) every ~15s of idle, felt as microstutters
+  ;; everywhere. Org files in code projects still get indexed:
+  ;; `org-mem-do-look-everywhere' (default t) picks them up from
+  ;; recentf/org-id/org-agenda once visited.
   (setq org-mem-do-sync-with-org-id t
-        org-mem-watch-dirs
-        (seq-filter #'file-directory-p
-                    (list org-directory "~/Projects" "~/Git")))
+        org-mem-watch-dirs (list org-directory))
   :config
   (org-mem-updater-mode)
   (org-node-cache-mode)
