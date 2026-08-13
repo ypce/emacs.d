@@ -761,8 +761,13 @@ ID and join the sequence."
   :commands (claude-code-ide-menu)   ; bound to SPC i c in the leader map
   :custom
   (claude-code-ide-terminal-backend 'ghostel)
+  ;; a plain buffer, not a pinned side window: each new session takes
+  ;; the whole frame instead of splitting the window in use
+  (claude-code-ide-use-side-window nil)
   :config
-  (claude-code-ide-emacs-tools-setup))
+  (claude-code-ide-emacs-tools-setup)
+  (add-to-list 'display-buffer-alist
+               '("\\*claude-code\\[" (display-buffer-full-frame))))
 
 
 ;;; Remote (TRAMP, built-in) -----
