@@ -366,17 +366,6 @@
   :hook (dired-mode . nerd-icons-dired-mode))
 )
 
-;; TAB unfolds a directory inline (yazi/modern-editor tree behavior)
-;; --- tier:2 | standalone | injects-into: dired-mode-map ---
-(my/at-tier 2
-(use-package dired-subtree
-  :after dired
-  :bind (:map dired-mode-map
-         ("TAB" . dired-subtree-toggle))
-  :custom
-  (dired-subtree-use-backgrounds nil))
-)
-
 (use-package dired
   :ensure nil
   :hook ((dired-mode . dired-hide-details-mode)
