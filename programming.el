@@ -254,17 +254,11 @@ always meaningless there (/var/log isn't a repo)."
 
 ;;; Utilities -----
 ;; Built-in since Emacs 30
-;; --- tier:4 | global modes: editorconfig, direnv ---
+;; --- tier:4 | global mode: editorconfig (built-in) ---
 (my/at-tier 4
 (use-package editorconfig
   :ensure nil
   :config (editorconfig-mode 1))
-
-(use-package direnv
-  :when (executable-find "direnv")
-  :hook (after-init . direnv-mode)
-  :custom
-  (direnv-always-show-summary nil))
 )
 
 ;;; programming.el ends here
