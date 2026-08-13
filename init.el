@@ -25,10 +25,14 @@
 ;; No lockfiles - versions float; M-x package-upgrade-all to update.
 (require 'package)
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
-(unless (bound-and-true-p package--initialized)
-  (package-initialize))          ; normal startup activates earlier; --batch doesn't
-(unless package-archive-contents
-  (package-refresh-contents))    ; fresh machine: fetch archive indexes once
+;; Normal startup activates packages BEFORE init.el (package-quickstart,
+;; see early-init.el) - initializing again here re-reads every package
+;; descriptor and archive index, measured at 390ms. Only --batch runs
+;; skip that early activation and need it. A fresh machine bootstraps
+;; without a refresh call: when :ensure meets a missing package,
+;; use-package runs package-refresh-contents itself.
+(unless (bound-and-true-p package--activated)
+  (package-initialize))
 
 ;; Audit instrumentation (Phase A, temporary; see emacs-refactor.md).
 ;; Collects per-package load times; read them with `use-package-report'.
@@ -42,7 +46,7 @@
 ;; `my/tier-max' before load to bring the config up floor-first
 ;; (0+1, +2, +3, ...). Normal startup loads everything. Phase B
 ;; deletes this machinery and unwraps every surviving block.
-(defvar my/tier-max 5)
+(defvar my/tier-max (string-to-number (or (getenv "EMACS_TIER_MAX") "5")))
 (defmacro my/at-tier (n &rest body)
   "Run BODY only when tier N is enabled by `my/tier-max'."
   (declare (indent 1))

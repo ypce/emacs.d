@@ -10,6 +10,13 @@
         gc-cons-percentage 0.1))
 (add-hook 'after-init-hook #'vp/restore-gc)
 
+;; Activate packages from one pre-built autoload file instead of one
+;; file per package (activation measured 390ms without it, see
+;; BENCHMARKS.md). package.el refreshes the file after every install,
+;; upgrade, or delete; M-x package-quickstart-refresh rebuilds it by
+;; hand if it ever goes stale.
+(setq package-quickstart t)
+
 ;; Async native-comp warnings ("…not known to be defined") are expected
 ;; noise from macro-expansion order; log them without popping a buffer.
 (setq native-comp-async-report-warnings-errors 'silent)
