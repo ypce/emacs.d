@@ -16,9 +16,7 @@
         '((bash     "https://github.com/tree-sitter/tree-sitter-bash")
           (go       "https://github.com/tree-sitter/tree-sitter-go")
           (gomod    "https://github.com/camdencheek/tree-sitter-go-mod")
-          (python   "https://github.com/tree-sitter/tree-sitter-python")
-          (markdown "https://github.com/ikatyang/tree-sitter-markdown")
-          (fish     "https://github.com/ram02z/tree-sitter-fish")))
+          (python   "https://github.com/tree-sitter/tree-sitter-python")))
 
   ;; Fresh setup: build any missing grammar (one-time; needs git + a C compiler).
   (dolist (lang (mapcar #'car treesit-language-source-alist))
@@ -137,9 +135,6 @@
   :custom
   (markdown-command "pandoc")
   (markdown-fontify-code-blocks-natively t))
-
-;; Fish shell (auto-mode entry comes from the package autoloads)
-(use-package fish-mode :defer t)
 
 ;; Nix
 (use-package nix-mode :defer t)
