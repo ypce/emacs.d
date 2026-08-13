@@ -1,20 +1,18 @@
 #+title: Emacs Config
 #+author: Vytautas
 
-Personal Emacs configuration. This directory is the repo. On a fresh
-machine, clone it into place:
+Personal Emacs config. The directory is the repo, so clone it into
+place:
 
 #+begin_src sh
 git clone git@github.com:ypce/emacs.d.git ~/.emacs.d
 #+end_src
 
-Runtime state (=elpa/=, =eln-cache/=, history files) stays in this
-directory. The =.gitignore= file excludes it from the repo.
+Runtime state (=elpa/=, =eln-cache/=, history files) stays out of git.
 
-* Setup (macOS)
+* Install (macOS)
 
-Install Emacs 30+ (native compilation, tree-sitter, Cocoa). Start it
-as a login daemon:
+Emacs 30+ as a login daemon:
 
 #+begin_src sh
 brew tap d12frosted/emacs-plus
@@ -22,40 +20,38 @@ brew install emacs-plus@30
 brew services start emacs-plus@30
 #+end_src
 
-Add these shell aliases. The =-a ''= option starts a daemon when the
-service is down, so the aliases always connect:
+Shell aliases. =-a ''= starts a daemon when the service is down, so
+these always connect:
 
 #+begin_src sh
 alias e="emacsclient -nw -a ''"     # terminal frame
-alias ec="emacsclient -r -n -a ''"  # GUI frame (reuse one if it exists)
+alias ec="emacsclient -r -n -a ''"  # GUI frame
 #+end_src
 
-For Finder and the Dock, set *Emacs Client.app* (an emacsclient
-AppleScript droplet) as the handler for text file types. Do not open
-Emacs.app directly for daemon work. It starts a separate instance
-that does not connect to the daemon.
-
-Install the external tools. Each tool is optional. A missing tool
-only disables its own feature:
+External tools, all optional. A missing tool only disables its own
+feature:
 
 #+begin_src sh
-brew install coreutils pandoc direnv zoxide
+brew install coreutils pandoc zoxide
 brew install gopls marksman bash-language-server python-lsp-server
 brew install --cask font-symbols-only-nerd-font   # GUI glyph icons
-go install golang.org/x/tools/cmd/goimports@latest
 #+end_src
 
-Install the =AeonikMono-*.otf= font family into =~/Library/Fonts=.
-GUI frames use *Aeonik Mono Medium 18*, the same font as the ghostty
-and wezterm configs. If the font is missing, Emacs uses the default
-monospace font.
+GUI frames use *Aeonik Mono Medium 18* - install the =.otf= family
+into =~/Library/Fonts=, or live with the default mono.
 
-** Daemon truecolor (tty frames)
+For Finder, set *Emacs Client.app* (an emacsclient droplet) as the
+handler for text files. Opening Emacs.app directly starts a second
+instance that ignores the daemon.
 
-The daemon environment has no =COLORTERM=. Client tty frames detect
-24-bit color from terminfo only. Without a terminfo entry, these
-frames fall back to a 256-color palette. Install the terminfo for
-each terminal:
+The first start downloads the packages into =elpa/= and builds the
+tree-sitter grammars (needs git and a C compiler). Native-comp
+warnings in the first sessions are normal.
+
+* Terminal colors
+
+The daemon has no =COLORTERM=, so tty frames only get 24-bit color
+from terminfo. Install an entry per terminal:
 
 #+begin_src sh
 # ghostty (also fixes "Terminal type xterm-ghostty is not defined")
@@ -68,13 +64,11 @@ curl -s https://raw.githubusercontent.com/wezterm/wezterm/main/termwiz/data/wezt
 /opt/homebrew/opt/ncurses/bin/tic -x -o ~/.terminfo /tmp/wezterm.ti
 #+end_src
 
-To verify, run =M-: (display-color-cells)= in a client frame. The
-result must be =16777216=.
+=M-: (display-color-cells)= in a client frame must say =16777216=.
 
-** App icon (optional)
+* App icon (optional)
 
-A brew rebuild of emacs-plus restores the stock icon. Apply the
-*elrumo2* icon again after each rebuild:
+A brew rebuild restores the stock icon; reapply *elrumo2* after:
 
 #+begin_src sh
 curl -sL -o /tmp/e.icns https://raw.githubusercontent.com/d12frosted/homebrew-emacs-plus/master/community/icons/elrumo2/icon.icns
@@ -86,49 +80,26 @@ done
 touch /Applications/Emacs*.app && killall Dock
 #+end_src
 
-* First launch
+* Using it
 
-1. package.el downloads approximately 30 packages from the ELPA and
-   MELPA archives into =elpa/=. Two github-only packages come from
-   package-vc. No package needs codeberg.org (blocked on some
-   networks).
-2. Emacs compiles the missing tree-sitter grammars into
-   =tree-sitter/=. This step needs git and a C compiler.
-3. Native compilation shows warnings in the first sessions. These
-   warnings are not errors.
+Modal editing is *meow* with the Colemak layout, selection first.
+=SPC= opens the leader menu (which-key shows the labels), =SPC ?=
+shows the meow cheatsheet. Everything else is stock Emacs chords.
+Completion is built-in: fido-vertical in the minibuffer,
+completion-preview in buffers.
 
-* Usage notes
+Notes live in =~/Notes= (org-node). The agenda reads =inbox.org=,
+=agenda.org=, and any file tagged =#+filetags: :agenda:=.
 
-Modal editing is *meow* (Colemak layout, selection first). =SPC=
-opens the leader menu, and which-key shows the labels. =SPC ?= opens
-the meow command menu (a transient, casual style, full normal-state
-map). All other commands use standard Emacs chords.
-Completion is built-in (fido-vertical and completion-preview).
-=org-directory= is =~/Notes=. The agenda reads =inbox.org=,
-=agenda.org=, and each file that has =#+filetags: :agenda:=.
-
-Package versions float, and there are no lockfiles. Run
-=M-x package-upgrade-all= to update all packages. Git tags (for
-example =pre-builtin-completion=) mark rollback points.
+No lockfiles; versions float. =M-x package-upgrade-all= updates
+everything.
 
 * Layout
 
 | File           | Purpose                                                  |
 |----------------+----------------------------------------------------------|
-| early-init.el  | GC tuning, frame basics                                  |
+| early-init.el  | GC tuning, package-quickstart, frame basics              |
 | init.el        | package.el, UI, meow, completion, org, leader menu       |
 | tools.el       | standalone tools: ask-ai, file ops, zoxide, eshell suite |
 | programming.el | treesit, eglot, flymake, language modes, git             |
 | themes/        | dracula-pro-pro theme                                    |
-
-* Health check
-
-Startup time is 130 to 190 ms (=M-x emacs-init-time=). To verify the
-grammars, run this command from this directory. Each grammar must
-report =t=:
-
-#+begin_src sh
-emacs --batch -l early-init.el -l init.el --eval \
-  "(dolist (l (mapcar 'car treesit-language-source-alist))
-     (message \"grammar %-9s %s\" l (treesit-language-available-p l)))"
-#+end_src

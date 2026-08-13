@@ -2,9 +2,6 @@
 *
 
 !/.gitignore
-!/.claude/
-!/.claude/skills/
-!/.claude/skills/**
 !/LICENSE
 !/README.org
 !/early-init.el
@@ -12,8 +9,6 @@
 !/programming.el
 !/tools.el
 !/emacs-ask.md
-!/emacs-refactor.md
-!/BENCHMARKS.md
 !/themes/
 !/themes/*.el
 
