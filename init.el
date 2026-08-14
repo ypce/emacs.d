@@ -43,6 +43,7 @@
 
 
 ;;; Mode line -----
+;; --- tier:2 | standalone: mode-line format ---
 (defface vp/ml-buffer
   '((t :inherit font-lock-constant-face :weight bold))
   "Face for the buffer name.")
@@ -87,6 +88,11 @@
     " "
     mode-line-misc-info
     " "))
+
+(set-face-attribute 'mode-line nil
+                     :box '(:line-width 6 :style flat-button))
+(set-face-attribute 'mode-line-inactive nil
+                     :box '(:line-width 6 :style flat-button))
 
 
 ;;; Basic Emacs options -----
