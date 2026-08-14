@@ -320,34 +320,53 @@
 (setq shr-use-colors nil)
 
 
-;;; Completions (all built-in) -----
-;; Minibuffer: fido-vertical, flex matching.
-(fido-vertical-mode 1)
+;;; Completions -----
+;; Minibuffer UI: vertical candidate list, one per line, no manual
+;; truncation/clip-left hacks needed - vertico does this natively.
+;; --- tier:2 | standalone: minibuffer completion UI ---
+(use-package vertico   ; GNU ELPA
+  :init (vertico-mode 1)
+  :config (setq vertico-cycle t))
 
-;; One line per candidate, like fzf. Without this, long paths (SPC j,
-;; recentf) soft-wrap and the list turns into a ragged block.
-;; truncate-lines is the backstop; the advice below does the real work.
-(defun vp/icomplete-truncate ()
-  (setq-local truncate-lines t))
-(add-hook 'icomplete-minibuffer-setup-hook #'vp/icomplete-truncate)
+;; Completion style: words match in any order/fragment, not just as
+;; a contiguous prefix. Orthogonal to vertico - just a matching rule.
+;; --- tier:2 | standalone: completion style ---
+(use-package orderless   ; GNU ELPA
+  :init
+  (setq completion-styles '(orderless basic)
+        completion-category-overrides '((file (styles basic partial-completion)))))
 
-;; Keep the tail of over-wide candidates (fzf --keep-right): paths
-;; differ at the leaf, so clip the left and prefix an ellipsis.
-;; icomplete pads every line with spaces to the longest candidate, so
-;; strip that padding first; without this one long entry makes every
-;; line measure as over-wide and all of them get clipped.
-;; Display-only: the advice edits the rendered text, not the candidates.
-(defun vp/icomplete-clip-left (ret)
-  (let ((w (max 20 (1- (window-width (or (active-minibuffer-window)
-                                         (selected-window)))))))
-    (mapconcat (lambda (line)
-                 (let ((line (string-trim-right line)))
-                   (if (> (string-width line) w)
-                       (concat "…" (substring line (- (length line) (- w 1))))
-                     line)))
-               (split-string ret "\n")
-               "\n")))
-(advice-add 'icomplete-completions :filter-return #'vp/icomplete-clip-left)
+;; Minibuffer annotations: file size/date, command docstrings, etc.
+;; --- tier:2 | standalone: minibuffer annotations ---
+(use-package marginalia   ; GNU ELPA
+  :init (marginalia-mode 1))
+
+;; Live-narrowing search/navigation commands (grep, buffers, xref,
+;; imenu, marks…), with preview on selection. Needs vertico's hooks
+;; for the async-refresh commands (consult-ripgrep etc.) to live-update.
+;; --- tier:3 | coupled stack: consult (needs vertico) ---
+(use-package consult   ; GNU ELPA
+  :init
+  (setq xref-show-xrefs-function #'consult-xref
+        xref-show-definitions-function #'consult-xref))
+
+;; Act on minibuffer/consult candidates without selecting them first;
+;; embark-consult teaches `embark-export' to turn consult-ripgrep
+;; results into a real, editable grep-mode buffer.
+;; --- tier:3 | coupled stack: embark + embark-consult (needs consult) ---
+(use-package embark   ; GNU ELPA
+  :bind (("C-." . embark-act)
+         :map minibuffer-local-map
+         ("C-c C-e" . embark-export)))
+
+(use-package embark-consult   ; GNU ELPA
+  :after (embark consult))
+
+;; wgrep-change-to-wgrep-mode (bound to `e' in grep-mode buffers)
+;; makes an embark-exported results buffer directly editable; saving
+;; it (C-c C-c) writes every edit back to its source file.
+;; --- tier:3 | coupled stack: wgrep (acts on grep-mode buffers) ---
+(use-package wgrep)   ; GNU ELPA
 
 ;; In-buffer: completion-preview ghost text from the buffer's capf
 ;; sources (eglot feeds these) - TAB accepts, M-i completes up to the
@@ -357,8 +376,7 @@
 (add-hook 'prog-mode-hook #'completion-preview-mode)
 (add-hook 'text-mode-hook #'completion-preview-mode)
 
-;; project-find-regexp (SPC /) searches with ripgrep; `r' in its
-;; results buffer is project-wide query-replace
+;; project-find-regexp / consult-ripgrep search with ripgrep
 (when (executable-find "rg")
   (setq xref-search-program 'ripgrep))
 
@@ -548,7 +566,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 (pcase-dolist (`(,key ,label ,cmd)
                '(("f" "find/create note"   org-node-find)
                  ("i" "insert link"        org-node-insert-link)
-                 ("/" "grep notes"         vp/org-node-grep)
+                 ("/" "grep notes"         org-node-grep)
                  ("b" "backlinks/context"  org-node-context-toggle)
                  ("d" "daily note (today)" vp/daily-today)
                  ("s" "browse dailies"     org-node-seq-dispatch)))
@@ -566,11 +584,11 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                `(("f" "find file (project)" project-find-file)
                  ("." "find file (path)"    find-file)
                  ("u" "file ops"             ,vp/leader-file-map)
-                 ("r" "recent files"         vp/recentf-open)
+                 ("r" "recent files"         consult-recent-file)
                  ("j" "jump dir (z)"         vp/zoxide-jump)
                  ("d" "dired here"           dired-jump)
-                 ("b" "switch buffer"        switch-to-buffer)
-                 ("/" "grep project"         project-find-regexp)
+                 ("b" "switch buffer"        consult-buffer)
+                 ("/" "grep project"         consult-ripgrep)
                  ("k" "close buffer"         kill-current-buffer)
                  ("a" "agenda"               org-agenda)
                  ("v" "git status"           magit-status)
@@ -672,100 +690,12 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 
 (autoload 'org-node-seq-dispatch "org-node-seq" nil t)
 
-;; org-node-grep hard-requires consult; this is the same search through
-;; xref instead, so SPC n / behaves like SPC / (type regexp, RET,
-;; ripgrep results in an xref buffer, `r' to query-replace across
-;; them). Searches file CONTENTS of every indexed org file - titles
-;; live-filter under SPC n f instead.
-(defun vp/org-node-grep (regexp)
-  "Grep across all org files known to org-mem, results in xref."
-  (interactive (list (read-regexp "Grep notes: ")))
-  (require 'org-node)
-  (require 'xref)
-  (org-node-cache-ensure)
-  ;; -expanded: the plain list abbreviates paths to ~/… which the
-  ;; ripgrep subprocess can't open (a shell would expand ~, xargs won't)
-  (let ((files (org-mem-all-files-expanded)))
-    (unless files (user-error "No files indexed by org-mem"))
-    (xref-show-xrefs
-     (apply-partially #'xref-matches-in-files regexp files)
-     nil)))
-
-;; In xref results, stock n/p/./, PREVIEW each match - visiting a heavy
-;; org buffer per line (org-modern, indent, folding…). No previews:
-;; n/p just move, RET jumps, r query-replaces across results.
-(with-eval-after-load 'xref
-  (keymap-set xref--xref-buffer-mode-map "n" #'xref-next-line-no-show)
-  (keymap-set xref--xref-buffer-mode-map "p" #'xref-prev-line-no-show)
-  (keymap-unset xref--xref-buffer-mode-map "." t)
-  (keymap-unset xref--xref-buffer-mode-map ","  t))
-
-;; r replaces sed-style: every file listed in the results, all matches,
-;; no questions, no buffers left behind. Files already open in a buffer
-;; are edited through it (unsaved edits stay safe) and saved; the rest
-;; are rewritten on disk via temp buffers - org modes never initialize.
-;; The interactive per-match flow remains as M-x
-;; xref-query-replace-in-results (cleaned up by the advice below).
-(defun vp/xref--replace-in-current-buffer (from to)
-  "Replace regexp FROM with TO in the whole buffer, return the count.
-Fixed case like sed; \\1 backreferences work."
-  (let ((n 0))
-    (save-excursion
-      (goto-char (point-min))
-      (while (re-search-forward from nil t)
-        (replace-match to t)
-        (setq n (1+ n))
-        (when (= (match-beginning 0) (match-end 0))   ; empty match: don't loop
-          (if (eobp) (goto-char (point-max)) (forward-char 1)))))
-    n))
-
-(defun vp/xref-replace-all (from to)
-  "Replace FROM with TO across every file in the xref results, sed-style."
-  (interactive
-   (let ((from (read-regexp "Replace regexp: ")))
-     (list from (read-string (format-message "Replace `%s' with: " from)))))
-  (let ((files nil) (total 0) (nfiles 0) match)
-    (save-excursion
-      (goto-char (point-min))
-      (while (setq match (text-property-search-forward 'xref-item))
-        (push (xref-location-group
-               (xref-item-location (prop-match-value match)))
-              files)))
-    (unless files (user-error "No results here"))
-    (dolist (file (delete-dups (nreverse files)))
-      (setq file (expand-file-name file))
-      (let ((n (if-let* ((buf (find-buffer-visiting file)))
-                   (with-current-buffer buf
-                     (prog1 (vp/xref--replace-in-current-buffer from to)
-                       (when (buffer-modified-p) (save-buffer))))
-                 (with-temp-buffer
-                   (insert-file-contents file)
-                   (let ((n (vp/xref--replace-in-current-buffer from to)))
-                     (when (> n 0)
-                       (write-region (point-min) (point-max) file nil 'quiet))
-                     n)))))
-        (when (> n 0)
-          (setq nfiles (1+ nfiles)
-                total (+ total n)))))
-    (message "Replaced %d occurrence%s in %d file%s"
-             total (if (= total 1) "" "s")
-             nfiles (if (= nfiles 1) "" "s"))))
-
-;; …and when the interactive query-replace IS used: save-and-kill the
-;; buffers it opened; buffers already open keep their undo history.
-(defun vp/xref-replace-cleanup (orig &rest args)
-  (let ((before (buffer-list)))
-    (unwind-protect
-        (apply orig args)
-      (dolist (buf (buffer-list))
-        (unless (memq buf before)
-          (with-current-buffer buf
-            (when buffer-file-name
-              (when (buffer-modified-p) (save-buffer))
-              (kill-buffer))))))))
-(with-eval-after-load 'xref
-  (advice-add 'xref-query-replace-in-results :around #'vp/xref-replace-cleanup)
-  (keymap-set xref--xref-buffer-mode-map "r" #'vp/xref-replace-all))
+;; Notes content search is org-node's own `org-node-grep' (bound at
+;; SPC n /): now that consult is a dependency anyway, no wrapper is
+;; needed - it live-narrows through consult-ripgrep directly. Bulk
+;; replace across results: from the minibuffer, `embark-export'
+;; (C-c C-e) turns a consult-ripgrep/org-node-grep session into a
+;; wgrep-editable buffer; `e' there makes it editable, C-c C-c saves.
 
 (defun vp/daily-today ()
   "Open today's daily note, creating it as a node if missing.
