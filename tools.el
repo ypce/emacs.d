@@ -13,6 +13,18 @@
 ;; rules in emacs-ask.md with this config as grounding, async into a
 ;; small bottom window (q dismisses). Follow-up continues the same
 ;; conversation.
+(defvar vp/ai-ask-model "haiku"
+  "Model `vp/ai-ask' passes to `claude -p'. Set via `vp/ai-ask-set-model'.")
+
+(defvar vp/ai-ask-history nil
+  "Minibuffer history for `vp/ai-ask' and `vp/ai-ask-more'.")
+
+(defun vp/ai-ask-set-model (model)
+  "Set the model `vp/ai-ask' uses to MODEL."
+  (interactive (list (completing-read "ai-ask model: "
+                                      '("haiku" "sonnet" "opus") nil t)))
+  (setq vp/ai-ask-model model))
+
 (defun vp/ai-ask--system-prompt ()
   (with-temp-buffer
     (insert-file-contents (expand-file-name "emacs-ask.md" user-emacs-directory))
@@ -91,10 +103,11 @@
      :name "ai-ask" :noquery t
      :command (append (list "claude" "-p")
                       (when more (list "--continue"))
-                      ;; haiku: 3-line keybinding lookups don't need a
-                      ;; frontier model; verified it still answers from
-                      ;; the config grounding
-                      (list "--model" "haiku"
+                      ;; haiku default: 3-line keybinding lookups don't
+                      ;; need a frontier model; verified it still answers
+                      ;; from the config grounding. `vp/ai-ask-set-model'
+                      ;; switches to sonnet/opus for harder questions.
+                      (list "--model" vp/ai-ask-model
                             "--allowedTools" "Read,Glob,Grep"
                             "--append-system-prompt" (vp/ai-ask--system-prompt)
                             "--" q))
@@ -123,12 +136,12 @@
 
 (defun vp/ai-ask (question)
   "Ask the AI a how-to QUESTION about this Emacs setup."
-  (interactive "sai: ")
+  (interactive (list (read-string "ai: " nil 'vp/ai-ask-history)))
   (vp/ai-ask--run question))
 
 (defun vp/ai-ask-more (question)
   "Follow up on the last `vp/ai-ask' QUESTION."
-  (interactive "sai follow-up: ")
+  (interactive (list (read-string "ai follow-up: " nil 'vp/ai-ask-history)))
   (vp/ai-ask--run question t))
 
 

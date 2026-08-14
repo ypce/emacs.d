@@ -286,7 +286,10 @@
 
 (use-package savehist
   :ensure nil
-  :hook (after-init . savehist-mode))
+  :hook (after-init . savehist-mode)
+  ;; vp/ai-ask-model/-history live in tools.el; custom-file is a
+  ;; throwaway temp file (see below), so savehist is what persists them
+  :init (setq savehist-additional-variables '(vp/ai-ask-model vp/ai-ask-history)))
 
 (use-package saveplace
   :ensure nil
@@ -576,6 +579,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 (pcase-dolist (`(,key ,label ,cmd)
                '(("a" "ask ai"             vp/ai-ask)
                  ("m" "ask ai (follow-up)" vp/ai-ask-more)
+                 ("s" "ask ai: set model"  vp/ai-ask-set-model)
                  ("c" "claude code"        claude-code-ide-menu)))
   (keymap-set vp/leader-ai-map key (cons label cmd)))
 
