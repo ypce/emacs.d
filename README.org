@@ -85,8 +85,10 @@ touch /Applications/Emacs*.app && killall Dock
 Modal editing is *meow* with the Colemak layout, selection first.
 =SPC= opens the leader menu (which-key shows the labels), =SPC ?=
 shows the meow cheatsheet. Everything else is stock Emacs chords.
-Completion is built-in: fido-vertical in the minibuffer,
-completion-preview in buffers.
+Minibuffer completion is vertico + orderless + marginalia; consult
+and embark/wgrep drive live search (=SPC /=, =SPC n /=) and bulk
+find/replace across results. In-buffer completion is the built-in
+completion-preview.
 
 Notes live in =~/Notes= (org-node). The agenda reads =inbox.org=,
 =agenda.org=, and any file tagged =#+filetags: :agenda:=.
