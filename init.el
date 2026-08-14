@@ -276,11 +276,11 @@
                   (ghostel-mode . insert)))
     (add-to-list 'meow-mode-state-list mode))
   (meow-global-mode 1)
-  ;; Cheatsheet command face hardcodes an absolute 9pt height,
-  ;; independent of `default' - tiny, and its narrower glyphs at that
-  ;; size no longer line up with the ASCII-art layout around them.
-  ;; Unspecified inherits fixed-pitch's (-> default's) real height.
-  (set-face-attribute 'meow-cheatsheet-command nil :height 'unspecified))
+  ;; Cheatsheet command face hardcoded an absolute 9pt height,
+  ;; independent of `default' - too small to read. 16pt applies
+  ;; uniformly across the whole buffer (add-face-text-property covers
+  ;; it all), so alignment stays intact at any size chosen here.
+  (set-face-attribute 'meow-cheatsheet-command nil :height 160))
 
 
 ;;; Saving + Recent -----
