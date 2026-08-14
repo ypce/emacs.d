@@ -150,7 +150,7 @@
          ;; stock C-x C-b is the ancient list-buffers; ibuffer succeeds it
          ("C-x C-b" . ibuffer)
          ;; buffer-switch reflex (outline nav: built-in M-g i imenu)
-         ("M-b" . switch-to-buffer)
+         ("M-b" . consult-buffer)
          ("<escape>" . keyboard-escape-quit)))
 
 (keymap-global-unset "C-x C-z")   ; suspend-frame, too easy to fat-finger

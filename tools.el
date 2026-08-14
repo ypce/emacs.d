@@ -249,15 +249,6 @@ Bypass this and always open in Emacs with `dired-find-file' (bound to i)."
             " $ ")))
 (setq eshell-prompt-function #'vp/eshell-prompt)
 
-(defun vp/eshell-history ()
-  "Insert a history entry picked with minibuffer completion (C-r reflex)."
-  (interactive)
-  (let ((cmd (completing-read "history: "
-                              (delete-dups (ring-elements eshell-history-ring))
-                              nil t)))
-    (eshell-kill-input)
-    (insert cmd)))
-
 ;; Long prompts (deep OneDrive paths) with the global truncate-lines
 ;; hscroll the whole window and hide previous output. Terminals wrap;
 ;; do the same here.
@@ -273,7 +264,7 @@ Bypass this and always open in Emacs with `dired-find-file' (bound to i)."
   :hook ((eshell-mode . with-editor-export-editor)
          (eshell-mode . vp/eshell-wrap-lines))
   :bind (:map eshell-mode-map
-         ("C-r" . vp/eshell-history)))
+         ("C-r" . consult-history)))
 
 ;; zoxide in eshell: `z foo` jumps like zsh; every cd feeds the shared db
 (defun eshell/z (&rest args)
