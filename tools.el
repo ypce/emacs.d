@@ -2,9 +2,9 @@
 
 ;;; Commentary:
 ;; Tools that aren't configuration of any package: ask-ai, file
-;; operations, the zoxide bridge, and the eshell suite. Rule of the
-;; split: package glue lives beside its package (init.el /
-;; programming.el); standalone tools live here.
+;; operations, and the eshell suite. Rule of the split: package glue
+;; lives beside its package (init.el / programming.el); standalone
+;; tools live here.
 
 ;;; Code:
 
@@ -186,45 +186,6 @@ Bypass this and always open in Emacs with `dired-find-file' (bound to i)."
     (message "%s" p)))
 
 
-;;; Zoxide -----
-;; The shell's `z` inside Emacs, against the SAME frecency database:
-;; visiting files/dirs here bumps entries zsh sees and vice versa.
-;; SPC j picks a frecent dir (zoxide's ranking, not alphabetical) and
-;; lands in dired. Remote dirs are deliberately excluded - zsh can't
-;; cd to /ssh: paths, and the db is shared.
-(defun vp/zoxide-add ()
-  "Silently bump `default-directory' in zoxide's database."
-  (when-let* ((dir default-directory)
-              ((not (file-remote-p dir)))
-              ((file-directory-p dir))
-              ((executable-find "zoxide")))
-    (call-process "zoxide" nil 0 nil "add" (expand-file-name dir))))
-;; --- tier:4 | hooks: find-file, dired-mode (shells out to zoxide) ---
-(add-hook 'find-file-hook #'vp/zoxide-add)
-(add-hook 'dired-mode-hook #'vp/zoxide-add)
-
-(defun vp/zoxide-pick ()
-  "Pick a frecent directory from zoxide's database (frecency order)."
-  (unless (executable-find "zoxide")
-    (user-error "zoxide not found in PATH"))
-  (let* ((dirs (mapcar #'abbreviate-file-name
-                       (process-lines "zoxide" "query" "--list")))
-         ;; completion table that keeps zoxide's frecency order (the
-         ;; minibuffer UI would otherwise re-sort alphabetically)
-         (table (lambda (str pred action)
-                  (if (eq action 'metadata)
-                      '(metadata (category . file)
-                                 (display-sort-function . identity)
-                                 (cycle-sort-function . identity))
-                    (complete-with-action action dirs str pred)))))
-    (completing-read "z: " table nil t)))
-
-(defun vp/zoxide-jump ()
-  "Jump to a frecent directory in dired (shell `z' equivalent)."
-  (interactive)
-  (dired (vp/zoxide-pick)))
-
-
 ;;; Eshell -----
 ;; Stock eshell renders colors and basic control codes itself
 ;; (eshell-handle-ansi-color/-control-codes in the default output
@@ -266,23 +227,6 @@ Bypass this and always open in Emacs with `dired-find-file' (bound to i)."
   :bind (:map eshell-mode-map
          ("C-r" . consult-history)))
 
-;; zoxide in eshell: `z foo` jumps like zsh; every cd feeds the shared db
-(defun eshell/z (&rest args)
-  "Jump to the zoxide match for ARGS (no args: home)."
-  (if (null args)
-      (eshell/cd)
-    (let ((dir (string-trim
-                (shell-command-to-string
-                 (concat "zoxide query "
-                         (string-join (mapcar #'shell-quote-argument args) " "))))))
-      (if (file-directory-p dir)
-          (eshell/cd dir)
-        (user-error "zoxide: no match for %s" (string-join args " "))))))
-
-(defun eshell/zi (&rest _)
-  "Interactive zoxide picker (like zsh `zi'): choose a frecent dir, cd."
-  (eshell/cd (vp/zoxide-pick)))
-
 ;; `clear' erases like a terminal (the default merely scrolls content
 ;; out of view, leaving a stray prompt at the window bottom)
 (with-eval-after-load 'esh-mode
@@ -291,7 +235,7 @@ Bypass this and always open in Emacs with `dired-find-file' (bound to i)."
 (defun vp/eshell-here ()
   "Open the shared eshell, cd'd to this buffer's directory.
 One session that follows you: invoked from dired or a file buffer, it
-cds there - as a real command, so history and the zoxide hook see it."
+cds there - as a real command, so eshell's history sees it."
   (interactive)
   ;; file-truename also normalizes macOS firmlink routes like
   ;; "/Volumes/Macintosh HD/Users/…" back to the canonical path
@@ -302,9 +246,5 @@ cds there - as a real command, so history and the zoxide hook see it."
       (eshell-kill-input)
       (insert (format "cd \"%s\"" dir))
       (eshell-send-input))))
-
-;; vp/zoxide-add (not a raw call-process) - it guards against remote dirs
-;; and a missing zoxide binary, both of which would error on every cd
-(add-hook 'eshell-directory-change-hook #'vp/zoxide-add)
 
 ;;; tools.el ends here

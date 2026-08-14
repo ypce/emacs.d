@@ -382,7 +382,7 @@
 
 
 ;;; Custom tools + programming domain -----
-;; tools.el: self-contained commands (ask-ai, file ops, zoxide, eshell)
+;; tools.el: self-contained commands (ask-ai, file ops, eshell)
 ;; programming.el: treesit, eglot, flymake, languages, git
 (dolist (f '("tools.el" "programming.el"))
   (let ((path (expand-file-name f user-emacs-directory)))
@@ -585,7 +585,6 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                  ("." "find file (path)"    find-file)
                  ("u" "file ops"             ,vp/leader-file-map)
                  ("r" "recent files"         consult-recent-file)
-                 ("j" "jump dir (z)"         vp/zoxide-jump)
                  ("d" "dired here"           dired-jump)
                  ("b" "switch buffer"        consult-buffer)
                  ("/" "grep project"         consult-ripgrep)
