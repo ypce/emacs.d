@@ -16,6 +16,10 @@
 (defvar vp/ai-ask-model "haiku"
   "Model `vp/ai-ask' passes to `claude -p'. Set via `vp/ai-ask-set-model'.")
 
+(defvar vp/ai-ask-effort nil
+  "Effort level `vp/ai-ask' passes to `claude -p', or nil for the CLI default.
+Set via `vp/ai-ask-set-effort'.")
+
 (defvar vp/ai-ask-history nil
   "Minibuffer history for `vp/ai-ask' and `vp/ai-ask-more'.")
 
@@ -24,6 +28,15 @@
   (interactive (list (completing-read "ai-ask model: "
                                       '("haiku" "sonnet" "opus") nil t)))
   (setq vp/ai-ask-model model))
+
+(defun vp/ai-ask-set-effort (effort)
+  "Set the effort level `vp/ai-ask' uses to EFFORT, or unset it."
+  (interactive
+   (list (let ((choice (completing-read "ai-ask effort: "
+                                        '("default" "low" "medium" "high" "xhigh" "max")
+                                        nil t)))
+           (unless (equal choice "default") choice))))
+  (setq vp/ai-ask-effort effort))
 
 (defun vp/ai-ask--system-prompt ()
   (with-temp-buffer
@@ -107,8 +120,11 @@
                       ;; need a frontier model; verified it still answers
                       ;; from the config grounding. `vp/ai-ask-set-model'
                       ;; switches to sonnet/opus for harder questions.
-                      (list "--model" vp/ai-ask-model
-                            "--allowedTools" "Read,Glob,Grep"
+                      (list "--model" vp/ai-ask-model)
+                      ;; effort is independent of model choice; nil
+                      ;; leaves it at the CLI's own default
+                      (when vp/ai-ask-effort (list "--effort" vp/ai-ask-effort))
+                      (list "--allowedTools" "Read,Glob,Grep"
                             "--append-system-prompt" (vp/ai-ask--system-prompt)
                             "--" q))
      :filter (lambda (_ out)
