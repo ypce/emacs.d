@@ -310,6 +310,13 @@
 (set-face-attribute 'default nil
                     :family "Aeonik Mono" :weight 'medium :height 180)
 
+;; Stock fixed-pitch defaults to the family name "Monospace", a
+;; fontconfig alias that doesn't resolve on macOS - it silently falls
+;; back to a proportional font (seen in meow-cheatsheet, which sets
+;; its own face on `fixed-pitch'). Point it at the same family as
+;; `default' so anything requesting a monospace face actually gets one.
+(set-face-attribute 'fixed-pitch nil :family 'unspecified :inherit 'default)
+
 (defun vp/transparent-background ()
   "Unset the default background in terminal frames for true transparency."
   (unless (display-graphic-p)
