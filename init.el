@@ -43,16 +43,50 @@
 
 
 ;;; Mode line -----
+(defface vp/ml-buffer
+  '((t :inherit font-lock-constant-face :weight bold))
+  "Face for the buffer name.")
+
+(defface vp/ml-dim
+  '((t :inherit shadow))
+  "Face for secondary mode-line info.")
+
+(defun vp/ml--status ()
+  "Modified / read-only indicator."
+  (cond (buffer-read-only    (propertize " ⊘" 'face 'vp/ml-dim))
+        ((buffer-modified-p) (propertize " ●" 'face 'error))
+        (t                   (propertize " ○" 'face 'vp/ml-dim))))
+
+(defun vp/ml--vc ()
+  "Version-control branch, if any."
+  (when vc-mode
+    (concat (propertize "  ⎇ " 'face 'vp/ml-dim)
+            (propertize (substring-no-properties vc-mode 5)
+                        'face 'font-lock-keyword-face))))
+
+(defun vp/ml--position ()
+  "Line:column plus percentage through buffer."
+  (propertize " %l:%c " 'face 'vp/ml-dim))
+
+(defun vp/ml--major-mode ()
+  "Pretty major-mode name (uses `mode-name', so \"Emacs-Lisp\" not \"emacs-lisp-mode\")."
+  (propertize (concat " " (format-mode-line mode-name) " ")
+              'face 'font-lock-function-name-face))
+
 (defun vp/mode-line ()
   "Custom mode-line format."
-  '(" - "
-    (:eval (propertize (buffer-name) 'face 'font-lock-constant-face))
-    "%6l:%c (%o) "
-    (:eval (when vc-mode
-             (concat " | ⇅ " (substring-no-properties vc-mode 5))))
+  '((:eval (vp/ml--status))
+    "  "
+    (:eval (propertize (buffer-name) 'face 'vp/ml-buffer))
+    "  "
+    (:eval (vp/ml--position))
+    (:propertize "%p" face vp/ml-dim)
+    (:eval (vp/ml--vc))
     mode-line-format-right-align
-    (:eval (concat "  " (symbol-name major-mode)))
-    "  " mode-line-misc-info))
+    (:eval (vp/ml--major-mode))
+    " "
+    mode-line-misc-info
+    " "))
 
 
 ;;; Basic Emacs options -----
