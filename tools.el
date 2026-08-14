@@ -161,6 +161,86 @@ Set via `vp/ai-ask-set-effort'.")
   (vp/ai-ask--run question t))
 
 
+;;; AI usage report -----
+;; ccusage (via npx) parses Claude Code's local session logs for
+;; tokens/cost, but reports each session by its raw UUID. Every
+;; session's own JSONL log carries an `ai-title' record with the
+;; actual human title - this stitches the two together.
+(defun vp/ai-usage--title (session-id)
+  "Human title for SESSION-ID, or the id itself if none is on disk yet."
+  (or (when-let* ((file (car (file-expand-wildcards
+                              (expand-file-name
+                               (format "projects/*/%s.jsonl" session-id)
+                               "~/.claude")))))
+        (with-temp-buffer
+          (call-process "grep" nil t nil "-m1" "-o"
+                        "\"aiTitle\":\"[^\"]*\"" file)
+          (goto-char (point-min))
+          (when (re-search-forward "\"aiTitle\":\"\\([^\"]*\\)\"" nil t)
+            (match-string 1))))
+      session-id))
+
+(defun vp/ai-usage--format-number (n)
+  "Format integer N with thousands separators."
+  (let ((s (number-to-string (truncate n))) (out ""))
+    (while (> (length s) 3)
+      (setq out (concat "," (substring s -3) out)
+            s (substring s 0 -3)))
+    (concat s out)))
+
+(defun vp/ai-usage--day-label (day)
+  "Human label for DAY (a YYYY-MM-DD string): Today, Yesterday, or DAY."
+  (cond ((equal day (format-time-string "%Y-%m-%d")) "Today")
+        ((equal day (format-time-string "%Y-%m-%d" (time-subtract nil (days-to-time 1))))
+         "Yesterday")
+        (t day)))
+
+(defun vp/ai-usage (&optional since)
+  "Show Claude Code token/cost usage per session, today and yesterday.
+With a prefix arg, prompt for SINCE as YYYYMMDD."
+  (interactive
+   (list (when current-prefix-arg (read-string "since (YYYYMMDD): "))))
+  (unless (executable-find "npx")
+    (user-error "ai-usage: npx not found in PATH"))
+  (let* ((since (or since (format-time-string "%Y%m%d" (time-subtract nil (days-to-time 1)))))
+         (data (with-temp-buffer
+                 (call-process "npx" nil t nil "--yes" "ccusage@latest"
+                               "session" "--json" "--since" since)
+                 (goto-char (point-min))
+                 (json-parse-string (buffer-string) :object-type 'alist :array-type 'list)))
+         (rows (mapcar
+                (lambda (s)
+                  (let ((activity (alist-get 'lastActivity (alist-get 'metadata s))))
+                    (list (format-time-string "%Y-%m-%d" (encode-time (iso8601-parse activity)))
+                          activity
+                          (vp/ai-usage--title (alist-get 'period s))
+                          (alist-get 'totalTokens s)
+                          (alist-get 'totalCost s))))
+                (alist-get 'session data)))
+         (rows (sort rows (lambda (a b) (string> (cadr a) (cadr b)))))
+         (days (delete-dups (mapcar #'car rows)))
+         (buf (get-buffer-create "*ai-usage*")))
+    (with-current-buffer buf
+      (special-mode)
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (dolist (day days)
+          (let ((day-rows (seq-filter (lambda (r) (equal (car r) day)) rows)))
+            (insert (propertize (vp/ai-usage--day-label day) 'face 'bold) "\n")
+            (dolist (row day-rows)
+              (pcase-let ((`(,_ ,activity ,title ,tokens ,cost) row))
+                (insert (format "  %5s  $%-7.2f %10s  %s\n"
+                                (format-time-string "%H:%M" (encode-time (iso8601-parse activity)))
+                                cost
+                                (vp/ai-usage--format-number tokens)
+                                title))))
+            (insert (format "  %-13s $%.2f\n\n" "day total"
+                            (apply #'+ (mapcar (lambda (r) (nth 4 r)) day-rows))))))
+        (insert (format "Total: $%.2f\n"
+                        (apply #'+ (mapcar (lambda (r) (nth 4 r)) rows))))))
+    (display-buffer buf)))
+
+
 ;;; File ops (SPC u): act on the visited file itself -----
 (defun vp/file-reveal ()
   "Reveal the current file (or directory) in Finder."

@@ -594,6 +594,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                  ("m" "ask ai (follow-up)" vp/ai-ask-more)
                  ("s" "ask ai: set model"  vp/ai-ask-set-model)
                  ("e" "ask ai: set effort" vp/ai-ask-set-effort)
+                 ("u" "ai usage report"    vp/ai-usage)
                  ("c" "claude code"        claude-code-ide-menu)))
   (keymap-set vp/leader-ai-map key (cons label cmd)))
 
