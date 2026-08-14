@@ -275,7 +275,12 @@
   (dolist (mode '((eshell-mode  . insert)
                   (ghostel-mode . insert)))
     (add-to-list 'meow-mode-state-list mode))
-  (meow-global-mode 1))
+  (meow-global-mode 1)
+  ;; Cheatsheet command face hardcodes an absolute 9pt height,
+  ;; independent of `default' - tiny, and its narrower glyphs at that
+  ;; size no longer line up with the ASCII-art layout around them.
+  ;; Unspecified inherits fixed-pitch's (-> default's) real height.
+  (set-face-attribute 'meow-cheatsheet-command nil :height 'unspecified))
 
 
 ;;; Saving + Recent -----
