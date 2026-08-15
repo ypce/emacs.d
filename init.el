@@ -90,10 +90,8 @@
     " "))
 
 (set-face-attribute 'mode-line nil
-                     :background nil
                      :box '(:line-width 6 :style flat-button))
 (set-face-attribute 'mode-line-inactive nil
-                     :background nil
                      :box '(:line-width 6 :style flat-button))
 
 
@@ -312,6 +310,10 @@
 ;; (consulted when the theme builds its face specs, so set before load)
 (setq dracula-pro-pro-enlarge-headings nil)
 (load-theme 'dracula-pro-pro t)
+;; transparent mode-line: applied after the theme load, since the theme
+;; sets its own mode-line background that would otherwise win.
+(set-face-attribute 'mode-line nil :background nil)
+(set-face-attribute 'mode-line-inactive nil :background nil)
 
 ;; Font - match wezterm/ghostty: Aeonik Mono Medium 18pt.
 ;; Only affects GUI frames; terminal frames use the terminal's own font.
@@ -656,7 +658,13 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 ;; TODO states as glyphs - built-in prettify-symbols composes the
 ;; keyword into a symbol; the real text stays underneath (point on it
 ;; expands the word for editing). org-todo-keyword-faces still colors
-;; them. Note: the agenda shows the plain words - it isn't org-mode.
+;; them. Also hooked onto org-agenda-mode: the agenda buffer copies
+;; headline text (with properties) straight out of each source file's
+;; buffer, so without its own composition an entry only looks
+;; "prettified" in the agenda by accident, if that source file happened
+;; to be jit-lock-fontified already in some window. Composing here too
+;; makes every agenda entry render the glyph regardless of source-buffer
+;; history.
 (defun vp/org-prettify-todos ()
   (setq-local prettify-symbols-alist
               '(("TODO"      . ?☐)
@@ -667,6 +675,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
               prettify-symbols-unprettify-at-point 'right-edge)
   (prettify-symbols-mode 1))
 (add-hook 'org-mode-hook #'vp/org-prettify-todos)
+(add-hook 'org-agenda-mode-hook #'vp/org-prettify-todos)
 
 ;; --- tier:3 | coupled stack: org visuals ---
 (use-package org-appear
