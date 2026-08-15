@@ -90,8 +90,10 @@
     " "))
 
 (set-face-attribute 'mode-line nil
+                     :background nil
                      :box '(:line-width 6 :style flat-button))
 (set-face-attribute 'mode-line-inactive nil
+                     :background nil
                      :box '(:line-width 6 :style flat-button))
 
 
