@@ -665,6 +665,12 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 ;; to be jit-lock-fontified already in some window. Composing here too
 ;; makes every agenda entry render the glyph regardless of source-buffer
 ;; history.
+;;
+;; org-modern renders checklist boxes ([ ]/[X]) with its `org-modern-symbol'
+;; face so their glyphs stay pinned to one font/weight regardless of theme.
+;; Layering the same face on these TODO/DONE glyphs (appended, so
+;; org-todo-keyword-faces still supplies the color) keeps both icon sets
+;; looking like one family instead of two.
 (defun vp/org-prettify-todos ()
   (setq-local prettify-symbols-alist
               '(("TODO"      . ?☐)
@@ -673,7 +679,12 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                 ("DONE"      . ?✓)
                 ("CANCELLED" . ?✗))
               prettify-symbols-unprettify-at-point 'right-edge)
-  (prettify-symbols-mode 1))
+  (prettify-symbols-mode 1)
+  (font-lock-add-keywords
+   nil
+   `((,(regexp-opt (mapcar #'car prettify-symbols-alist) 'words)
+      0 'org-modern-symbol append))
+   'append))
 (add-hook 'org-mode-hook #'vp/org-prettify-todos)
 (add-hook 'org-agenda-mode-hook #'vp/org-prettify-todos)
 
