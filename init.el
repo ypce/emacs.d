@@ -313,11 +313,19 @@
 ;; Flat mode-line: the theme paints it dracula-pro-pro-current (dark
 ;; gray) and gives the box its own colors; use the default background
 ;; for both so the bar blends in and the box only contributes padding.
-;; Must run after load-theme, which sets these faces.
-(dolist (face '(mode-line mode-line-inactive))
-  (set-face-attribute face nil
-                      :background (face-background 'default)
-                      :box `(:line-width 6 :color ,(face-background 'default))))
+;; Deferred to a real frame (like vp/transparent-background below):
+;; a daemon's initial frame has no display yet, so the theme's
+;; min-colors face spec falls back to its tty branch there, and
+;; (face-background 'default) would bake in a wrong tty color
+;; (e.g. "brightblack") that never re-resolves once a GUI frame connects.
+(defun vp/flat-mode-line ()
+  (dolist (face '(mode-line mode-line-inactive))
+    (set-face-attribute face nil
+                        :background (face-background 'default)
+                        :box `(:line-width 6 :color ,(face-background 'default)))))
+
+(add-hook 'window-setup-hook            #'vp/flat-mode-line)
+(add-hook 'server-after-make-frame-hook #'vp/flat-mode-line)
 
 ;; Font - match wezterm/ghostty: Aeonik Mono Medium 18pt.
 ;; Only affects GUI frames; terminal frames use the terminal's own font.
