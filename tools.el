@@ -280,12 +280,15 @@ default app.")
 
 (defun vp/dired-find-file-smart ()
   "Open the file at point: text/code in Emacs, else the macOS default app.
-Bypass this and always open in Emacs with `dired-find-file' (bound to i)."
+Files macOS has no app for (kLSApplicationNotFoundErr) fall back to
+Emacs. Bypass this and always open in Emacs with `dired-find-file'
+(bound to i)."
   (interactive)
   (let ((file (dired-get-filename nil t)))
-    (if (or (null file) (vp/dired-emacs-file-p file))
-        (dired-find-file)
-      (vp/file-open-default))))
+    (if (or (null file)
+            (vp/dired-emacs-file-p file)
+            (/= 0 (call-process "open" nil nil nil (expand-file-name file))))
+        (dired-find-file))))
 
 (defun vp/file-copy-path ()
   "Copy the current file's absolute path."

@@ -89,11 +89,6 @@
     mode-line-misc-info
     " "))
 
-(set-face-attribute 'mode-line nil
-                     :box '(:line-width 6 :style flat-button))
-(set-face-attribute 'mode-line-inactive nil
-                     :box '(:line-width 6 :style flat-button))
-
 
 ;;; Basic Emacs options -----
 (use-package emacs
@@ -315,6 +310,15 @@
 (set-face-attribute 'mode-line nil :background nil)
 (set-face-attribute 'mode-line-inactive nil :background nil)
 
+;; Flat mode-line: the theme paints it dracula-pro-pro-current (dark
+;; gray) and gives the box its own colors; use the default background
+;; for both so the bar blends in and the box only contributes padding.
+;; Must run after load-theme, which sets these faces.
+(dolist (face '(mode-line mode-line-inactive))
+  (set-face-attribute face nil
+                      :background (face-background 'default)
+                      :box `(:line-width 6 :color ,(face-background 'default))))
+
 ;; Font - match wezterm/ghostty: Aeonik Mono Medium 18pt.
 ;; Only affects GUI frames; terminal frames use the terminal's own font.
 (set-face-attribute 'default nil
@@ -381,6 +385,16 @@
 
 (use-package embark-consult   ; GNU ELPA
   :after (embark consult))
+
+;; Pick a directory from one list (recent-file dirs, project roots,
+;; bookmarks) and land there in dired. Inside an active find-file
+;; prompt, C-x C-d instead teleports the minibuffer to the picked
+;; directory.
+;; --- tier:3 | coupled stack: consult-dir (needs consult + vertico) ---
+(use-package consult-dir   ; MELPA
+  :bind (:map vertico-map
+         ("C-x C-d" . consult-dir)
+         ("C-x C-j" . consult-dir-jump-file)))
 
 ;; wgrep-change-to-wgrep-mode (bound to `e' in grep-mode buffers)
 ;; makes an embark-exported results buffer directly editable; saving
@@ -609,6 +623,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
                  ("u" "file ops"             ,vp/leader-file-map)
                  ("r" "recent files"         consult-recent-file)
                  ("d" "dired here"           dired-jump)
+                 ("j" "jump to dir"          consult-dir)
                  ("b" "switch buffer"        consult-buffer)
                  ("/" "grep project"         consult-ripgrep)
                  ("k" "close buffer"         kill-current-buffer)
