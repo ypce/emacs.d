@@ -34,4 +34,10 @@
 ;; breathing room between the frame edge and text (GUI frames only;
 ;; terminal frames get padding from ghostty/wezterm's own config)
 (add-to-list 'default-frame-alist '(internal-border-width . 12))
+
+;; new frames open at 80% of the screen work area, centered
+(add-to-list 'default-frame-alist '(width . 0.8))
+(add-to-list 'default-frame-alist '(height . 0.8))
+(add-to-list 'default-frame-alist '(left . 0.5))
+(add-to-list 'default-frame-alist '(top . 0.5))
 ;;; early-init.el ends here
