@@ -125,7 +125,12 @@
          (markdown-mode . visual-wrap-prefix-mode))
   :custom
   (markdown-command "pandoc")
-  (markdown-fontify-code-blocks-natively t))
+  (markdown-fontify-code-blocks-natively t)
+  ;; foghorn theme (jasonm23/markdown-css-themes), vendored in assets/
+  ;; so previews style without network
+  (markdown-css-paths
+   (list (concat "file://"
+                 (expand-file-name "assets/foghorn.css" user-emacs-directory)))))
 
 ;; Nix
 (use-package nix-mode :defer t)

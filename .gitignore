@@ -11,6 +11,8 @@
 !/emacs-ask.md
 !/themes/
 !/themes/*.el
+!/assets/
+!/assets/*.css
 
 # Never track machine-generated Nix glue (written by home-manager)
 nix-mu4e.el
