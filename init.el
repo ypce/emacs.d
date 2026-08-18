@@ -184,6 +184,12 @@
 (when (executable-find "pbpaste")
   (setq interprogram-paste-function #'vp/interprogram-paste))
 
+;; Command-W is delete-frame in stock NS Emacs. An accidental press
+;; closes the client frame. Disable it; close frames with C-x 5 0.
+;; ns-win.el binds it when the first GUI frame loads, so unbind after.
+(with-eval-after-load 'ns-win
+  (keymap-global-unset "s-w"))
+
 
 ;;; Modal editing: meow -----
 ;; Kakoune-style selection-first grammar, zero dependencies. Official
