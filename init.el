@@ -228,6 +228,8 @@
      '("e" . meow-prev)
      '("E" . meow-prev-expand)
      '("f" . meow-find)
+     ;; kak parity: shifted find/till extend the selection
+     '("F" . meow-find-expand)
      '("g" . meow-cancel-selection)
      '("G" . meow-grab)
      '("h" . meow-left)
@@ -250,6 +252,7 @@
      '("s" . meow-insert)
      '("S" . meow-open-above)
      '("t" . meow-till)
+     '("T" . meow-till-expand)
      '("u" . meow-undo)
      ;; kak parity: U redoes (meow-undo-in-selection is M-x-only)
      '("U" . undo-redo)
