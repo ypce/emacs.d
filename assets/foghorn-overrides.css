@@ -1,8 +1,11 @@
-/* Widen foghorn's fixed 700px/42em body to GitHub's markdown-body
-   width (980px), loaded after foghorn.css so it wins the cascade. */
+/* Widen foghorn's fixed 700px/42em body past GitHub's markdown-body
+   width, and shrink the base font 20% (1.3em -> 1.04em; every other
+   size in foghorn.css is em-relative to body, so this scales the
+   whole page). Loaded after foghorn.css so it wins the cascade. */
 html, body {
-	max-width: 980px;
+	max-width: 1200px;
 }
 body {
-	width: 980px;
+	width: 1200px;
+	font-size: 1.04em;
 }
