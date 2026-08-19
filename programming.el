@@ -127,10 +127,12 @@
   (markdown-command "pandoc")
   (markdown-fontify-code-blocks-natively t)
   ;; foghorn theme (jasonm23/markdown-css-themes), vendored in assets/
-  ;; so previews style without network
+  ;; so previews style without network. foghorn-overrides.css loads
+  ;; second and widens the fixed 700px body to GitHub's 980px.
   (markdown-css-paths
-   (list (concat "file://"
-                 (expand-file-name "assets/foghorn.css" user-emacs-directory)))))
+   (mapcar (lambda (f) (concat "file://"
+                                (expand-file-name f user-emacs-directory)))
+           '("assets/foghorn.css" "assets/foghorn-overrides.css"))))
 
 ;; Nix
 (use-package nix-mode :defer t)

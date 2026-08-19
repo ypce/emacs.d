@@ -1,0 +1,8 @@
+/* Widen foghorn's fixed 700px/42em body to GitHub's markdown-body
+   width (980px), loaded after foghorn.css so it wins the cascade. */
+html, body {
+	max-width: 980px;
+}
+body {
+	width: 980px;
+}
