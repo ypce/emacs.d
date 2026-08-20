@@ -140,31 +140,31 @@
 ;; command for it.
 (defun vp/markdown-mark-toggle ()
   "Toggle a <mark> highlight.
-With an active region, wrap it in <mark>...</mark>; if the region
-is already exactly wrapped, unwrap it. With no region, remove the
-<mark> tags that enclose point."
+Inside a <mark>...</mark> span, remove the tags, region or not.
+Otherwise wrap the active region in <mark>...</mark>."
   (interactive)
-  (if (use-region-p)
-      (let* ((beg (region-beginning))
-             (end (region-end))
-             (text (buffer-substring beg end)))
-        (if (and (string-prefix-p "<mark>" text)
-                 (string-suffix-p "</mark>" text))
-            (progn (delete-region (- end 7) end)
-                   (delete-region beg (+ beg 6)))
-          (goto-char end)
-          (insert "</mark>")
-          (goto-char beg)
-          (insert "<mark>")
-          (goto-char (+ end 13))))
-    (let* ((open (save-excursion (search-backward "<mark>" nil t)))
-           (close (and open (save-excursion
-                              (goto-char open)
-                              (search-forward "</mark>" nil t)))))
-      (unless (and close (<= (point) close))
-        (user-error "No region and point is not inside <mark>...</mark>"))
+  ;; Unwrap first: meow motions leave a region active, so a region
+  ;; check alone would re-wrap text the user stands inside of.
+  (let* ((open (save-excursion (search-backward "<mark>" nil t)))
+         (close (and open (save-excursion
+                            (goto-char open)
+                            (search-forward "</mark>" nil t)))))
+    (cond
+     ((and close (<= (point) close))
       (delete-region (- close 7) close)
-      (delete-region open (+ open 6)))))
+      (delete-region open (+ open 6))
+      (deactivate-mark))
+     ((use-region-p)
+      (let ((beg (region-beginning))
+            (end (region-end)))
+        (goto-char end)
+        (insert "</mark>")
+        (goto-char beg)
+        (insert "<mark>")
+        (goto-char (+ end 13))
+        (deactivate-mark)))
+     (t
+      (user-error "No region and point is not inside <mark>...</mark>")))))
 
 ;; Nix
 (use-package nix-mode :defer t)
