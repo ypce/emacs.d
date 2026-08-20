@@ -1,11 +1,13 @@
-/* Widen foghorn's fixed 700px/42em body past GitHub's markdown-body
-   width, and shrink the base font 20% (1.3em -> 1.04em; every other
-   size in foghorn.css is em-relative to body, so this scales the
-   whole page). Loaded after foghorn.css so it wins the cascade. */
-html, body {
-	max-width: 1200px;
+/* Widen foghorn's fixed 700px/42em body to 90% of the window, so
+   the preview follows the window width, and shrink the base font
+   20% (1.3em -> 1.04em; every other size in foghorn.css is
+   em-relative to body, so this scales the whole page). Only html
+   carries the 90% cap; body is a block element and fills html on
+   its own. Loaded after foghorn.css so it wins the cascade. */
+html {
+	max-width: 90%;
 }
 body {
-	width: 1200px;
+	max-width: none;
 	font-size: 1.04em;
 }
