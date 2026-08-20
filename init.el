@@ -184,13 +184,12 @@
 (when (executable-find "pbpaste")
   (setq interprogram-paste-function #'vp/interprogram-paste))
 
-;; Command-W is delete-frame and Command-N is make-frame in stock NS
-;; Emacs. Accidental presses close the client frame or spawn a stray
-;; one. Disable both; manage frames with C-x 5 (2 to make, 0 to close).
-;; ns-win.el binds them when the first GUI frame loads, so unbind after.
+;; Command-Q is save-buffers-kill-emacs in stock NS Emacs. Here that
+;; kills the daemon and every client. Disable it; quit the daemon
+;; deliberately with M-x kill-emacs.
+;; ns-win.el binds it when the first GUI frame loads, so unbind after.
 (with-eval-after-load 'ns-win
-  (keymap-global-unset "s-w")
-  (keymap-global-unset "s-n"))
+  (keymap-global-unset "s-q"))
 
 
 ;;; Modal editing: meow -----
