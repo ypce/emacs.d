@@ -123,6 +123,7 @@
   :hook ((markdown-mode . visual-line-mode)
          ;; continuation lines keep the list/quote indent (Emacs 30)
          (markdown-mode . visual-wrap-prefix-mode))
+  :bind (:map markdown-mode-map ("C-c m" . vp/markdown-mark-toggle))
   :custom
   (markdown-command "pandoc")
   (markdown-fontify-code-blocks-natively t)
@@ -133,6 +134,37 @@
    (mapcar (lambda (f) (concat "file://"
                                 (expand-file-name f user-emacs-directory)))
            '("assets/foghorn.css" "assets/foghorn-overrides.css"))))
+
+;; HTML <mark> is the only highlight markdown renderers accept; the
+;; markdown syntax set has no native one, so markdown-mode ships no
+;; command for it.
+(defun vp/markdown-mark-toggle ()
+  "Toggle a <mark> highlight.
+With an active region, wrap it in <mark>...</mark>; if the region
+is already exactly wrapped, unwrap it. With no region, remove the
+<mark> tags that enclose point."
+  (interactive)
+  (if (use-region-p)
+      (let* ((beg (region-beginning))
+             (end (region-end))
+             (text (buffer-substring beg end)))
+        (if (and (string-prefix-p "<mark>" text)
+                 (string-suffix-p "</mark>" text))
+            (progn (delete-region (- end 7) end)
+                   (delete-region beg (+ beg 6)))
+          (goto-char end)
+          (insert "</mark>")
+          (goto-char beg)
+          (insert "<mark>")
+          (goto-char (+ end 13))))
+    (let* ((open (save-excursion (search-backward "<mark>" nil t)))
+           (close (and open (save-excursion
+                              (goto-char open)
+                              (search-forward "</mark>" nil t)))))
+      (unless (and close (<= (point) close))
+        (user-error "No region and point is not inside <mark>...</mark>"))
+      (delete-region (- close 7) close)
+      (delete-region open (+ open 6)))))
 
 ;; Nix
 (use-package nix-mode :defer t)
