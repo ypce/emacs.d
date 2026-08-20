@@ -191,6 +191,10 @@
 (with-eval-after-load 'ns-win
   (keymap-global-unset "s-q"))
 
+;; Ctrl-Command-F is the macOS fullscreen convention (the green
+;; button). Stock Emacs only offers F11; maximize stays on M-F10.
+(keymap-global-set "C-s-f" #'toggle-frame-fullscreen)
+
 
 ;;; Modal editing: meow -----
 ;; Kakoune-style selection-first grammar, zero dependencies. Official
