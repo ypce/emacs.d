@@ -635,7 +635,7 @@ searchable through the org-mem index (SPC n f, SPC n /)."
 
 (defvar-keymap vp/leader-map)
 (pcase-dolist (`(,key ,label ,cmd)
-               `(("f" "find file (project)" project-find-file)
+               `(("f" "find file (fd)"      consult-fd)
                  ("." "find file (path)"    find-file)
                  ("u" "file ops"             ,vp/leader-file-map)
                  ("r" "recent files"         consult-recent-file)
