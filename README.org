@@ -32,7 +32,7 @@ External tools, all optional. A missing tool only disables its own
 feature:
 
 #+begin_src sh
-brew install coreutils pandoc
+brew install coreutils pandoc ripgrep fd
 brew install gopls marksman bash-language-server python-lsp-server
 brew install --cask font-symbols-only-nerd-font   # GUI glyph icons
 #+end_src
