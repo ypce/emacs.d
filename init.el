@@ -438,7 +438,23 @@ runs the top match."
          ("C--" . expreg-contract)
          (:repeat-map expreg-repeat-map
                       ("=" . expreg-expand)
-                      ("-" . expreg-contract))))
+                      ("-" . expreg-contract)))
+  :config
+  ;; Stock expreg has no prose steps between word and paragraph; add
+  ;; sentence and line regions in text modes.
+  (defun vp/expreg--prose ()
+    "Return sentence and line regions around point."
+    (when (derived-mode-p 'text-mode)
+      (let (result)
+        (push `(line . ,(cons (line-beginning-position) (line-end-position)))
+              result)
+        (ignore-errors
+          (let* ((beg (save-excursion (backward-sentence) (point)))
+                 (end (save-excursion (goto-char beg) (forward-sentence) (point))))
+            (push `(sentence . ,(cons beg end)) result)))
+        result)))
+  (setq-default expreg-functions
+                (cons #'vp/expreg--prose (default-value 'expreg-functions))))
 
 (use-package multiple-cursors
   ;; Run commands for all cursors without asking (opt-outs: mc/cmds-to-run-once).
