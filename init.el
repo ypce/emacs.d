@@ -299,6 +299,11 @@
 ;; Ignore document colors in eww/HTML; they clash with a dark theme.
 (setq shr-use-colors nil)
 
+;; Serif reading font in eww; matches the markdown preview CSS.
+(defun vp/eww-serif-font ()
+  (face-remap-add-relative 'variable-pitch :family "Vollkorn"))
+(add-hook 'eww-mode-hook #'vp/eww-serif-font)
+
 
 ;;; Saving + Recent -----
 (defun vp/recentf-open ()
@@ -567,7 +572,14 @@ runs the top match."
   :hook ((markdown-mode . visual-line-mode)
          (markdown-mode . visual-wrap-prefix-mode))
   :custom
-  (markdown-fontify-code-blocks-natively t))
+  (markdown-fontify-code-blocks-natively t)
+  (markdown-command "pandoc")
+  (markdown-split-window-direction 'right)   ; preview side by side
+  ;; Preview styling, vendored in assets/ so it works without network.
+  ;; foghorn-overrides.css loads second: full-width body, base font 80%.
+  (markdown-css-paths
+   (mapcar (lambda (f) (concat "file://" (expand-file-name f user-emacs-directory)))
+           '("assets/foghorn.css" "assets/foghorn-overrides.css"))))
 
 (use-package editorconfig
   :ensure nil
