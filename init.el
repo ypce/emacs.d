@@ -266,7 +266,7 @@
 
 ;; GUI frames only; terminal frames use the terminal's font.
 (set-face-attribute 'default nil
-                    :family "Aeonik Mono" :weight 'medium :height 180)
+                    :family "Aeonik Mono" :weight 'light :height 200)
 
 ;; "Monospace" does not resolve on macOS and falls back to a
 ;; proportional font; inherit default so fixed-pitch stays monospace.
@@ -322,13 +322,13 @@ as a dimmed annotation. Duplicate basenames carry their parent dir."
                      (puthash base t seen)
                      (cons key f)))
                  recentf-list))
-         ;; Dim tail: ../ plus the last three directories.
+         ;; Dim the parent path.
          (annotate (lambda (cand)
                      (when-let* ((path (cdr (assoc cand alist)))
                                  (dir (abbreviate-file-name (file-name-directory path)))
                                  (parts (split-string (directory-file-name dir) "/" t)))
                        (propertize
-                        (concat "  ../" (string-join (last parts 3) "/"))
+                        (concat "  " (string-join (last parts 3) "/"))
                         'face 'shadow))))
          (table (lambda (str pred action)
                   (if (eq action 'metadata)
