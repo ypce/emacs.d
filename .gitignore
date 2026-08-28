@@ -1,0 +1,25 @@
+# package state
+elpa/
+eln-cache/
+package-quickstart.el*
+ghostel/
+
+# runtime state
+auto-save-list/
+backup/
+tree-sitter/
+.org-id-locations
+places.eld
+projects.eld
+transient/
+recentf
+history
+places
+bookmarks
+projects
+org-clock-save.el
+.mc-lists.el
+tramp
+.cache/
+*.elc
+.DS_Store
