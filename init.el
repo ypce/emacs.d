@@ -202,17 +202,6 @@
 
 (keymap-global-set "C-c C-e" #'eval-last-sexp-and-replace)
 
-(defun indent-buffer ()
-  "Indent the whole buffer."
-  (interactive)
-  (indent-region (point-min) (point-max)))
-
-(defun clear-all-text-properties ()
-  "Remove all text properties (colors, fonts) from the buffer."
-  (interactive)
-  (let ((inhibit-read-only t))
-    (set-text-properties (point-min) (point-max) nil)))
-
 
 ;;; File ops (C-c f) -----
 (defun vp/file--target ()
@@ -461,14 +450,13 @@ runs the top match."
   :hook ((dired-mode . dired-hide-details-mode)
          (dired-mode . hl-line-mode))
   :init
-  ;; --group-directories-first is GNU-only; use coreutils gls when present.
-  (when (and (eq system-type 'darwin) (executable-find "gls"))
-    (setq insert-directory-program "gls"))
+  ;; ls-lisp instead of ls: BSD ls lacks -v and directory grouping,
+  ;; and this drops the coreutils dependency. Remote dired still uses
+  ;; the remote ls.
+  (setq ls-lisp-use-insert-directory-program nil
+        ls-lisp-dirs-first t)
   :custom
-  (dired-listing-switches
-   (if (or (not (eq system-type 'darwin)) (executable-find "gls"))
-       "-alhv --group-directories-first"
-     "-alh"))
+  (dired-listing-switches "-alhv")
   (dired-kill-when-opening-new-dired-buffer t)
   (dired-dwim-target t)   ; two dired windows: copy/move targets the other one
   (dired-isearch-filenames 'dwim)   ; C-s matches filenames only

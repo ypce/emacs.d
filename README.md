@@ -25,7 +25,6 @@ Connect with `emacsclient -c` (GUI) or `emacsclient -t` (terminal).
 ### CLI tools
 
 ```sh
-brew install coreutils   # gls: dired --group-directories-first
 brew install ripgrep     # xref / project search
 brew install pandoc      # markdown preview rendering
 brew install git         # magit, package-vc, treesit grammar builds
