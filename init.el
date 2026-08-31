@@ -266,27 +266,11 @@
 
 ;; GUI frames only; terminal frames use the terminal's font.
 (set-face-attribute 'default nil
-                    :family "Aeonik Mono" :weight 'light :height 200)
+                    :family "AeonikMono Nerd Font Mono" :weight 'light :height 200)
 
 ;; "Monospace" does not resolve on macOS and falls back to a
 ;; proportional font; inherit default so fixed-pitch stays monospace.
 (set-face-attribute 'fixed-pitch nil :family 'unspecified :inherit 'default)
-
-;; Aeonik lacks these blocks and macOS picks a tiny fallback; fill the
-;; gaps with the full-size Nerd font. Aeonik keeps the symbols it has;
-;; emoji stay with Apple's font.
-(defun vp/setup-symbol-fallback ()
-  (when (display-graphic-p)
-    (dolist (range '((#x2190 . #x21ff)      ; arrows
-                     (#x2300 . #x23ff)      ; misc technical (⏵ ⏸ ⌘ …)
-                     (#x2500 . #x25ff)      ; box drawing, geometric shapes
-                     (#x2600 . #x27bf)      ; misc symbols, dingbats
-                     (#x2b00 . #x2bff)      ; more arrows/symbols
-                     (#xe000 . #xf8ff)))    ; private use (nerd/powerline icons)
-      (set-fontset-font t range "Symbols Nerd Font"))))
-
-(add-hook 'window-setup-hook            #'vp/setup-symbol-fallback)
-(add-hook 'server-after-make-frame-hook #'vp/setup-symbol-fallback)
 
 (defun vp/transparent-background ()
   "Unset the default background in terminal frames for true transparency."
@@ -493,6 +477,10 @@ runs the top match."
   ;; h = up a directory (shadows describe-mode; C-h m remains).
   :bind (:map dired-mode-map
          ("h" . dired-up-directory)))
+
+;; The default font carries the icon glyphs.
+(use-package nerd-icons
+  :custom (nerd-icons-font-family "AeonikMono Nerd Font Mono"))
 
 (use-package nerd-icons-dired
   :hook (dired-mode . nerd-icons-dired-mode))

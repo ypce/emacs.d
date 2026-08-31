@@ -19,8 +19,7 @@ Connect with `emacsclient -c` (GUI) or `emacsclient -t` (terminal).
 
 | Font | Use | Install |
 |---|---|---|
-| Aeonik Mono (Medium) | default / fixed-pitch | commercial, install manually |
-| Symbols Nerd Font | symbol fallback, dired/ibuffer icons | `brew install --cask font-symbols-only-nerd-font` |
+| AeonikMono Nerd Font Mono (Light) | default / fixed-pitch / icons | in `fonts/` (untracked; commercial, do not distribute). Register once: open the `.otf` files in Font Book. To rebuild from Aeonik Mono: Nerd Fonts FontPatcher, `fontforge -script font-patcher --complete --mono AeonikMono-<Weight>.otf` |
 | Vollkorn | eww + markdown preview serif | `brew install --cask font-vollkorn` |
 
 ### CLI tools

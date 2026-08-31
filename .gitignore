@@ -23,3 +23,6 @@ tramp
 .cache/
 *.elc
 .DS_Store
+
+# commercial font, do not distribute
+fonts/
