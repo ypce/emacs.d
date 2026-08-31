@@ -215,28 +215,23 @@
 
 
 ;;; File ops (C-c f) -----
+(defun vp/file--target ()
+  "The current file; in dired the file at point; else the directory."
+  ;; expand-file-name: shell-quote-argument stops the shell expanding ~
+  (expand-file-name (or buffer-file-name
+                        (and (derived-mode-p 'dired-mode)
+                             (dired-get-filename nil t))
+                        default-directory)))
+
 (defun vp/file-reveal ()
   "Reveal the current file in Finder. In dired, reveal the file at point."
   (interactive)
-  ;; expand-file-name: shell-quote-argument stops the shell expanding ~
-  (shell-command
-   (concat "open -R " (shell-quote-argument
-                       (expand-file-name
-                        (or buffer-file-name
-                            (and (derived-mode-p 'dired-mode)
-                                 (dired-get-filename nil t))
-                            default-directory))))))
+  (shell-command (concat "open -R " (shell-quote-argument (vp/file--target)))))
 
 (defun vp/file-open-default ()
   "Open the current file (in dired: the file at point) with the default app."
   (interactive)
-  (shell-command
-   (concat "open " (shell-quote-argument
-                    (expand-file-name
-                     (or buffer-file-name
-                         (and (derived-mode-p 'dired-mode)
-                              (dired-get-filename nil t))
-                         default-directory))))))
+  (shell-command (concat "open " (shell-quote-argument (vp/file--target)))))
 
 (defun vp/file-copy-path ()
   "Copy the current file's absolute path."
@@ -245,15 +240,19 @@
     (kill-new p)
     (message "%s" p)))
 
-;; (LABEL . COMMAND) items; which-key shows the labels.
-(defvar-keymap vp/file-map)
-(pcase-dolist (`(,key ,label ,cmd)
-               '(("r" "rename/move file"   rename-visited-file)
-                 ("o" "reveal in Finder"   vp/file-reveal)
-                 ("e" "open (default app)" vp/file-open-default)
-                 ("y" "copy file path"     vp/file-copy-path)))
-  (keymap-set vp/file-map key (cons label cmd)))
-(keymap-global-set "C-c f" (cons "file" vp/file-map))
+(defun vp/labeled-keymap (specs)
+  "A keymap from SPECS, a list of (KEY LABEL COMMAND); which-key shows LABEL."
+  (let ((map (make-sparse-keymap)))
+    (pcase-dolist (`(,key ,label ,cmd) specs)
+      (keymap-set map key (cons label cmd)))
+    map))
+
+(keymap-global-set
+ "C-c f" (cons "file" (vp/labeled-keymap
+                       '(("r" "rename/move file"   rename-visited-file)
+                         ("o" "reveal in Finder"   vp/file-reveal)
+                         ("e" "open (default app)" vp/file-open-default)
+                         ("y" "copy file path"     vp/file-copy-path)))))
 
 
 ;;; Theme + Font -----
@@ -290,6 +289,16 @@
 
 
 ;;; Saving + Recent -----
+(defun vp/in-order-table (collection &rest metadata)
+  "A completion table over COLLECTION that keeps its order.
+METADATA entries are spliced into the table's metadata."
+  (lambda (str pred action)
+    (if (eq action 'metadata)
+        `(metadata (display-sort-function . identity)
+                   (cycle-sort-function . identity)
+                   ,@metadata)
+      (complete-with-action action collection str pred))))
+
 (defun vp/recentf-open ()
   "Open a recent file. Complete over basenames; the directory shows
 as a dimmed annotation. Duplicate basenames carry their parent dir."
@@ -314,28 +323,17 @@ as a dimmed annotation. Duplicate basenames carry their parent dir."
                        (propertize
                         (concat "  " (string-join (last parts 3) "/"))
                         'face 'shadow))))
-         (table (lambda (str pred action)
-                  (if (eq action 'metadata)
-                      `(metadata (annotation-function . ,annotate)
-                                 ;; keep recency order
-                                 (display-sort-function . ,#'identity)
-                                 (cycle-sort-function . ,#'identity))
-                    (complete-with-action action alist str pred))))
+         (table (vp/in-order-table alist `(annotation-function . ,annotate)))
          (choice (completing-read "Recent file: " table nil t)))
     (find-file (cdr (assoc choice alist)))))
 
 (defun vp/dired-recent-dir ()
   "Open dired in a recently used directory (derived from recentf)."
   (interactive)
-  (let* ((dirs (delete-dups
-                (mapcar (lambda (f) (abbreviate-file-name (file-name-directory f)))
-                        recentf-list)))
-         (table (lambda (str pred action)
-                  (if (eq action 'metadata)
-                      `(metadata (display-sort-function . ,#'identity)
-                                 (cycle-sort-function . ,#'identity))
-                    (complete-with-action action dirs str pred)))))
-    (dired (completing-read "Recent dir: " table nil t))))
+  (let ((dirs (delete-dups
+               (mapcar (lambda (f) (abbreviate-file-name (file-name-directory f)))
+                       recentf-list))))
+    (dired (completing-read "Recent dir: " (vp/in-order-table dirs) nil t))))
 
 (use-package recentf
   :ensure nil
@@ -350,7 +348,7 @@ as a dimmed annotation. Duplicate basenames carry their parent dir."
 
 (use-package saveplace
   :ensure nil
-  :config (save-place-mode 1))
+  :hook (after-init . save-place-mode))
 
 
 ;;; Completions (built-in minibuffer UI, Emacs 31) -----
@@ -492,7 +490,7 @@ runs the top match."
 ;;; Programming: treesit + eglot + flymake (all built-in) -----
 (use-package treesit
   :ensure nil
-  :when (and (fboundp 'treesit-available-p) (treesit-available-p))
+  :when (treesit-available-p)
   :config
   (setq treesit-language-source-alist
         '((bash     "https://github.com/tree-sitter/tree-sitter-bash")
@@ -553,10 +551,7 @@ runs the top match."
 (add-hook 'go-ts-mode-hook #'vp/go-setup)
 
 (use-package markdown-mode
-  :defer t
-  :mode (("\\.md\\'"       . markdown-mode)
-         ("\\.markdown\\'" . markdown-mode)
-         ("README\\.md\\'" . gfm-mode))
+  :mode ("README\\.md\\'" . gfm-mode)
   :hook ((markdown-mode . visual-line-mode)
          (markdown-mode . visual-wrap-prefix-mode))
   :custom
@@ -581,7 +576,6 @@ runs the top match."
 (global-auto-revert-mode 1)
 
 (use-package magit
-  :defer t
   :bind ("C-x g" . magit-status)
   :custom
   (magit-auto-revert-mode nil)   ; covered by global-auto-revert above
@@ -612,7 +606,6 @@ searchable (C-c n f, C-c n g)."
 
 (use-package org
   :ensure nil
-  :defer t
   :hook (org-mode . visual-line-mode)
   :custom
   (org-ellipsis " ⤵")
@@ -777,16 +770,14 @@ searchable (C-c n f, C-c n g)."
   (require 'org)
   (rgrep regexp "*.org" org-directory))
 
-(defvar-keymap vp/notes-map)
-(pcase-dolist (`(,key ,label ,cmd)
-               '(("f" "find/create note"   org-node-find)
-                 ("i" "insert link"        org-node-insert-link)
-                 ("g" "grep notes"         vp/notes-grep)
-                 ("b" "backlinks/context"  org-node-context-toggle)
-                 ("d" "daily note (today)" vp/daily-today)
-                 ("s" "browse dailies"     org-node-seq-dispatch)))
-  (keymap-set vp/notes-map key (cons label cmd)))
-(keymap-global-set "C-c n" (cons "notes" vp/notes-map))
+(keymap-global-set
+ "C-c n" (cons "notes" (vp/labeled-keymap
+                        '(("f" "find/create note"   org-node-find)
+                          ("i" "insert link"        org-node-insert-link)
+                          ("g" "grep notes"         vp/notes-grep)
+                          ("b" "backlinks/context"  org-node-context-toggle)
+                          ("d" "daily note (today)" vp/daily-today)
+                          ("s" "browse dailies"     org-node-seq-dispatch)))))
 
 ;; TODO keywords as glyphs via prettify-symbols; the text stays
 ;; underneath, and point on a glyph expands it for editing.
@@ -884,10 +875,9 @@ searchable (C-c n f, C-c n g)."
   :hook ((eshell-mode . with-editor-export-editor)
          (eshell-mode . vp/eshell-wrap-lines))
   :bind (:map eshell-mode-map
-         ("C-r" . vp/eshell-history)))
-
-;; `clear' erases like a terminal; the default only scrolls.
-(with-eval-after-load 'esh-mode
+         ("C-r" . vp/eshell-history))
+  :config
+  ;; `clear' erases like a terminal; the default only scrolls.
   (defalias 'eshell/clear #'eshell/clear-scrollback))
 
 (defun vp/eshell-here ()
