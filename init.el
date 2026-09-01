@@ -30,11 +30,13 @@
 ;;; Mode line (hand-rolled, zero dependencies) -----
 (defface vp/ml-buffer
   '((t :inherit font-lock-constant-face :weight bold))
-  "Face for the buffer name.")
+  "Face for the buffer name."
+  :group 'mode-line-faces)
 
 (defface vp/ml-dim
   '((t :inherit shadow))
-  "Face for secondary mode-line info.")
+  "Face for secondary mode-line info."
+  :group 'mode-line-faces)
 
 (defun vp/ml--status ()
   "Modified / read-only indicator."
@@ -50,7 +52,7 @@
                         'face 'font-lock-keyword-face))))
 
 (defun vp/ml--position ()
-  "Line:column plus percentage through buffer."
+  "Line:column position."
   (propertize " %l:%c " 'face 'vp/ml-dim))
 
 (defun vp/ml--major-mode ()
@@ -93,9 +95,9 @@
 (use-package emacs
   :ensure nil
   :init
-  ;; Send Customize writes to a temp file, not this file. Not
+  ;; Send Customize writes to a throwaway file, not this file. Not
   ;; null-device: custom-save-all reads the file back and aborts on it.
-  (setq custom-file (make-temp-file "emacs-custom-"))
+  (setq custom-file (file-name-concat temporary-file-directory "emacs-custom.el"))
   (setq use-short-answers t
         confirm-kill-emacs 'yes-or-no-p   ; the daemon dies with every client
         scroll-conservatively 101
@@ -223,9 +225,9 @@
   (shell-command (concat "open " (shell-quote-argument (vp/file--target)))))
 
 (defun vp/file-copy-path ()
-  "Copy the current file's absolute path."
+  "Copy the absolute path of the current file (in dired: the file at point)."
   (interactive)
-  (let ((p (expand-file-name (or buffer-file-name default-directory))))
+  (let ((p (vp/file--target)))
     (kill-new p)
     (message "%s" p)))
 
@@ -288,22 +290,34 @@ METADATA entries are spliced into the table's metadata."
                    ,@metadata)
       (complete-with-action action collection str pred))))
 
+(defun vp/recentf--name (file nparents)
+  "FILE's basename, followed by its last NPARENTS parent directories."
+  (let ((parts (split-string file "/" t)))
+    (format "%s (%s)" (car (last parts))
+            (string-join (butlast (last parts (1+ nparents))) "/"))))
+
+(defun vp/recentf--alist ()
+  "Alist of (NAME . FILE) over `recentf-list'.
+NAME is the basename; files that share one grow parent
+directories until every name is unique."
+  (mapcan
+   (lambda (group)
+     (let* ((files (cdr group))
+            (names (mapcar #'file-name-nondirectory files))
+            (n 0))
+       (while (and (> (length files)
+                      (length (delete-dups (copy-sequence names))))
+                   (< n 20))   ; distinct paths always diverge; 20 = safety stop
+         (setq n (1+ n)
+               names (mapcar (lambda (f) (vp/recentf--name f n)) files)))
+       (seq-mapn #'cons names files)))
+   (seq-group-by #'file-name-nondirectory recentf-list)))
+
 (defun vp/recentf-open ()
   "Open a recent file. Complete over basenames; the directory shows
-as a dimmed annotation. Duplicate basenames carry their parent dir."
+as a dimmed annotation. Duplicate basenames grow parent dirs until unique."
   (interactive)
-  (let* ((seen (make-hash-table :test #'equal))
-         (alist (mapcar
-                 (lambda (f)
-                   (let* ((base (file-name-nondirectory f))
-                          (key (if (gethash base seen)
-                                   (format "%s (%s)" base
-                                           (file-name-nondirectory
-                                            (directory-file-name (file-name-directory f))))
-                                 base)))
-                     (puthash base t seen)
-                     (cons key f)))
-                 recentf-list))
+  (let* ((alist (vp/recentf--alist))
          ;; Dim the parent path.
          (annotate (lambda (cand)
                      (when-let* ((path (cdr (assoc cand alist)))
@@ -356,8 +370,7 @@ as a dimmed annotation. Duplicate basenames carry their parent dir."
   (enable-recursive-minibuffers t)
   (read-buffer-completion-ignore-case t)
   (read-file-name-completion-ignore-case t)
-  (minibuffer-prompt-properties
-   '(read-only t intangible t cursor-intangible t face minibuffer-prompt))
+  (minibuffer-prompt-properties '(read-only t face minibuffer-prompt))
   :config
   (minibuffer-depth-indicate-mode 1)
   (minibuffer-electric-default-mode 1)
@@ -492,7 +505,6 @@ runs the top match."
 
 (use-package eglot
   :ensure nil
-  :commands (eglot eglot-ensure)
   :hook ((python-ts-mode
           go-ts-mode
           bash-ts-mode sh-mode

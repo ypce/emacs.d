@@ -89,13 +89,9 @@ The theme has to be reloaded after changing anything in this group."
                (cursor :background ,dracula-pro-pro-fg3)
                (completions-first-difference :foreground ,dracula-pro-pro-pink :weight bold)
                (default :background ,dracula-pro-pro-bg :foreground ,dracula-pro-pro-fg)
-               (default-italic :slant italic)
-               (ffap :foreground ,dracula-pro-pro-fg4)
                (fringe :background ,dracula-pro-pro-bg :foreground ,dracula-pro-pro-fg4)
                (highlight :foreground ,dracula-pro-pro-fg3 :background ,dracula-pro-pro-bg3)
                (hl-line :background ,dracula-pro-pro-current :extend t)
-               (info-quoted-name :foreground ,dracula-pro-pro-orange)
-               (info-string :foreground ,dracula-pro-pro-yellow)
                (lazy-highlight :foreground ,dracula-pro-pro-fg2 :background ,dracula-pro-pro-bg2)
                (link :foreground ,dracula-pro-pro-cyan :underline t)
                (line-number :slant italic :foreground ,dracula-pro-pro-bg4 :background ,dracula-pro-pro-bg)
@@ -139,7 +135,6 @@ The theme has to be reloaded after changing anything in this group."
                (font-lock-keyword-face :weight bold :foreground ,dracula-pro-pro-pink)
                (font-lock-negation-char-face :foreground ,dracula-pro-pro-cyan)
                (font-lock-preprocessor-face :foreground ,dracula-pro-pro-orange)
-               (font-lock-reference-face :foreground ,dracula-pro-pro-cyan)
                (font-lock-regexp-grouping-backslash :foreground ,dracula-pro-pro-cyan)
                (font-lock-regexp-grouping-construct :foreground ,dracula-pro-pro-purple)
                (font-lock-string-face :foreground ,dracula-pro-pro-yellow)
@@ -157,9 +152,6 @@ The theme has to be reloaded after changing anything in this group."
                (dired-perm-write :foreground ,dracula-pro-pro-fg3 :underline t)
                (dired-symlink :foreground ,dracula-pro-pro-yellow :weight normal :slant italic)
                (dired-warning :foreground ,dracula-pro-pro-orange :underline t)
-               ;; flyspell
-               (flyspell-duplicate :underline (:style wave :color ,dracula-pro-pro-orange))
-               (flyspell-incorrect :underline (:style wave :color ,dracula-pro-pro-red))
                ;; isearch
                (isearch :inherit match :weight bold)
                (isearch-fail :foreground ,dracula-pro-pro-bg :background ,dracula-pro-pro-orange)
@@ -200,7 +192,6 @@ The theme has to be reloaded after changing anything in this group."
                (magit-hash :foreground ,dracula-pro-pro-fg2)
                (magit-hunk-heading :background ,dracula-pro-pro-bg3)
                (magit-hunk-heading-highlight :background ,dracula-pro-pro-bg3)
-               (magit-item-highlight :background ,dracula-pro-pro-bg3)
                (magit-log-author :foreground ,dracula-pro-pro-fg3)
                (magit-process-ng :foreground ,dracula-pro-pro-orange :weight bold)
                (magit-process-ok :foreground ,dracula-pro-pro-green :weight bold)
@@ -298,21 +289,11 @@ The theme has to be reloaded after changing anything in this group."
                (outline-5 :foreground ,dracula-pro-pro-cyan)
                (outline-6 :foreground ,dracula-pro-pro-orange)
                ;; show-paren
-               (show-paren-match-face :background unspecified
-                                      :foreground ,dracula-pro-pro-cyan
-                                      :weight bold)
                (show-paren-match :background unspecified
                                  :foreground ,dracula-pro-pro-cyan
                                  :weight bold)
                (show-paren-match-expression :inherit match)
                (show-paren-mismatch :inherit font-lock-warning-face)
-               ;; tab-bar & tab-line (since Emacs 27.1)
-               (tab-bar :foreground ,dracula-pro-pro-purple :background ,dracula-pro-pro-current
-                        :inherit variable-pitch)
-               (tab-bar-tab :foreground ,dracula-pro-pro-pink :background ,dracula-pro-pro-bg
-                            :box (:line-width 2 :color ,dracula-pro-pro-bg :style nil))
-               (tab-bar-tab-inactive :foreground ,dracula-pro-pro-purple :background ,dracula-pro-pro-bg2
-                                     :box (:line-width 2 :color ,dracula-pro-pro-bg2 :style nil))
                ;; term (eshell visual commands, ghostel fallbacks)
                (term :foreground ,dracula-pro-pro-fg :background ,dracula-pro-pro-bg)
                (term-color-black :foreground ,dracula-pro-pro-bg :background ,dracula-pro-pro-bg)
