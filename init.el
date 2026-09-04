@@ -298,17 +298,32 @@ METADATA entries are spliced into the table's metadata."
                    ,@metadata)
       (complete-with-action action collection str pred))))
 
+;; Dired and eshell visits land in recentf as directory entries
+;; (trailing slash), so recent DIRS are real visits, not just parents
+;; of recent files. recentf keeps files and dirs in one list; the two
+;; commands below split it by the trailing slash.
+(defun vp/recentf-track-dir ()
+  "Add the current directory to `recentf-list'."
+  (recentf-add-file default-directory))
+
+(add-hook 'dired-mode-hook #'vp/recentf-track-dir)
+(add-hook 'eshell-directory-change-hook #'vp/recentf-track-dir)
+
 (defun vp/recentf-open ()
   "Open a recent file, most recent first.
 Orderless matches basename fragments anywhere in the path."
   (interactive)
   (find-file
    (completing-read "Recent file: "
-                    (vp/in-order-table (mapcar #'abbreviate-file-name recentf-list))
+                    (vp/in-order-table
+                     (mapcar #'abbreviate-file-name
+                             (seq-remove (lambda (f) (string-suffix-p "/" f))
+                                         recentf-list)))
                     nil t)))
 
 (defun vp/dired-recent-dir ()
-  "Open dired in a recently used directory (derived from recentf)."
+  "Open dired in a recent directory.
+Tracked dired/eshell visits plus parents of recent files."
   (interactive)
   (let ((dirs (delete-dups
                (mapcar (lambda (f) (abbreviate-file-name (file-name-directory f)))
@@ -318,7 +333,8 @@ Orderless matches basename fragments anywhere in the path."
 (use-package recentf
   :ensure nil
   :hook (after-init . recentf-mode)
-  :custom (recentf-max-saved-items 60)
+  ;; Dirs share the list with files (vp/recentf-track-dir); keep room.
+  :custom (recentf-max-saved-items 100)
   :bind (("C-x C-r" . vp/recentf-open)   ; shadows find-file-read-only
          ("C-c d" . vp/dired-recent-dir)))
 
