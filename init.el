@@ -560,6 +560,23 @@ runs the top match."
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
 
 
+;;; Tabs (tab-bar, built-in) -----
+;; One window layout per tab. The bar appears with the second tab, so
+;; a single-tab frame looks unchanged. Stock C-x t prefix: 2 = new,
+;; 0 = close, RET = switch by name. Faces live in the vendored theme.
+(use-package tab-bar
+  :ensure nil
+  :custom
+  (tab-bar-show 1)
+  (tab-bar-close-button-show nil)
+  (tab-bar-new-button-show nil)
+  (tab-bar-tab-hints t)   ; number each tab, pairs with s-1..s-9
+  (tab-bar-new-tab-choice "*scratch*")
+  (tab-bar-select-tab-modifiers '(super))
+  :config
+  (tab-bar-mode 1))
+
+
 ;;; Org -----
 (defun vp/all-org-files ()
   "All org files under `org-directory' (refile targets)."
@@ -699,6 +716,23 @@ searchable (C-c n f, C-c n g)."
   (org-appear-autoemphasis t)
   (org-appear-autolinks t)
   (org-appear-autosubmarkers t))
+
+;; Draw figures in a browser (tldraw) and embed them as PNG links.
+;; org-draw-setup copies a URL a phone/tablet on the same network can
+;; open; figures stay re-editable with org-draw-edit.
+(use-package org-draw
+  :defer t
+  :custom
+  ;; Opaque near-black canvas; matches the dark theme when displayed.
+  (org-draw-figure-background 'dark))
+
+(with-eval-after-load 'org
+  (keymap-set
+   org-mode-map
+   "C-c g" (cons "draw" (vp/labeled-keymap
+                         '(("g" "draw figure"          org-draw)
+                           ("e" "edit figure at point" org-draw-edit)
+                           ("s" "setup/pairing"        org-draw-setup))))))
 
 
 ;;; Org Node (notes) -----
