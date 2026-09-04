@@ -152,6 +152,9 @@
   :bind (("M-o" . other-window)
          ("M-u" . capitalize-word)
          ("M-=" . count-words)
+         ("C-s-f" . toggle-frame-fullscreen)   ; macOS-native ⌃⌘F
+         ("s-[" . previous-buffer)
+         ("s-]" . next-buffer)
          ("<escape>" . keyboard-escape-quit)
          ("<remap> <kill-buffer>" . kill-current-buffer)
          ("<remap> <list-buffers>" . ibuffer)))
