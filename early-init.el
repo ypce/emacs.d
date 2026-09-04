@@ -13,10 +13,10 @@
 ;; Activate packages from one pre-built autoload file. package.el
 ;; refreshes it on install/upgrade/delete; M-x package-quickstart-refresh
 ;; rebuilds it by hand.
-(setq package-quickstart t)
+(setopt package-quickstart t)
 
 ;; Log async native-comp warnings without popping a buffer.
-(setq native-comp-async-report-warnings-errors 'silent)
+(setopt native-comp-async-report-warnings-errors 'silent)
 
 ;; No background native compilation on battery (Emacs 31).
 (setopt native-comp-async-on-battery-power nil)

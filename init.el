@@ -20,7 +20,7 @@
   (package-initialize))
 
 (require 'use-package)
-(setq use-package-always-ensure t)   ; built-ins opt out with :ensure nil
+(setopt use-package-always-ensure t)   ; built-ins opt out with :ensure nil
 
 ;; Full modifier keys in kitty-protocol terminals (ghostty, wezterm).
 (use-package kkp
@@ -46,10 +46,14 @@
 
 (defun vp/ml--vc ()
   "Version-control branch, if any."
-  (when vc-mode
-    (concat (propertize "  ⎇ " 'face 'vp/ml-dim)
-            (propertize (substring-no-properties vc-mode 5)
-                        'face 'font-lock-keyword-face))))
+  (when (and vc-mode buffer-file-name)
+    ;; vc-mode is " Backend-branch" or " Backend:branch"; strip by
+    ;; backend name length instead of a hardcoded offset.
+    (let ((branch (substring-no-properties
+                   vc-mode
+                   (+ 2 (length (symbol-name (vc-backend buffer-file-name)))))))
+      (concat (propertize "  ⎇ " 'face 'vp/ml-dim)
+              (propertize branch 'face 'font-lock-keyword-face)))))
 
 (defun vp/ml--position ()
   "Line:column position."
@@ -98,24 +102,28 @@
   ;; Send Customize writes to a throwaway file, not this file. Not
   ;; null-device: custom-save-all reads the file back and aborts on it.
   (setq custom-file (file-name-concat temporary-file-directory "emacs-custom.el"))
-  (setq use-short-answers t
-        confirm-kill-emacs 'yes-or-no-p   ; the daemon dies with every client
-        scroll-conservatively 101
-        help-window-select t
-        help-window-keep-selected t
-        backup-by-copying t
-        backup-directory-alist `(("." . ,(file-name-concat user-emacs-directory "backup/")))
-        create-lockfiles nil
-        delete-by-moving-to-trash t
-        initial-scratch-message ""
-        initial-major-mode 'text-mode
-        initial-buffer-choice t
-        ring-bell-function 'ignore
-        uniquify-buffer-name-style 'forward
-        isearch-lazy-count t
-        sentence-end-double-space nil
-        show-paren-delay 0.05
-        view-read-only t)
+  :custom
+  (use-short-answers t)
+  (confirm-kill-emacs 'yes-or-no-p)   ; the daemon dies with every client
+  (scroll-conservatively 101)
+  (help-window-select t)
+  (help-window-keep-selected t)
+  (backup-by-copying t)
+  (backup-directory-alist `(("." . ,(file-name-concat user-emacs-directory "backup/"))))
+  (create-lockfiles nil)
+  (delete-by-moving-to-trash t)
+  (initial-scratch-message "")
+  (initial-major-mode 'text-mode)
+  (initial-buffer-choice t)
+  (kill-region-dwim 'emacs-word)   ; Emacs 31: C-w with no region kills a word
+  (ring-bell-function 'ignore)
+  (uniquify-buffer-name-style 'forward)
+  (isearch-lazy-count t)
+  (sentence-end-double-space nil)
+  ;; :custom, not setq: the option's setter restarts show-paren-mode,
+  ;; a plain set does nothing while the mode is on.
+  (show-paren-delay 0.05)
+  (view-read-only t)
   :hook ((prog-mode . display-line-numbers-mode)
          (prog-mode . electric-pair-local-mode)
          ((prog-mode org-mode) . visual-wrap-prefix-mode)
@@ -166,15 +174,15 @@
 
 
 ;;; Small QoL commands -----
-(defun copy-buffer-as-kill ()
+(defun vp/copy-buffer-as-kill ()
   "Save the buffer as if killed, but don't kill it."
   (interactive)
   (copy-region-as-kill (point-min) (point-max))
   (message "Buffer content saved to kill ring."))
 
-(keymap-global-set "C-c w" #'copy-buffer-as-kill)
+(keymap-global-set "C-c w" #'vp/copy-buffer-as-kill)
 
-(defun kill-save-line (nlines)
+(defun vp/kill-save-line (nlines)
   "Save NLINES lines to the kill ring without deleting them."
   (interactive "p")
   (kill-ring-save (line-beginning-position)
@@ -182,17 +190,17 @@
   (kill-append "\n" nil)
   (message "Saved line to kill-ring"))
 
-(keymap-global-set "M-k" #'kill-save-line)
+(keymap-global-set "M-k" #'vp/kill-save-line)
 
-(defun remove-system-clipboard-format ()
+(defun vp/remove-system-clipboard-format ()
   "Round-trip the system clipboard through Emacs to strip rich-text formatting."
   (interactive)
   (let ((clipboard-text (gui-get-selection 'CLIPBOARD)))
     (gui-set-selection 'CLIPBOARD clipboard-text)))
 
-(keymap-global-set "C-c r" #'remove-system-clipboard-format)
+(keymap-global-set "C-c r" #'vp/remove-system-clipboard-format)
 
-(defun eval-last-sexp-and-replace ()
+(defun vp/eval-last-sexp-and-replace ()
   "Replace the preceding sexp with its value."
   (interactive)
   (backward-kill-sexp)
@@ -202,13 +210,13 @@
     (error (message "Invalid expression")
            (insert (current-kill 0)))))
 
-(keymap-global-set "C-c C-e" #'eval-last-sexp-and-replace)
+(keymap-global-set "C-c C-e" #'vp/eval-last-sexp-and-replace)
 
 
 ;;; File ops (C-c f) -----
 (defun vp/file--target ()
   "The current file; in dired the file at point; else the directory."
-  ;; expand-file-name: shell-quote-argument stops the shell expanding ~
+  ;; expand-file-name: `open' gets the path verbatim, nothing expands ~
   (expand-file-name (or buffer-file-name
                         (and (derived-mode-p 'dired-mode)
                              (dired-get-filename nil t))
@@ -217,12 +225,12 @@
 (defun vp/file-reveal ()
   "Reveal the current file in Finder. In dired, reveal the file at point."
   (interactive)
-  (shell-command (concat "open -R " (shell-quote-argument (vp/file--target)))))
+  (call-process "open" nil 0 nil "-R" (vp/file--target)))
 
 (defun vp/file-open-default ()
   "Open the current file (in dired: the file at point) with the default app."
   (interactive)
-  (shell-command (concat "open " (shell-quote-argument (vp/file--target)))))
+  (call-process "open" nil 0 nil (vp/file--target)))
 
 (defun vp/file-copy-path ()
   "Copy the absolute path of the current file (in dired: the file at point)."
@@ -249,9 +257,9 @@
 ;;; Theme + Font -----
 ;; Vendored Dracula Pro, stripped to the faces this config uses.
 (add-to-list 'custom-theme-load-path (expand-file-name "themes" user-emacs-directory))
-(setq frame-background-mode 'dark)
+(setopt frame-background-mode 'dark)
 ;; Set before load: the theme reads it when it builds face specs.
-(setq dracula-pro-pro-enlarge-headings nil)
+(setopt dracula-pro-pro-enlarge-headings nil)
 (load-theme 'dracula-pro-pro t)
 
 ;; GUI frames only; terminal frames use the terminal's font.
@@ -271,7 +279,7 @@
 (add-hook 'server-after-make-frame-hook #'vp/transparent-background)
 
 ;; Ignore document colors in eww/HTML; they clash with a dark theme.
-(setq shr-use-colors nil)
+(setopt shr-use-colors nil)
 
 ;; Serif reading font in eww; matches the markdown preview CSS.
 (defun vp/eww-serif-font ()
@@ -290,45 +298,14 @@ METADATA entries are spliced into the table's metadata."
                    ,@metadata)
       (complete-with-action action collection str pred))))
 
-(defun vp/recentf--name (file nparents)
-  "FILE's basename, followed by its last NPARENTS parent directories."
-  (let ((parts (split-string file "/" t)))
-    (format "%s (%s)" (car (last parts))
-            (string-join (butlast (last parts (1+ nparents))) "/"))))
-
-(defun vp/recentf--alist ()
-  "Alist of (NAME . FILE) over `recentf-list'.
-NAME is the basename; files that share one grow parent
-directories until every name is unique."
-  (mapcan
-   (lambda (group)
-     (let* ((files (cdr group))
-            (names (mapcar #'file-name-nondirectory files))
-            (n 0))
-       (while (and (> (length files)
-                      (length (delete-dups (copy-sequence names))))
-                   (< n 20))   ; distinct paths always diverge; 20 = safety stop
-         (setq n (1+ n)
-               names (mapcar (lambda (f) (vp/recentf--name f n)) files)))
-       (seq-mapn #'cons names files)))
-   (seq-group-by #'file-name-nondirectory recentf-list)))
-
 (defun vp/recentf-open ()
-  "Open a recent file. Complete over basenames; the directory shows
-as a dimmed annotation. Duplicate basenames grow parent dirs until unique."
+  "Open a recent file, most recent first.
+Orderless matches basename fragments anywhere in the path."
   (interactive)
-  (let* ((alist (vp/recentf--alist))
-         ;; Dim the parent path.
-         (annotate (lambda (cand)
-                     (when-let* ((path (cdr (assoc cand alist)))
-                                 (dir (abbreviate-file-name (file-name-directory path)))
-                                 (parts (split-string (directory-file-name dir) "/" t)))
-                       (propertize
-                        (concat "  " (string-join (last parts 3) "/"))
-                        'face 'shadow))))
-         (table (vp/in-order-table alist `(annotation-function . ,annotate)))
-         (choice (completing-read "Recent file: " table nil t)))
-    (find-file (cdr (assoc choice alist)))))
+  (find-file
+   (completing-read "Recent file: "
+                    (vp/in-order-table (mapcar #'abbreviate-file-name recentf-list))
+                    nil t)))
 
 (defun vp/dired-recent-dir ()
   "Open dired in a recently used directory (derived from recentf)."
@@ -367,6 +344,10 @@ as a dimmed annotation. Duplicate basenames grow parent dirs until unique."
   (completions-max-height 14)
   (completions-sort 'historical)    ; Emacs 31: recently used first
   (completion-auto-select 'second-tab)
+  (completion-pcm-leading-wildcard t)   ; Emacs 31: substring-like file matching
+  ;; C-n/C-p move the highlight only. auto-choose would insert the
+  ;; candidate, and eager-update would then filter the list to it.
+  (minibuffer-completion-auto-choose nil)
   (enable-recursive-minibuffers t)
   (read-buffer-completion-ignore-case t)
   (read-file-name-completion-ignore-case t)
@@ -375,9 +356,6 @@ as a dimmed annotation. Duplicate basenames grow parent dirs until unique."
   (minibuffer-depth-indicate-mode 1)
   (minibuffer-electric-default-mode 1)
 
-  ;; C-n/C-p move the highlight only. auto-choose would insert the
-  ;; candidate, and eager-update would then filter the list to it.
-  (setq minibuffer-completion-auto-choose nil)
   (keymap-set minibuffer-local-completion-map "C-n" #'minibuffer-next-completion)
   (keymap-set minibuffer-local-completion-map "C-p" #'minibuffer-previous-completion)
 
@@ -407,8 +385,7 @@ runs the top match."
   :custom
   (completion-styles '(orderless basic))
   (completion-category-overrides '((file (styles basic partial-completion))))
-  (orderless-expand-substring nil)
-  (completion-pcm-leading-wildcard t))   ; Emacs 31: substring-like file matching
+  (orderless-expand-substring nil))
 
 ;; Act on the thing at point or the current minibuffer candidate.
 (use-package embark
@@ -417,7 +394,7 @@ runs the top match."
          ("C-c C-e" . embark-export)))
 
 (when (executable-find "rg")
-  (setq xref-search-program 'ripgrep))
+  (setopt xref-search-program 'ripgrep))
 
 
 ;;; Editing aids -----
@@ -466,8 +443,8 @@ runs the top match."
   ;; ls-lisp instead of ls: BSD ls lacks -v and directory grouping,
   ;; and this drops the coreutils dependency. Remote dired still uses
   ;; the remote ls.
-  (setq ls-lisp-use-insert-directory-program nil
-        ls-lisp-dirs-first t)
+  (setopt ls-lisp-use-insert-directory-program nil
+          ls-lisp-dirs-first t)
   :custom
   (dired-listing-switches "-alhv")
   (dired-kill-when-opening-new-dired-buffer t)
@@ -499,8 +476,8 @@ runs the top match."
           (gomod    "https://github.com/camdencheek/tree-sitter-go-mod")
           (python   "https://github.com/tree-sitter/tree-sitter-python")))
   ;; Build missing grammars on first use (needs git + a C compiler).
-  (setq treesit-auto-install-grammar 'always)
-  (setopt treesit-enabled-modes
+  (setopt treesit-auto-install-grammar 'always
+          treesit-enabled-modes
           '(python-ts-mode bash-ts-mode go-ts-mode go-mod-ts-mode)))
 
 (use-package eglot
@@ -572,7 +549,7 @@ runs the top match."
 ;;; Version Control -----
 ;; Notification-based revert instead of magit-auto-revert, whose
 ;; per-buffer git probe slowed every file open.
-(setq auto-revert-avoid-polling t)
+(setopt auto-revert-avoid-polling t)
 (global-auto-revert-mode 1)
 
 (use-package magit
@@ -637,7 +614,7 @@ searchable (C-c n f, C-c n g)."
   (org-agenda-skip-scheduled-if-done t)
   (org-agenda-skip-deadline-if-done t)
   :config
-  (setq org-directory (file-truename "~/Notes"))
+  (setopt org-directory (file-truename "~/Notes"))
   (make-directory org-directory t)
   ;; The agenda errors on missing files; create the two anchors.
   (dolist (f '("inbox.org" "agenda.org"))
@@ -648,7 +625,7 @@ searchable (C-c n f, C-c n g)."
 
   ;; `n' is this variable's default value, not a dispatcher built-in;
   ;; keep it when setting the variable.
-  (setq org-agenda-custom-commands
+  (setopt org-agenda-custom-commands
         `(("n" "Agenda and all TODOs"
            ((agenda "") (alltodo "")))
           ("o" "Overview: today · next · waiting · inbox"
@@ -660,16 +637,16 @@ searchable (C-c n f, C-c n g)."
                   ((org-agenda-files (list ,(expand-file-name "inbox.org" org-directory)))
                    (org-agenda-overriding-header "Inbox")))))))
 
-  (setq org-todo-keywords
-        '((sequence "TODO(t)" "NEXT(n)" "WAIT(w)" "|" "DONE(d)" "CANCELLED(c)")))
+  (setopt org-todo-keywords
+          '((sequence "TODO(t)" "NEXT(n)" "WAIT(w)" "|" "DONE(d)" "CANCELLED(c)")))
 
   ;; Inherit stock faces so any theme recolors them.
-  (setq org-todo-keyword-faces
+  (setopt org-todo-keyword-faces
         '(("NEXT"      . (:inherit success :weight bold))
           ("WAIT"      . (:inherit warning))
           ("CANCELLED" . (:inherit shadow :strike-through t))))
 
-  (setq org-capture-templates
+  (setopt org-capture-templates
         `(("i" "Inbox" entry
            (file ,(expand-file-name "inbox.org" org-directory))
            "* TODO %?\n/Captured/ %U\n")
@@ -687,9 +664,9 @@ searchable (C-c n f, C-c n g)."
            "* %?\n<%<%Y-%m-%d %a %H:00>>")))
 
   ;; Refile across ALL notes, not just the agenda set.
-  (setq org-refile-targets '((vp/all-org-files :maxlevel . 3))
-        org-refile-use-outline-path 'file
-        org-outline-path-complete-in-steps nil)
+  (setopt org-refile-targets '((vp/all-org-files :maxlevel . 3))
+          org-refile-use-outline-path 'file
+          org-outline-path-complete-in-steps nil)
 
   (org-clock-persistence-insinuate)
   (add-hook 'org-capture-mode-hook #'delete-other-windows))
@@ -734,8 +711,8 @@ searchable (C-c n f, C-c n g)."
   ;; Watch ONLY ~/Notes: watch dirs are re-walked in the main thread on
   ;; an idle timer, and big trees cause stutter. Org files elsewhere
   ;; still get indexed once visited.
-  (setq org-mem-do-sync-with-org-id t
-        org-mem-watch-dirs (list (file-truename "~/Notes")))
+  (setopt org-mem-do-sync-with-org-id t
+          org-mem-watch-dirs (list (file-truename "~/Notes")))
   :config
   (org-mem-updater-mode)
   (org-node-cache-mode)
@@ -744,12 +721,10 @@ searchable (C-c n f, C-c n g)."
   (add-hook 'org-mem-post-targeted-scan-functions #'vp/refresh-agenda-files)
   ;; Dailies: YYYY-MM-DD.org under <notes>/daily as a node sequence.
   (require 'org-node-seq)
-  (setq org-node-seq-defs
-        (list (org-node-seq-def-on-filepath-sort-by-basename
-               "d" "Daily" (file-name-concat org-directory "daily") nil t)))
+  (setopt org-node-seq-defs
+          (list (org-node-seq-def-on-filepath-sort-by-basename
+                 "d" "Daily" (file-name-concat org-directory "daily") nil t)))
   (org-node-seq-mode))
-
-(autoload 'org-node-seq-dispatch "org-node-seq" nil t)
 
 (defun vp/daily-today ()
   "Open today's daily note; create it as a node in the \"d\" sequence if missing."
@@ -763,6 +738,9 @@ searchable (C-c n f, C-c n g)."
       (let ((org-node-creation-fn #'org-node-new-file)
             (org-node-file-directory-ask dir))
         (org-node-create (format-time-string "%Y-%m-%d") (org-id-new) "d")))))
+
+;; Group grep results under one heading per file (Emacs 30).
+(setopt grep-use-headings t)
 
 (defun vp/notes-grep (regexp)
   "Grep all notes for REGEXP. In the results, `e' starts Grep Edit."
@@ -844,7 +822,7 @@ searchable (C-c n f, C-c n g)."
 ;; stays in eshell.
 (add-hook 'eshell-load-hook #'ghostel-eshell-visual-command-mode)
 
-(setq eshell-banner-message "")
+(setopt eshell-banner-message "")
 
 (defun vp/eshell-prompt ()
   "Basename-only prompt; remote dirs keep their TRAMP prefix."
@@ -853,17 +831,18 @@ searchable (C-c n f, C-c n g)."
     (concat (or (file-remote-p default-directory) "")
             (if (string-empty-p base) "/" base)
             " $ ")))
-(setq eshell-prompt-function #'vp/eshell-prompt)
+(setopt eshell-prompt-function #'vp/eshell-prompt)
 
 ;; Wrap long lines; with global truncate-lines they hscroll the window.
 (defun vp/eshell-wrap-lines ()
   (setq-local truncate-lines nil))
 
 (defun vp/eshell-history ()
-  "Pick a command from eshell history with completion, insert at prompt."
+  "Pick a command from eshell history with completion, most recent first."
   (interactive)
-  (let ((cmd (completing-read "History: "
-                              (delete-dups (ring-elements eshell-history-ring)))))
+  (let ((cmd (completing-read
+              "History: "
+              (vp/in-order-table (delete-dups (ring-elements eshell-history-ring))))))
     (eshell-kill-input)
     (insert cmd)))
 
@@ -908,8 +887,8 @@ The cd runs as a real command so eshell history records it."
   (remote-file-name-inhibit-cache 60)
   :config
   ;; Do not probe VC over the connection on every remote find-file.
-  (setq vc-ignore-dir-regexp
-        (format "%s\\|%s" vc-ignore-dir-regexp tramp-file-name-regexp)))
+  (setopt vc-ignore-dir-regexp
+          (format "%s\\|%s" vc-ignore-dir-regexp tramp-file-name-regexp)))
 
 
 ;;; Which Key (built-in since Emacs 30) -----
