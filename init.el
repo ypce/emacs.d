@@ -119,10 +119,20 @@
   (ring-bell-function 'ignore)
   (uniquify-buffer-name-style 'forward)
   (isearch-lazy-count t)
+  (lazy-count-prefix-format "(%s/%s) ")
+  (isearch-allow-motion t)     ; M-< / M-> jump to first/last match
+  (isearch-repeat-on-direction-change t)
   (sentence-end-double-space nil)
+  (save-interprogram-paste-before-kill t)
+  (kill-do-not-save-duplicates t)
+  (tab-always-indent 'complete)
+  (switch-to-buffer-obey-display-actions t)
+  (ffap-machine-p-known 'reject)   ; never ping hostnames at point
+  (ns-click-through nil)   ; the focus click does not also act in the buffer
   ;; :custom, not setq: the option's setter restarts show-paren-mode,
   ;; a plain set does nothing while the mode is on.
   (show-paren-delay 0.05)
+  (show-paren-context-when-offscreen 'overlay)
   (view-read-only t)
   :hook ((prog-mode . display-line-numbers-mode)
          (prog-mode . electric-pair-local-mode)
@@ -474,6 +484,8 @@ Tracked dired/eshell visits plus parents of recent files."
   (completion-ignore-case t)
   (completion-show-help nil)
   (completions-format 'one-column)
+  (completions-group t)
+  (completions-detailed t)
   (completions-max-height 14)
   (completions-sort 'historical)    ; Emacs 31: recently used first
   (completion-auto-select 'second-tab)
