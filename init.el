@@ -666,7 +666,11 @@ runs the top match."
          (markdown-mode . visual-wrap-prefix-mode))
   :custom
   (markdown-fontify-code-blocks-natively t)
-  (markdown-command "pandoc")
+  ;; The Lua filter renders ```mermaid fences to inline SVG via mmdc,
+  ;; cached by content hash in ~/.cache/mermaid-pandoc/.
+  (markdown-command (concat "pandoc --lua-filter="
+                            (expand-file-name "pandoc/mermaid-inline.lua"
+                                              user-emacs-directory)))
   (markdown-split-window-direction 'right)   ; preview side by side
   ;; Preview styling, vendored in assets/ so it works without network.
   ;; foghorn-overrides.css loads second: full-width body, base font 80%.
