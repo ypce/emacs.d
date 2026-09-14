@@ -6,6 +6,8 @@ ghostel/
 
 # runtime state
 auto-save-list/
+eshell/
+url/
 backup/
 tree-sitter/
 .org-id-locations
