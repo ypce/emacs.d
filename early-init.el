@@ -21,8 +21,9 @@
 ;; No background native compilation on battery (Emacs 31).
 (setopt native-comp-async-on-battery-power nil)
 
-;; LSP/subprocess throughput.
-(setq read-process-output-max (* 1024 1024))
+;; LSP/subprocess throughput: read big chunks, deliver them at once.
+(setq read-process-output-max (* 1024 1024)
+      process-adaptive-read-buffering nil)
 
 ;; Bars off before the first frame paints.
 (push '(tool-bar-lines . 0) default-frame-alist)

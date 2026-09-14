@@ -107,6 +107,7 @@
   (use-short-answers t)
   (confirm-kill-emacs 'yes-or-no-p)   ; the daemon dies with every client
   (scroll-conservatively 101)
+  (fast-but-imprecise-scrolling t)
   (help-window-select t)
   (help-window-keep-selected t)
   (backup-by-copying t)
@@ -140,6 +141,9 @@
          ((prog-mode org-mode) . visual-wrap-prefix-mode)
          ((prog-mode text-mode) . completion-preview-mode))
   :config
+  ;; Assume left-to-right text; skip the bidi scans on long lines.
+  (setq-default bidi-paragraph-direction 'left-to-right
+                bidi-inhibit-bpa t)
   (setq-default truncate-lines t
                 display-line-numbers-width 3
                 indent-tabs-mode nil
