@@ -5,7 +5,8 @@
 
 ;;; PATH -----
 ;; The daemon gets no shell PATH; add tool dirs when present.
-(dolist (dir '("/etc/profiles/per-user/vp/bin" "/opt/homebrew/bin"))
+(dolist (dir '("/etc/profiles/per-user/vp/bin" "/opt/homebrew/bin"
+               "/Users/vp/.local/bin"))
   (when (file-directory-p dir)
     (add-to-list 'exec-path dir)
     (setenv "PATH" (concat dir ":" (getenv "PATH")))))
@@ -396,6 +397,11 @@
 ;; "Monospace" does not resolve on macOS and falls back to a
 ;; proportional font; inherit default so fixed-pitch stays monospace.
 (set-face-attribute 'fixed-pitch nil :family 'unspecified :inherit 'default)
+
+;; Symbols missing from AeonikMono (U+23FA and others) fall back to
+;; STIX Two Math, whose taller line height lifts the line. Rescale it
+;; so fallback glyphs fit the default line height.
+(add-to-list 'face-font-rescale-alist '("STIX Two Math" . 0.9))
 
 (defun vp/transparent-background ()
   "Unset the default background in terminal frames for true transparency."
