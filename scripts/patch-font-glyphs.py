@@ -55,6 +55,25 @@ def fit_scale(base, ymin, ymax, xmin, xmax, asc, desc, adv):
     return s
 
 
+def clone_scaled(target, src_cp, dst_cp, size):
+    """Give DST_CP a copy of the native SRC_CP outline, scaled about
+    its own center to SIZE units so position and rendering stay
+    native and the weights come out equally large."""
+    xmin, ymin, xmax, ymax = target[src_cp].boundingBox()
+    cx, cy = (xmin + xmax) / 2, (ymin + ymax) / 2
+    factor = size / max(xmax - xmin, ymax - ymin)
+    target.selection.select(("unicode",), src_cp)
+    target.copy()
+    target.createChar(dst_cp)
+    target.selection.select(("unicode",), dst_cp)
+    target.paste()
+    glyph = target[dst_cp]
+    glyph.transform(psMat.translate(-cx, -cy))
+    glyph.transform(psMat.scale(factor))
+    glyph.transform(psMat.translate(cx, cy))
+    glyph.width = target[src_cp].width
+
+
 def patch(target_path, donor_path):
     target = fontforge.open(target_path)
     donor = fontforge.open(donor_path)
@@ -88,6 +107,9 @@ def patch(target_path, donor_path):
         glyph.transform(psMat.translate(adv / 2 - s * (xmin + xmax) / 2, 0))
         glyph.width = adv
         copied.append(cp)
+    # U+23FA (the Claude Code bullet) renders poorly as a transplant;
+    # use the font's own bullet outline at ~62% of the cell width.
+    clone_scaled(target, 0x2022, 0x23FA, round(adv * 0.62))
     target.generate(target_path)
     target.close()
     donor.close()
