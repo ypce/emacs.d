@@ -43,22 +43,49 @@ def has_glyph(font, cp):
     return cp in font and font[cp].isWorthOutputting()
 
 
+def fit_scale(base, ymin, ymax, xmin, xmax, asc, desc, adv):
+    """Shrink BASE until the scaled bbox fits the target line box."""
+    s = base
+    if ymax > 0:
+        s = min(s, asc / ymax)
+    if ymin < 0:
+        s = min(s, desc / -ymin)
+    if xmax - xmin > 0:
+        s = min(s, adv / (xmax - xmin))
+    return s
+
+
 def patch(target_path, donor_path):
     target = fontforge.open(target_path)
     donor = fontforge.open(donor_path)
     adv = target[ord("x")].width
-    scale = psMat.scale(adv / donor[ord("x")].width)
+    # Leave a small margin so ink never touches the cell edge.
+    asc, desc = target.ascent - 10, target.descent - 5
+    base = adv / donor[ord("x")].width
+    # The braille block must share one scale, or the dot grid drifts
+    # between spinner frames. Fit the block's total extent.
+    bxmin, bymin, bxmax, bymax = donor[0x28FF].boundingBox()
+    s_braille = fit_scale(base, bymin, bymax, bxmin, bxmax, asc, desc, adv)
     copied = []
+    # Overwrite candidates already present: the unpatched Aeonik has
+    # none of them, so any existing one is a previous transplant.
     for cp in CANDIDATES:
-        if has_glyph(target, cp) or not has_glyph(donor, cp):
+        if not has_glyph(donor, cp):
             continue
+        xmin, ymin, xmax, ymax = donor[cp].boundingBox()
+        if 0x2800 <= cp <= 0x28FF:
+            s = s_braille
+        else:
+            s = fit_scale(base, ymin, ymax, xmin, xmax, asc, desc, adv)
         donor.selection.select(("unicode",), cp)
         donor.copy()
         target.createChar(cp)
         target.selection.select(("unicode",), cp)
         target.paste()
         glyph = target[cp]
-        glyph.transform(scale)
+        glyph.transform(psMat.scale(s))
+        # Center the ink in the cell.
+        glyph.transform(psMat.translate(adv / 2 - s * (xmin + xmax) / 2, 0))
         glyph.width = adv
         copied.append(cp)
     target.generate(target_path)
