@@ -402,11 +402,6 @@
 ;; proportional font; inherit default so fixed-pitch stays monospace.
 (set-face-attribute 'fixed-pitch nil :family 'unspecified :inherit 'default)
 
-;; Symbols missing from AeonikMono (U+23FA and others) fall back to
-;; STIX Two Math, whose taller line height lifts the line. Rescale it
-;; so fallback glyphs fit the default line height.
-(add-to-list 'face-font-rescale-alist '("STIX Two Math" . 0.9))
-
 (defun vp/transparent-background ()
   "Unset the default background in terminal frames for true transparency."
   (unless (display-graphic-p)
@@ -919,6 +914,23 @@ searchable (C-c n f, C-c n g)."
                  "d" "Daily" (file-name-concat org-directory "daily") nil t)))
   (org-node-seq-mode))
 
+;; Logseq-style interactive graph of the notes in a browser.
+;; org-roam is NOT used for note-taking: org-mem-roamy fills an
+;; org-roam.db from the org-node index and org-roam-ui reads it,
+;; the route the org-node README documents.
+(use-package org-roam-ui
+  :commands (org-roam-ui-mode org-roam-ui-open)
+  :init
+  (setopt org-roam-directory (file-truename "~/Notes")
+          org-mem-roamy-do-overwrite-real-db t
+          ;; org-roam must never write the db itself; roamy owns it.
+          org-roam-db-update-on-save nil
+          ;; simple-httpd binds 0.0.0.0 by default; keep it loopback
+          ;; only, its file servlet has no auth or root confinement.
+          httpd-host 'local)
+  :config
+  (org-mem-roamy-db-mode))
+
 (defun vp/daily-today ()
   "Open today's daily note; create it as a node in the \"d\" sequence if missing."
   (interactive)
@@ -948,7 +960,8 @@ searchable (C-c n f, C-c n g)."
                           ("g" "grep notes"         vp/notes-grep)
                           ("b" "backlinks/context"  org-node-context-toggle)
                           ("d" "daily note (today)" vp/daily-today)
-                          ("s" "browse dailies"     org-node-seq-dispatch)))))
+                          ("s" "browse dailies"     org-node-seq-dispatch)
+                          ("v" "graph view"         org-roam-ui-open)))))
 
 ;; TODO keywords as glyphs via prettify-symbols; the text stays
 ;; underneath, and point on a glyph expands it for editing.
