@@ -931,6 +931,14 @@ searchable (C-c n f, C-c n g)."
   :config
   (org-mem-roamy-db-mode))
 
+;; Editable Unicode mind maps inside org "mindmap" blocks. Insert a
+;; block with C-c C-, m; RET/TAB add siblings/children, M-RET edits.
+(use-package org-mindmap
+  ;; :ensure nil is required next to :vc, else both handlers install.
+  :ensure nil
+  :vc (:url "https://github.com/krvkir/org-mindmap" :rev :newest)
+  :hook (org-mode . org-mindmap-mode))
+
 (defun vp/daily-today ()
   "Open today's daily note; create it as a node in the \"d\" sequence if missing."
   (interactive)
