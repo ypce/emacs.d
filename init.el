@@ -787,6 +787,10 @@ searchable (C-c n f, C-c n g)."
   :config
   (setopt org-directory (file-truename "~/Notes"))
   (make-directory org-directory t)
+  ;; Archive subtrees into archive/<file>.org, not <file>.org_archive
+  ;; next to the hub: the policy forbids per-project archive files, and
+  ;; only *.org stays indexed and greppable.
+  (setopt org-archive-location (concat org-directory "/archive/%s::"))
   ;; The agenda errors on missing files; create the two anchors.
   (dolist (f '("inbox.org" "agenda.org"))
     (let ((path (expand-file-name f org-directory)))
@@ -902,6 +906,11 @@ searchable (C-c n f, C-c n g)."
   (setopt org-mem-do-sync-with-org-id t
           org-mem-watch-dirs (list (file-truename "~/Notes")))
   :config
+  ;; New notes from org-node-find are reference notes per the policy;
+  ;; create them in topics/ without a prompt. Hubs use vp/new-project.
+  (setopt org-node-file-directory-ask
+          (file-name-concat org-directory "topics"))
+  (make-directory org-node-file-directory-ask t)
   (org-mem-updater-mode)
   (org-node-cache-mode)
   ;; Keep the agenda list current as org-mem rescans notes.
@@ -932,12 +941,19 @@ searchable (C-c n f, C-c n g)."
   (org-mem-roamy-db-mode))
 
 ;; Editable Unicode mind maps inside org "mindmap" blocks. Insert a
-;; block with C-c C-, m; RET/TAB add siblings/children, M-RET edits.
+;; block with C-c C-, m; RET/TAB add siblings/children, M-RET edits,
+;; M-arrows move nodes. The rest lives on the C-c m prefix.
 (use-package org-mindmap
   ;; :ensure nil is required next to :vc, else both handlers install.
   :ensure nil
   :vc (:url "https://github.com/krvkir/org-mindmap" :rev :newest)
-  :hook (org-mode . org-mindmap-mode))
+  :hook (org-mode . org-mindmap-mode)
+  :bind (:map org-mindmap-mode-map
+         ("C-c m d" . org-mindmap-delete-node)
+         ("C-c m v" . org-mindmap-switch-layout)
+         ("C-c m p" . org-mindmap-switch-compaction)
+         ("C-c m m" . org-mindmap-list-to-mindmap)
+         ("C-c m l" . org-mindmap-to-list)))
 
 (defun vp/daily-today ()
   "Open today's daily note; create it as a node in the \"d\" sequence if missing."
@@ -951,6 +967,28 @@ searchable (C-c n f, C-c n g)."
       (let ((org-node-creation-fn #'org-node-new-file)
             (org-node-file-directory-ask dir))
         (org-node-create (format-time-string "%Y-%m-%d") (org-id-new) "d")))))
+
+(defun vp/new-project (title)
+  "Create the project hub projects/TITLE.org from the policy skeleton.
+Open the hub if it already exists."
+  (interactive "sProject title: ")
+  (require 'org)   ; sets org-directory, loads org-node
+  (let* ((dir (file-name-concat org-directory "projects"))
+         (file (file-name-concat
+                dir (concat (funcall org-node-file-slug-fn title) ".org"))))
+    (make-directory dir t)
+    (find-file file)
+    (when (= (buffer-size) 0)
+      (insert ":PROPERTIES:\n"
+              ":ID:       " (org-id-new) "\n"
+              ":END:\n"
+              "#+title: " title "\n"
+              "#+filetags: :agenda:\n"
+              "- dirs :: \n"
+              "* Tasks\n\n"
+              "* Log\n")
+      ;; Save so org-mem indexes the hub and the agenda picks it up.
+      (save-buffer))))
 
 ;; Group grep results under one heading per file (Emacs 30).
 (setopt grep-use-headings t)
@@ -968,6 +1006,7 @@ searchable (C-c n f, C-c n g)."
                           ("g" "grep notes"         vp/notes-grep)
                           ("b" "backlinks/context"  org-node-context-toggle)
                           ("d" "daily note (today)" vp/daily-today)
+                          ("p" "new project hub"    vp/new-project)
                           ("s" "browse dailies"     org-node-seq-dispatch)
                           ("v" "graph view"         org-roam-ui-open)))))
 
