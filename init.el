@@ -785,7 +785,7 @@ searchable (C-c n f, C-c n g)."
   (org-agenda-skip-scheduled-if-done t)
   (org-agenda-skip-deadline-if-done t)
   :config
-  (setopt org-directory (file-truename "~/Notes"))
+  (setopt org-directory (file-truename "~/Vault"))
   (make-directory org-directory t)
   ;; Archive subtrees into archive/<file>.org, not <file>.org_archive
   ;; next to the hub: the policy forbids per-project archive files, and
@@ -900,11 +900,11 @@ searchable (C-c n f, C-c n g)."
   :after org
   :demand t   ; load with org so the indexing modes start
   :init
-  ;; Watch ONLY ~/Notes: watch dirs are re-walked in the main thread on
+  ;; Watch ONLY ~/Vault: watch dirs are re-walked in the main thread on
   ;; an idle timer, and big trees cause stutter. Org files elsewhere
   ;; still get indexed once visited.
   (setopt org-mem-do-sync-with-org-id t
-          org-mem-watch-dirs (list (file-truename "~/Notes")))
+          org-mem-watch-dirs (list (file-truename "~/Vault")))
   :config
   ;; New notes from org-node-find are reference notes per the policy;
   ;; create them in topics/ without a prompt. Hubs use vp/new-project.
@@ -930,7 +930,7 @@ searchable (C-c n f, C-c n g)."
 (use-package org-roam-ui
   :commands (org-roam-ui-mode org-roam-ui-open)
   :init
-  (setopt org-roam-directory (file-truename "~/Notes")
+  (setopt org-roam-directory (file-truename "~/Vault")
           org-mem-roamy-do-overwrite-real-db t
           ;; org-roam must never write the db itself; roamy owns it.
           org-roam-db-update-on-save nil
