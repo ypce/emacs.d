@@ -4,12 +4,19 @@
 ;;; Code:
 
 ;;; PATH -----
-;; The daemon gets no shell PATH; add tool dirs when present.
+;; Finder-launched Emacs gets no shell PATH; add tool dirs when present.
 (dolist (dir '("/etc/profiles/per-user/vp/bin" "/opt/homebrew/bin"
                "/Users/vp/.local/bin"))
   (when (file-directory-p dir)
     (add-to-list 'exec-path dir)
     (setenv "PATH" (concat dir ":" (getenv "PATH")))))
+
+
+;;; Server -----
+;; The GUI instance owns the emacsclient socket; no daemon runs.
+(require 'server)
+(unless (or (daemonp) (server-running-p))
+  (server-start))
 
 
 ;;; Packages -----
@@ -105,7 +112,7 @@
   (setq custom-file (file-name-concat temporary-file-directory "emacs-custom.el"))
   :custom
   (use-short-answers t)
-  (confirm-kill-emacs 'yes-or-no-p)   ; the daemon dies with every client
+  (confirm-kill-emacs 'yes-or-no-p)   ; one long-lived session; guard C-x C-c
   (scroll-conservatively 101)
   (fast-but-imprecise-scrolling t)
   (scroll-error-top-bottom t)   ; move point to the boundary before erroring

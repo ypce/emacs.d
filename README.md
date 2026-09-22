@@ -9,11 +9,15 @@ start.
 ### Emacs
 
 ```sh
-brew install emacs-plus@31        # GUI + daemon build
-brew services start emacs-plus@31 # daemon via launchd
+brew install emacs-plus@31
+cp -R /opt/homebrew/opt/emacs-plus@31/Emacs.app /Applications/
 ```
 
-Connect with `emacsclient -c` (GUI) or `emacsclient -t` (terminal).
+Run Emacs as a normal GUI app, not as a daemon. `init.el` starts the
+server in the GUI instance, so `emacsclient` (and `emacsclient -t`)
+reaches the running session. Add `/Applications/Emacs.app` to Login
+Items to start it at login. After a `brew upgrade emacs-plus@31`,
+re-copy `Emacs.app` into `/Applications`.
 
 ### Fonts
 
