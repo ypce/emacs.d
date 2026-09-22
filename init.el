@@ -4,7 +4,7 @@
 ;;; Code:
 
 ;;; PATH -----
-;; Finder-launched Emacs gets no shell PATH; add tool dirs when present.
+;; The launchd daemon gets no shell PATH; add tool dirs when present.
 (dolist (dir '("/etc/profiles/per-user/vp/bin" "/opt/homebrew/bin"
                "/Users/vp/.local/bin"))
   (when (file-directory-p dir)
@@ -13,7 +13,8 @@
 
 
 ;;; Server -----
-;; The GUI instance owns the emacsclient socket; no daemon runs.
+;; The launchd daemon owns the emacsclient socket. This guard is a
+;; safety net: a stray GUI instance must not steal the socket.
 (require 'server)
 (unless (or (daemonp) (server-running-p))
   (server-start))
@@ -88,15 +89,19 @@
     " "))
 
 ;; Blend mode-line and fringe into the buffer background (box = padding).
-;; Runs on frame hooks: at daemon init (face-background 'default)
-;; resolves to a wrong tty color. Re-runs on each theme change.
+;; Runs on frame hooks so the first GUI frame applies it after daemon
+;; init. Re-runs on each theme change.
 (defun vp/flat-mode-line (&rest _)
-  "Give the mode-line and fringe the default background."
-  (dolist (face '(mode-line mode-line-active mode-line-inactive))
-    (set-face-attribute face nil
-                        :background (face-background 'default)
-                        :box `(:line-width 6 :color ,(face-background 'default))))
-  (set-face-attribute 'fringe nil :background (face-background 'default)))
+  "Give the mode-line and fringe the default background.
+No-op in non-graphic frames: there (face-background 'default) is a
+tty pseudo-color (\"unspecified-bg\") that would poison the global
+faces and render as white boxes in GUI frames."
+  (when (display-graphic-p)
+    (dolist (face '(mode-line mode-line-active mode-line-inactive))
+      (set-face-attribute face nil
+                          :background (face-background 'default)
+                          :box `(:line-width 6 :color ,(face-background 'default))))
+    (set-face-attribute 'fringe nil :background (face-background 'default))))
 
 (add-hook 'window-setup-hook            #'vp/flat-mode-line)
 (add-hook 'server-after-make-frame-hook #'vp/flat-mode-line)

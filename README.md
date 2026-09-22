@@ -10,14 +10,20 @@ start.
 
 ```sh
 brew install emacs-plus@31
-cp -R /opt/homebrew/opt/emacs-plus@31/Emacs.app /Applications/
+brew services start emacs-plus@31   # daemon via launchd: starts at login, respawns
+ditto /opt/homebrew/opt/emacs-plus@31/"Emacs Client.app" /Applications/"Emacs Client.app"
+osacompile -o "/Applications/Emacs Client.app/Contents/Resources/Scripts/main.scpt" etc/emacs-client.applescript
+codesign --force --sign - "/Applications/Emacs Client.app"
 ```
 
-Run Emacs as a normal GUI app, not as a daemon. `init.el` starts the
-server in the GUI instance, so `emacsclient` (and `emacsclient -t`)
-reaches the running session. Add `/Applications/Emacs.app` to Login
-Items to start it at login. After a `brew upgrade emacs-plus@31`,
-re-copy `Emacs.app` into `/Applications`.
+The daemon is the only Emacs. Connect with `emacsclient -nw` (the `e`
+alias) in a terminal, or `Emacs Client.app` (Dock/Spotlight) for GUI
+frames. Never launch `Emacs.app` directly and never use `emacsclient
+-a ''`: both spawn a second Emacs outside launchd's control. The
+shipped `Emacs Client.app` applet hardcodes a Cellar version path and
+an `-a ''` fallback; `etc/emacs-client.applescript` replaces it with a
+plain no-fallback client. After `brew upgrade emacs-plus@31`, run
+`brew services restart emacs-plus@31`.
 
 ### Fonts
 
