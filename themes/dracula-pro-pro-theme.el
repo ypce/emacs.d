@@ -108,6 +108,15 @@ The theme has to be reloaded after changing anything in this group."
                (warning :foreground ,dracula-pro-pro-orange)
                (error :foreground ,dracula-pro-pro-red)
                (header-line :background ,dracula-pro-pro-bg)
+               ;; tab-bar, flat like the wezterm tab bar: everything sits on
+               ;; the frame background, the active tab is purple text only
+               (tab-bar :inherit default :background ,dracula-pro-pro-bg
+                        :foreground ,dracula-pro-pro-comment :box nil)
+               (tab-bar-tab :inherit tab-bar :foreground ,dracula-pro-pro-purple
+                            :weight normal :box nil)
+               (tab-bar-tab-inactive :inherit tab-bar :box nil)
+               ;; hover shows the same look as the active tab
+               (tab-bar-tab-highlight :inherit tab-bar-tab)
                ;; ansi terminal palette (ghostel, eshell, compilation)
                (ansi-color-black :foreground ,dracula-pro-pro-bg :background ,dracula-pro-pro-bg)
                (ansi-color-red :foreground ,dracula-pro-pro-red :background ,dracula-pro-pro-red)

@@ -728,6 +728,16 @@ runs the top match."
   (tab-bar-tab-hints t)   ; number each tab, pairs with s-1..s-9
   (tab-bar-new-tab-choice "*scratch*")
   (tab-bar-select-tab-modifiers '(super))
+  ;; The separator is a stretch glyph taller than the text with all of
+  ;; its height above the baseline (:ascent 100), so the bar gets
+  ;; padding on top only.
+  (tab-bar-separator
+   (propertize "  " 'display '(space :width 2 :height 1.3 :ascent 100)))
+  (tab-bar-auto-width nil)  ; tabs hug their names instead of equal widths
+  (tab-bar-tab-name-function #'tab-bar-tab-name-truncated)
+  ;; Pad with spaces, not a face box: a box adds 1px of tab height.
+  (tab-bar-tab-name-format-function
+   (lambda (tab i) (concat " " (tab-bar-tab-name-format-default tab i) " ")))
   :config
   (tab-bar-mode 1))
 
