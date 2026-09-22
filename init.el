@@ -1064,7 +1064,27 @@ Open the hub if it already exists."
   (ghostel-module-auto-install 'download)
   ;; Fallback glyphs shrink to fit the cell grid; the 0.0 default
   ;; crushes tall symbols (⏵ ⏸). 1.0 = natural size, taller rows.
-  (ghostel-glyph-scale-floor 0.8))
+  (ghostel-glyph-scale-floor 0.8)
+  :config
+  ;; Upstream bug: the mouse handlers map clicks with `posn-col-row',
+  ;; which divides by the frame default character size. In a
+  ;; text-scaled ghostel buffer the real cells are smaller, so
+  ;; forwarded clicks land on the unscaled grid. Divide by the
+  ;; buffer's own cell metrics instead, the same math ghostel
+  ;; reports to libghostty. Drop when fixed upstream.
+  (defun vp/ghostel-posn-col-row (fn posn &optional use-window)
+    "Map POSN to cells with the buffer's real cell size in ghostel windows."
+    (let ((win (posn-window posn)))
+      (if (and (windowp win)
+               (null (posn-area posn))
+               (with-current-buffer (window-buffer win)
+                 (derived-mode-p 'ghostel-mode)))
+          (with-current-buffer (window-buffer win)
+            (let ((xy (posn-x-y posn)))
+              (cons (/ (car xy) (default-font-width))
+                    (/ (cdr xy) (ghostel--cell-height)))))
+        (funcall fn posn use-window))))
+  (advice-add 'posn-col-row :around #'vp/ghostel-posn-col-row))
 
 (use-package claude-code-ide
   ;; :ensure nil is required next to :vc, else both handlers install.
