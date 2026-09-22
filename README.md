@@ -58,11 +58,13 @@ The ghostel terminal module downloads itself into `ghostel/` on first use.
 ### Text to speech (optional)
 
 `C-c t` (or `s-'` in GUI frames) speaks the region with
-[kokoro-tts](https://github.com/nazdridoy/kokoro-tts) (`~/.local/bin/kokoro-tts`);
+[kokoro-tts](https://github.com/nazdridoy/kokoro-tts);
 `C-c +` / `C-c -` adjust the speed (repeatable with bare `+` / `-`). The
-code lives in `lisp/vp-tts.el` and loads on first use. The model files
-`kokoro-v1.0.onnx` and `voices-v1.0.bin` must be in `~/Git/kokoro-tts/`
-(see `vp/tts-model-directory`).
+code lives in `lisp/vp-tts.el` and loads on first use. It calls the
+`kokoro` wrapper from the kokoro-tts-config repo
+(`~/Git/public/kokoro-tts-config`, symlinked to `~/.local/bin/kokoro`),
+which points the CLI at the model weights in `~/.local/share/kokoro-tts`;
+see that repo's README for setup on a new machine.
 
 ### Terminal frames (optional)
 

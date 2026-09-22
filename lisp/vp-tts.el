@@ -17,28 +17,25 @@
 (defvar vp/tts--status nil
   "Speech state: nil, `processing', or `speaking'.")
 
-(defvar vp/tts-model-directory "~/Git/kokoro-tts/"
-  "Directory that holds kokoro-v1.0.onnx and voices-v1.0.bin.")
-
 (defun vp/tts--speak (text)
-  "Speak TEXT with kokoro-tts at `vp/tts-speed'."
+  "Speak TEXT with kokoro-tts at `vp/tts-speed'.
+The `kokoro' wrapper (kokoro-tts-config repo) points the CLI at the
+model weights in ~/.local/share/kokoro-tts."
   (vp/tts-stop)
   (setq vp/tts--text text
         vp/tts--status 'processing)
   (with-current-buffer (get-buffer-create " *kokoro-tts*")
     (erase-buffer))
   (setq vp/tts--process
-        ;; kokoro-tts looks for its model files in the working directory.
-        (let ((default-directory (expand-file-name vp/tts-model-directory)))
-          (make-process
-           :name "kokoro-tts"
-           :buffer " *kokoro-tts*"
-           :command (list (expand-file-name "~/.local/bin/kokoro-tts")
-                          "-" "--stream"
-                          "--speed" (number-to-string vp/tts-speed))
-           :connection-type 'pipe
-           :filter #'vp/tts--filter
-           :sentinel #'vp/tts--sentinel)))
+        (make-process
+         :name "kokoro-tts"
+         :buffer " *kokoro-tts*"
+         :command (list (expand-file-name "~/.local/bin/kokoro")
+                        "-" "--stream"
+                        "--speed" (number-to-string vp/tts-speed))
+         :connection-type 'pipe
+         :filter #'vp/tts--filter
+         :sentinel #'vp/tts--sentinel))
   (process-send-string vp/tts--process text)
   (process-send-eof vp/tts--process)
   (force-mode-line-update t)
