@@ -59,7 +59,7 @@ modifier keys in `emacsclient -t`.
 
 ## Notes
 
-- Notes/agenda live in `~/Vault` (created automatically; `inbox.org` and
+- Notes/agenda live in `~/Notes` (created automatically; `inbox.org` and
   `agenda.org` are the agenda anchors, other files opt in with
   `#+filetags: :agenda:`).
 - Nix machines: `/etc/profiles/per-user/vp/bin` joins PATH when present.
