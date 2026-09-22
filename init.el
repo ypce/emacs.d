@@ -108,6 +108,7 @@
   (confirm-kill-emacs 'yes-or-no-p)   ; the daemon dies with every client
   (scroll-conservatively 101)
   (fast-but-imprecise-scrolling t)
+  (scroll-error-top-bottom t)   ; move point to the boundary before erroring
   (help-window-select t)
   (help-window-keep-selected t)
   (backup-by-copying t)
