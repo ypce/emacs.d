@@ -525,6 +525,11 @@ runs the top match."
 (use-package nerd-icons-ibuffer
   :hook (ibuffer-mode . nerd-icons-ibuffer-mode))
 
+;; Icons for minibuffer completion candidates (C-x b, C-x C-f, M-x ...).
+(use-package nerd-icons-completion
+  :after nerd-icons
+  :config (nerd-icons-completion-mode 1))
+
 
 ;;; Programming: treesit + eglot + flymake (all built-in) -----
 (use-package treesit
@@ -787,6 +792,21 @@ searchable (C-c n f, C-c n g)."
   (org-modern-todo nil)
   (org-modern-tag nil)
   (org-modern-timestamp nil))
+
+;; Render org tables as responsive overlay widgets; the source table
+;; stays editable underneath (e edits, org-table-widget-toggle reveals).
+;; GUI frames only; tty frames show the plain table.
+(use-package textui
+  ;; :ensure nil is required next to :vc, else both handlers install.
+  :ensure nil
+  :vc (:url "https://github.com/yibie/textui" :rev :newest)
+  :defer t)
+
+(use-package org-table-widget
+  ;; :ensure nil is required next to :vc, else both handlers install.
+  :ensure nil
+  :vc (:url "https://github.com/yibie/org-table-widget" :rev :newest)
+  :hook (org-mode . org-table-widget-mode))
 
 ;; Show emphasis markers at point; org hides them otherwise.
 (use-package org-appear
