@@ -786,8 +786,8 @@ searchable (C-c n f, C-c n g)."
   (org-modern-replace-stars "❯")
   (org-modern-list '((?* . "•") (?+ . "›") (?- . "–")))
   (org-modern-checkbox '((?X . "✓") (?\s . "☐") (?- . "–")))
-  (org-modern-table-vertical 1)
-  (org-modern-table-horizontal 0.2)
+  ;; org-table-widget renders tables; both styling one table conflicts.
+  (org-modern-table nil)
   ;; No pill labels; TODO keywords render as glyphs (vp/org-prettify-todos).
   (org-modern-todo nil)
   (org-modern-tag nil)
