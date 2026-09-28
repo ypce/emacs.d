@@ -152,6 +152,7 @@ faces and render as white boxes in GUI frames."
   (view-read-only t)
   :hook ((prog-mode . display-line-numbers-mode)
          (prog-mode . electric-pair-local-mode)
+         (prog-mode . hs-minor-mode)   ; code folding (rewritten in Emacs 31)
          ((prog-mode org-mode) . visual-wrap-prefix-mode)
          ((prog-mode text-mode) . completion-preview-mode))
   :config
@@ -168,6 +169,7 @@ faces and render as white boxes in GUI frames."
   (auto-save-visited-mode 1)
   (menu-bar-mode -1)
   (winner-mode 1)                     ; C-c <left> undoes window layout changes
+  (undelete-frame-mode 1)             ; M-x undelete-frame recovers a closed client frame
   (repeat-mode 1)
   (pixel-scroll-precision-mode 1)
   ;; tty: dim … / ↩ instead of $ and \ (GUI frames use fringe arrows)
@@ -179,7 +181,13 @@ faces and render as white boxes in GUI frames."
                           (make-glyph-code ?↩ 'shadow))
 
   :bind (("M-o" . other-window)
-         ("M-u" . capitalize-word)
+         ;; dwim case commands: act on the region when active, else the word
+         ("M-u" . capitalize-dwim)
+         ("<remap> <capitalize-word>" . capitalize-dwim)
+         ("<remap> <upcase-word>" . upcase-dwim)
+         ("<remap> <downcase-word>" . downcase-dwim)
+         ("M-z" . zap-up-to-char)      ; kill up to, not including, the char
+         ("M-S-<down>" . duplicate-dwim)   ; pairs with drag-stuff M-<down>
          ("M-=" . count-words)
          ("C-s-f" . toggle-frame-fullscreen)   ; macOS-native ⌃⌘F
          ("s-[" . previous-buffer)
