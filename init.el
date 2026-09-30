@@ -519,9 +519,16 @@ runs the top match."
   (dired-kill-when-opening-new-dired-buffer t)
   (dired-dwim-target t)   ; two dired windows: copy/move targets the other one
   (dired-isearch-filenames 'dwim)   ; C-s matches filenames only
+  (dired-auto-revert-buffer 'dired-directory-changed-p)
+  (dired-recursive-copies 'always)
+  (dired-recursive-deletes 'top)
+  (dired-mouse-drag-files t)   ; drag files from dired into other apps
+  (delete-by-moving-to-trash t)   ; global: deletes go to the macOS Trash
   ;; h = up a directory (shadows describe-mode; C-h m remains).
+  ;; Mouse clicks open in the same window, like RET does.
   :bind (:map dired-mode-map
-         ("h" . dired-up-directory)))
+         ("h" . dired-up-directory)
+         ("<mouse-2>" . dired-mouse-find-file)))
 
 ;; The default font carries the icon glyphs.
 (use-package nerd-icons
