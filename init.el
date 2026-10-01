@@ -711,8 +711,12 @@ runs the top match."
 ;; One window layout per tab. The bar appears with the second tab, so
 ;; a single-tab frame looks unchanged. Stock C-x t prefix: 2 = new,
 ;; 0 = close, RET = switch by name. Faces live in the vendored theme.
+;; s-t and s-w follow the browser convention; they complete the super
+;; tier with s-1..s-9. s-w loses delete-frame; C-x 5 0 covers it.
 (use-package tab-bar
   :ensure nil
+  :bind (("s-t" . tab-new)
+         ("s-w" . tab-close))
   :custom
   (tab-bar-show 1)
   (tab-bar-close-button-show nil)
@@ -1084,6 +1088,10 @@ Open the hub if it already exists."
   (claude-code-ide-terminal-backend 'ghostel)
   ;; A plain buffer, not a side window: sessions take the whole frame.
   (claude-code-ide-use-side-window nil)
+  ;; On ediff the package returns to the session's start tab by NAME.
+  ;; Auto-named tabs rename with the current buffer, so the stored
+  ;; name goes stale and tab-bar-switch-to-tab creates a ghost tab.
+  (claude-code-ide-switch-tab-on-ediff nil)
   :config
   (claude-code-ide-emacs-tools-setup)
   (add-to-list 'display-buffer-alist
