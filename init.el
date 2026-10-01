@@ -186,7 +186,6 @@ faces and render as white boxes in GUI frames."
          ("<remap> <capitalize-word>" . capitalize-dwim)
          ("<remap> <upcase-word>" . upcase-dwim)
          ("<remap> <downcase-word>" . downcase-dwim)
-         ("M-z" . zap-up-to-char)      ; kill up to, not including, the char
          ("M-S-<down>" . duplicate-dwim)   ; pairs with drag-stuff M-<down>
          ("M-=" . count-words)
          ("C-s-f" . toggle-frame-fullscreen)   ; macOS-native ⌃⌘F
@@ -214,24 +213,6 @@ faces and render as white boxes in GUI frames."
 
 
 ;;; Small QoL commands -----
-(defun vp/copy-buffer-as-kill ()
-  "Save the buffer as if killed, but don't kill it."
-  (interactive)
-  (copy-region-as-kill (point-min) (point-max))
-  (message "Buffer content saved to kill ring."))
-
-(keymap-global-set "C-c w" #'vp/copy-buffer-as-kill)
-
-(defun vp/kill-save-line (nlines)
-  "Save NLINES lines to the kill ring without deleting them."
-  (interactive "p")
-  (kill-ring-save (line-beginning-position)
-                  (line-end-position nlines))
-  (kill-append "\n" nil)
-  (message "Saved line to kill-ring"))
-
-(keymap-global-set "M-k" #'vp/kill-save-line)
-
 (defun vp/remove-system-clipboard-format ()
   "Round-trip the system clipboard through Emacs to strip rich-text formatting."
   (interactive)
@@ -466,38 +447,93 @@ runs the top match."
   (setopt xref-search-program 'ripgrep))
 
 
-;;; Editing aids -----
-;; Syntax-aware expand-region; repeat with = / - after the first press.
-(use-package expreg
-  :bind (("C-=" . expreg-expand)
-         ("C--" . expreg-contract)
-         (:repeat-map expreg-repeat-map
-                      ("=" . expreg-expand)
-                      ("-" . expreg-contract)))
+;;; Modal editing (meow) -----
+;; Official Colemak layout. SPC is not the meow keypad: it opens
+;; vp/leader-map, which inherits every global C-c binding. Real chords
+;; stay real chords, so the chord muscle memory stays portable.
+(defvar vp/leader-map
+  (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map mode-specific-map)
+    map)
+  "Leader keymap on SPC in meow normal and motion states.")
+
+(use-package meow
   :config
-  ;; Stock expreg has no prose steps between word and paragraph; add
-  ;; sentence and line regions in text modes.
-  (defun vp/expreg--prose ()
-    "Return sentence and line regions around point."
-    (when (derived-mode-p 'text-mode)
-      (let (result)
-        (push `(line . ,(cons (line-beginning-position) (line-end-position)))
-              result)
-        (ignore-errors
-          (let* ((beg (save-excursion (backward-sentence) (point)))
-                 (end (save-excursion (goto-char beg) (forward-sentence) (point))))
-            (push `(sentence . ,(cons beg end)) result)))
-        result)))
-  (setq-default expreg-functions
-                (cons #'vp/expreg--prose (default-value 'expreg-functions))))
+  (setq meow-cheatsheet-layout meow-cheatsheet-layout-colemak)
+  (meow-motion-define-key
+   ;; e moves up. Special modes keep n for their own movement.
+   '("e" . meow-prev)
+   '("<escape>" . ignore))
+  (meow-normal-define-key
+   '("0" . meow-expand-0)
+   '("1" . meow-expand-1)
+   '("2" . meow-expand-2)
+   '("3" . meow-expand-3)
+   '("4" . meow-expand-4)
+   '("5" . meow-expand-5)
+   '("6" . meow-expand-6)
+   '("7" . meow-expand-7)
+   '("8" . meow-expand-8)
+   '("9" . meow-expand-9)
+   '("-" . negative-argument)
+   '(";" . meow-reverse)
+   '("," . meow-inner-of-thing)
+   '("." . meow-bounds-of-thing)
+   '("[" . meow-beginning-of-thing)
+   '("]" . meow-end-of-thing)
+   '("/" . meow-visit)
+   '("a" . meow-append)
+   '("A" . meow-open-below)
+   '("b" . meow-back-word)
+   '("B" . meow-back-symbol)
+   '("c" . meow-change)
+   '("e" . meow-prev)
+   '("E" . meow-prev-expand)
+   '("f" . meow-find)
+   '("g" . meow-cancel-selection)
+   '("G" . meow-grab)
+   '("h" . meow-left)
+   '("H" . meow-left-expand)
+   '("i" . meow-right)
+   '("I" . meow-right-expand)
+   '("j" . meow-join)
+   '("k" . meow-kill)
+   '("l" . meow-line)
+   '("L" . meow-goto-line)
+   '("m" . meow-mark-word)
+   '("M" . meow-mark-symbol)
+   '("n" . meow-next)
+   '("N" . meow-next-expand)
+   '("o" . meow-block)
+   '("O" . meow-to-block)
+   '("p" . meow-yank)
+   '("q" . meow-quit)
+   '("r" . meow-replace)
+   '("s" . meow-insert)
+   '("S" . meow-open-above)
+   '("t" . meow-till)
+   '("u" . meow-undo)
+   ;; Stock U is meow-undo-in-selection; undo-redo gives kak parity.
+   '("U" . undo-redo)
+   '("v" . meow-search)
+   '("w" . meow-next-word)
+   '("W" . meow-next-symbol)
+   '("x" . meow-delete)
+   '("X" . meow-backward-delete)
+   '("y" . meow-save)
+   '("z" . meow-pop-selection)
+   '("'" . repeat)
+   '("<escape>" . ignore))
+  (keymap-set vp/leader-map "?" #'meow-cheatsheet)
+  (keymap-set meow-normal-state-keymap "SPC" (cons "leader" vp/leader-map))
+  (keymap-set meow-motion-state-keymap "SPC" (cons "leader" vp/leader-map))
+  ;; Shells open in insert state.
+  (dolist (mode '(eshell-mode ghostel-mode))
+    (add-to-list 'meow-mode-state-list (cons mode 'insert)))
+  (meow-global-mode 1))
 
-(use-package multiple-cursors
-  ;; Run commands for all cursors without asking (opt-outs: mc/cmds-to-run-once).
-  :custom (mc/always-run-for-all t)
-  :bind (("C->" . mc/mark-next-like-this)
-         ("C-<" . mc/mark-previous-like-this)
-         ("C-c C->" . mc/mark-all-like-this)))
 
+;;; Editing aids -----
 (use-package drag-stuff
   :bind (("M-<up>" . drag-stuff-up)
          ("M-<down>" . drag-stuff-down)))
