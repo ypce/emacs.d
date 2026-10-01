@@ -707,22 +707,52 @@ runs the top match."
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
 
 
-;;; Tabs (tab-bar, built-in) -----
+;;; Tabs, windows, frames (super tier) -----
+;; i3-style management on super. Windows (splits) navigate on Colemak
+;; hnei, tabs live on lowercase letters, frames on uppercase. Shift is
+;; the heavier variant: move a window instead of focusing it, close a
+;; frame instead of a tab. Overwritten NS defaults keep their chords:
+;; select all C-x h, quit C-x C-c, open file C-x C-f, hide via menu.
+(use-package windmove
+  :ensure nil
+  :bind (("s-h" . windmove-left)
+         ("s-n" . windmove-down)
+         ("s-e" . windmove-up)
+         ("s-i" . windmove-right)
+         ("s-H" . windmove-swap-states-left)
+         ("s-N" . windmove-swap-states-down)
+         ("s-E" . windmove-swap-states-up)
+         ("s-I" . windmove-swap-states-right)))
+
+;; Splits follow the iTerm convention: d right, shift-D below.
+(keymap-global-set "s-d" #'split-window-right)
+(keymap-global-set "s-D" #'split-window-below)
+(keymap-global-set "s-q" #'delete-window)
+(keymap-global-set "s-Q" #'delete-other-windows)
+(keymap-global-set "s-T" #'make-frame-command)
+(keymap-global-set "s-W" #'delete-frame)
+(keymap-global-set "s-O" #'other-frame)
+
 ;; One window layout per tab. The bar appears with the second tab, so
 ;; a single-tab frame looks unchanged. Stock C-x t prefix: 2 = new,
 ;; 0 = close, RET = switch by name. Faces live in the vendored theme.
-;; s-t and s-w follow the browser convention; they complete the super
-;; tier with s-1..s-9. s-w loses delete-frame; C-x 5 0 covers it.
+;; s-a and s-o mirror the bar spatially: a sits on the left edge of
+;; the home row (previous), o on the right edge (next). s-1..s-9 and
+;; s-0 come from tab-bar-select-tab-modifiers.
 (use-package tab-bar
   :ensure nil
   :bind (("s-t" . tab-new)
-         ("s-w" . tab-close))
+         ("s-w" . tab-close)
+         ("s-a" . tab-previous)
+         ("s-o" . tab-next)
+         ("s-r" . tab-recent))
   :custom
   (tab-bar-show 1)
   (tab-bar-close-button-show nil)
   (tab-bar-new-button-show nil)
   (tab-bar-tab-hints t)   ; number each tab, pairs with s-1..s-9
-  (tab-bar-new-tab-choice "*scratch*")
+  ;; New tabs open dired in the directory you came from.
+  (tab-bar-new-tab-choice (lambda () (dired-noselect default-directory)))
   (tab-bar-select-tab-modifiers '(super))
   ;; The separator is a stretch glyph taller than the text with all of
   ;; its height above the baseline (:ascent 100), so the bar gets
