@@ -150,6 +150,14 @@ faces and render as white boxes in GUI frames."
   (show-paren-delay 0.05)
   (show-paren-context-when-offscreen 'overlay)
   (view-read-only t)
+  ;; ghostty renders the real cursor shape; meow states become visible
+  ;; in tty frames (bar in insert, box in normal).
+  (xterm-update-cursor t)
+  ;; TAB on a block-start line cycles folding (hs-minor-mode, Emacs 31);
+  ;; elsewhere TAB keeps indent/complete.
+  (hs-cycle-filter 'hs-hideable-block-p)
+  ;; q kills help buffers instead of burying them.
+  (quit-window-kill-buffer '(help-mode))
   :hook ((prog-mode . display-line-numbers-mode)
          (prog-mode . electric-pair-local-mode)
          (prog-mode . hs-minor-mode)   ; code folding (rewritten in Emacs 31)
@@ -205,11 +213,11 @@ faces and render as white boxes in GUI frames."
                  "%b"))
         " - Emacs"))
 
+;; q kills via quit-window-kill-buffer; escape mirrors it.
 (use-package help-mode
   :ensure nil
   :bind (:map help-mode-map
-         ("q" . kill-buffer-and-window)
-         ("<escape>" . kill-buffer-and-window)))
+         ("<escape>" . quit-window)))
 
 
 ;;; Small QoL commands -----
@@ -366,7 +374,10 @@ Tracked dired/eshell visits plus parents of recent files."
   :ensure nil
   :hook (after-init . recentf-mode)
   ;; Dirs share the list with files (vp/recentf-track-dir); keep room.
-  :custom (recentf-max-saved-items 100)
+  :custom
+  (recentf-max-saved-items 100)
+  ;; The daemon runs for weeks; do not lose the list on a crash.
+  (recentf-autosave-interval 300)
   :bind (("C-x C-r" . vp/recentf-open)   ; shadows find-file-read-only
          ("C-c d" . vp/dired-recent-dir)))
 
@@ -376,7 +387,9 @@ Tracked dired/eshell visits plus parents of recent files."
 
 (use-package saveplace
   :ensure nil
-  :hook (after-init . save-place-mode))
+  :hook (after-init . save-place-mode)
+  ;; The daemon runs for weeks; do not lose places on a crash.
+  :custom (save-place-autosave-interval 300))
 
 
 ;;; Completions (built-in minibuffer UI, Emacs 31) -----
@@ -552,6 +565,8 @@ runs the top match."
           ls-lisp-dirs-first t)
   :custom
   (dired-listing-switches "-alhv")
+  ;; Header shows the basename only, not the absolute path.
+  (dired-hide-details-hide-absolute-location t)
   (dired-kill-when-opening-new-dired-buffer t)
   (dired-dwim-target t)   ; two dired windows: copy/move targets the other one
   (dired-isearch-filenames 'dwim)   ; C-s matches filenames only
@@ -622,7 +637,10 @@ runs the top match."
 
 (use-package eldoc
   :ensure nil
-  :custom (eldoc-echo-area-use-multiline-p nil))
+  :custom
+  (eldoc-echo-area-use-multiline-p nil)
+  ;; Flymake diagnostics at point show in the echo area without C-c l.
+  (eldoc-help-at-pt t))
 
 (use-package flymake
   :ensure nil
