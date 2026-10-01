@@ -75,8 +75,10 @@ modifier keys in `emacsclient -t`.
 
 - Modal editing: meow with the official Colemak layout. `SPC` opens the
   leader map, which inherits all global `C-c` bindings (`SPC ?` shows the
-  cheatsheet). `U` is undo-redo. Shells open in insert state. The meow
-  keypad is not used; chords are typed as real chords.
+  cheatsheet). Direct leader entries relieve frequent chords: `b` buffers,
+  `x` M-x, `k` kill buffer, `w` save, `j` dired-jump, `p` project map.
+  `U` is undo-redo. Shells open in insert state. The meow keypad is not
+  used; chords are typed as real chords.
 - Notes/agenda live in `~/Notes` (created automatically; `inbox.org` and
   `agenda.org` are the agenda anchors, other files opt in with
   `#+filetags: :agenda:`).

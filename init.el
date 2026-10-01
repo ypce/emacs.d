@@ -467,6 +467,14 @@ runs the top match."
 (defvar vp/leader-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map mode-specific-map)
+    ;; Direct entries relieve the most frequent C-x chords. They live
+    ;; here, not on C-c, because they only matter in modal states.
+    (keymap-set map "b" #'switch-to-buffer)
+    (keymap-set map "x" #'execute-extended-command)
+    (keymap-set map "k" #'kill-current-buffer)
+    (keymap-set map "w" #'save-buffer)
+    (keymap-set map "j" #'dired-jump)
+    (keymap-set map "p" (cons "project" project-prefix-map))
     map)
   "Leader keymap on SPC in meow normal and motion states.")
 
