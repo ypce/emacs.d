@@ -764,7 +764,45 @@ runs the top match."
   ;; Pad with spaces, not a face box: a box adds 1px of tab height.
   (tab-bar-tab-name-format-function
    (lambda (tab i) (concat " " (tab-bar-tab-name-format-default tab i) " ")))
+  (tab-bar-tab-face-function #'vp/tab-attention-face)
   :config
+  ;; Attention marks: an unselected tab turns red while a buffer in it
+  ;; waits for user action.  Ghostel notifications feed the list (see
+  ;; the ghostel block); the mark clears when the buffer is shown.
+  (defface vp/tab-attention
+    '((t :inherit tab-bar-tab-inactive :foreground "#ff2d55" :weight bold))
+    "Face for a tab that holds a buffer waiting for user action.")
+
+  (defvar vp/tab-attention-buffers nil
+    "Buffers that wait for user action while not displayed.")
+
+  (defun vp/tab-attention-face (tab)
+    "Return a red face for TAB when a buffer in it waits for the user."
+    (if (and (not (eq (car tab) 'current-tab))
+             (seq-some (lambda (buf)
+                         (and (buffer-live-p buf)
+                              (memq tab (tab-bar-get-buffer-tab buf nil nil t))))
+                       vp/tab-attention-buffers))
+        'vp/tab-attention
+      (tab-bar-tab-face-default tab)))
+
+  (defun vp/tab-attention-mark ()
+    "Mark the current buffer as waiting for user action, unless visible."
+    (unless (get-buffer-window)
+      (unless (memq (current-buffer) vp/tab-attention-buffers)
+        (push (current-buffer) vp/tab-attention-buffers))
+      (force-mode-line-update t)))
+
+  (defun vp/tab-attention-clear (_frame)
+    "Drop attention marks for buffers that are now on screen."
+    (when vp/tab-attention-buffers
+      (setq vp/tab-attention-buffers
+            (seq-remove (lambda (buf)
+                          (or (not (buffer-live-p buf))
+                              (get-buffer-window buf)))
+                        vp/tab-attention-buffers))
+      (force-mode-line-update t)))
+  (add-hook 'window-buffer-change-functions #'vp/tab-attention-clear)
   (tab-bar-mode 1))
 
 
@@ -1107,7 +1145,15 @@ Open the hub if it already exists."
               (cons (/ (car xy) (default-font-width))
                     (/ (cdr xy) (ghostel--cell-height)))))
         (funcall fn posn use-window))))
-  (advice-add 'posn-col-row :around #'vp/ghostel-posn-col-row))
+  (advice-add 'posn-col-row :around #'vp/ghostel-posn-col-row)
+
+  ;; Claude Code and other TUIs send an OSC 9 notification when they
+  ;; need input.  Mark the tab that holds the buffer, then notify.
+  (defun vp/ghostel-notify (title body)
+    "Mark this buffer's tab as waiting for input, then desktop-notify."
+    (vp/tab-attention-mark)
+    (ghostel-default-notify title body))
+  (setopt ghostel-notification-function #'vp/ghostel-notify))
 
 (use-package claude-code-ide
   ;; :ensure nil is required next to :vc, else both handlers install.
@@ -1196,7 +1242,17 @@ The cd runs as a real command so eshell history records it."
   (remote-file-name-inhibit-auto-save-visited t)
   ;; Trust cached remote file attributes for 60s instead of 10.
   (remote-file-name-inhibit-cache 60)
+  ;; Do not create or check lockfiles on remote saves.
+  (remote-file-name-inhibit-locks t)
   :config
+  ;; Run remote async processes (eshell commands, compile, grep) as a
+  ;; plain `ssh host cmd', skipping TRAMP's login-shell handshake.
+  ;; Direct-async processes do not see tramp-remote-path additions.
+  (connection-local-set-profile-variables
+   'vp/tramp-direct-async
+   '((tramp-direct-async-process . t)))
+  (connection-local-set-profiles
+   '(:application tramp :protocol "ssh") 'vp/tramp-direct-async)
   ;; Do not probe VC over the connection on every remote find-file.
   (setopt vc-ignore-dir-regexp
           (format "%s\\|%s" vc-ignore-dir-regexp tramp-file-name-regexp)))
