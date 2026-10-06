@@ -1195,12 +1195,15 @@ Open the hub if it already exists."
   (setq-local truncate-lines nil))
 
 ;; Commands that read $EDITOR open a buffer in this Emacs (C-x # to
-;; finish). Do not use the with-editor sleeping editor: it is a quoted
-;; sh -c string, and pass expands $EDITOR without quotes, so the
-;; string breaks into wrong words.
+;; finish). Locally, do not use the with-editor sleeping editor: it is
+;; a quoted sh -c string, and pass expands $EDITOR without quotes, so
+;; the string breaks into wrong words. On a remote host, emacsclient
+;; cannot reach this Emacs, so use the sleeping editor there.
 (defun vp/eshell-export-editor ()
-  "Set $EDITOR in this eshell to emacsclient."
-  (setenv "EDITOR" "emacsclient"))
+  "Set $EDITOR in this eshell for the local or remote directory."
+  (if (file-remote-p default-directory)
+      (with-editor-export-editor)
+    (setenv "EDITOR" "emacsclient")))
 
 (defun vp/eshell-history ()
   "Pick a command from eshell history with completion, most recent first."
@@ -1215,7 +1218,7 @@ Open the hub if it already exists."
 ;; binding hung on the eshell feature fires before the map exists.
 (use-package esh-mode
   :ensure nil
-  :hook ((eshell-mode . vp/eshell-export-editor)
+  :hook (((eshell-mode eshell-directory-change) . vp/eshell-export-editor)
          (eshell-mode . vp/eshell-wrap-lines))
   :bind (:map eshell-mode-map
          ("C-r" . vp/eshell-history))
