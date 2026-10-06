@@ -1194,6 +1194,14 @@ Open the hub if it already exists."
 (defun vp/eshell-wrap-lines ()
   (setq-local truncate-lines nil))
 
+;; Commands that read $EDITOR open a buffer in this Emacs (C-x # to
+;; finish). Do not use the with-editor sleeping editor: it is a quoted
+;; sh -c string, and pass expands $EDITOR without quotes, so the
+;; string breaks into wrong words.
+(defun vp/eshell-export-editor ()
+  "Set $EDITOR in this eshell to emacsclient."
+  (setenv "EDITOR" "emacsclient"))
+
 (defun vp/eshell-history ()
   "Pick a command from eshell history with completion, most recent first."
   (interactive)
@@ -1207,8 +1215,7 @@ Open the hub if it already exists."
 ;; binding hung on the eshell feature fires before the map exists.
 (use-package esh-mode
   :ensure nil
-  ;; with-editor: commands that read $EDITOR open a buffer in THIS Emacs.
-  :hook ((eshell-mode . with-editor-export-editor)
+  :hook ((eshell-mode . vp/eshell-export-editor)
          (eshell-mode . vp/eshell-wrap-lines))
   :bind (:map eshell-mode-map
          ("C-r" . vp/eshell-history))
