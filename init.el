@@ -18,6 +18,9 @@
 (require 'server)
 (unless (or (daemonp) (server-running-p))
   (server-start))
+;; Child processes (Claude Code's C-g, git in ghostel) edit in a buffer
+;; of this Emacs. C-x # finishes the edit. Without this they use vi.
+(setenv "EDITOR" "emacsclient")
 
 
 ;;; Packages -----
