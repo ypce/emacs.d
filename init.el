@@ -5,8 +5,9 @@
 
 ;;; PATH -----
 ;; The launchd daemon gets no shell PATH; add tool dirs when present.
-(dolist (dir '("/etc/profiles/per-user/vp/bin" "/opt/homebrew/bin"
-               "/Users/vp/.local/bin"))
+;; Each dir goes to the front, so reverse: the first dir listed wins.
+(dolist (dir (reverse '("/etc/profiles/per-user/vp/bin" "/opt/homebrew/bin"
+                        "/Users/vp/.local/bin")))
   (when (file-directory-p dir)
     (add-to-list 'exec-path dir)
     (setenv "PATH" (concat dir ":" (getenv "PATH")))))
@@ -121,7 +122,6 @@ faces and render as white boxes in GUI frames."
   (setq custom-file (file-name-concat temporary-file-directory "emacs-custom.el"))
   :custom
   (use-short-answers t)
-  (confirm-kill-emacs 'yes-or-no-p)   ; one long-lived session; guard C-x C-c
   (scroll-conservatively 101)
   (fast-but-imprecise-scrolling t)
   (scroll-error-top-bottom t)   ; move point to the boundary before erroring
@@ -164,7 +164,7 @@ faces and render as white boxes in GUI frames."
   :hook ((prog-mode . display-line-numbers-mode)
          (prog-mode . electric-pair-local-mode)
          (prog-mode . hs-minor-mode)   ; code folding (rewritten in Emacs 31)
-         ((prog-mode org-mode) . visual-wrap-prefix-mode)
+         (org-mode . visual-wrap-prefix-mode)
          ((prog-mode text-mode) . completion-preview-mode))
   :config
   ;; Assume left-to-right text; skip the bidi scans on long lines.
@@ -193,7 +193,6 @@ faces and render as white boxes in GUI frames."
 
   :bind (("M-o" . other-window)
          ;; dwim case commands: act on the region when active, else the word
-         ("M-u" . capitalize-dwim)
          ("<remap> <capitalize-word>" . capitalize-dwim)
          ("<remap> <upcase-word>" . upcase-dwim)
          ("<remap> <downcase-word>" . downcase-dwim)
@@ -233,16 +232,18 @@ faces and render as white boxes in GUI frames."
 (keymap-global-set "C-c r" #'vp/remove-system-clipboard-format)
 
 (defun vp/eval-last-sexp-and-replace ()
-  "Replace the preceding sexp with its value."
+  "Replace the preceding sexp with its value.
+On an error the text stays and the error shows; the kill ring stays clean."
   (interactive)
-  (backward-kill-sexp)
-  (condition-case nil
-      (prin1 (eval (read (current-kill 0)))
-             (current-buffer))
-    (error (message "Invalid expression")
-           (insert (current-kill 0)))))
+  (let* ((end (point))
+         (start (save-excursion (backward-sexp) (point)))
+         (value (eval (read (buffer-substring-no-properties start end))
+                      lexical-binding)))
+    (delete-region start end)
+    (prin1 value (current-buffer))))
 
-(keymap-global-set "C-c C-e" #'vp/eval-last-sexp-and-replace)
+;; v = value. C-c C-<letter> keys belong to major modes (org, markdown).
+(keymap-global-set "C-c v" #'vp/eval-last-sexp-and-replace)
 
 
 ;;; File ops (C-c f) -----
@@ -399,7 +400,6 @@ Tracked dired/eshell visits plus parents of recent files."
 (use-package minibuffer
   :ensure nil
   :custom
-  (completion-auto-help t)
   (completion-eager-display t)      ; Emacs 31: list shows without TAB
   (completion-eager-update t)       ; Emacs 31: list filters as you type
   (completion-ignore-case t)
@@ -416,8 +416,6 @@ Tracked dired/eshell visits plus parents of recent files."
   (minibuffer-completion-auto-choose nil)
   (enable-recursive-minibuffers t)
   (read-buffer-completion-ignore-case t)
-  (read-file-name-completion-ignore-case t)
-  (minibuffer-prompt-properties '(read-only t face minibuffer-prompt))
   :config
   (minibuffer-depth-indicate-mode 1)
   (minibuffer-electric-default-mode 1)
@@ -585,7 +583,6 @@ runs the top match."
   (dired-recursive-copies 'always)
   (dired-recursive-deletes 'top)
   (dired-mouse-drag-files t)   ; drag files from dired into other apps
-  (delete-by-moving-to-trash t)   ; global: deletes go to the macOS Trash
   ;; h = up a directory (shadows describe-mode; C-h m remains).
   ;; Mouse clicks open in the same window, like RET does.
   :bind (:map dired-mode-map
@@ -613,12 +610,8 @@ runs the top match."
   :ensure nil
   :when (treesit-available-p)
   :config
-  (setq treesit-language-source-alist
-        '((bash     "https://github.com/tree-sitter/tree-sitter-bash")
-          (go       "https://github.com/tree-sitter/tree-sitter-go")
-          (gomod    "https://github.com/camdencheek/tree-sitter-go-mod")
-          (python   "https://github.com/tree-sitter/tree-sitter-python")))
   ;; Build missing grammars on first use (needs git + a C compiler).
+  ;; Each mode registers its grammar source at a tested commit.
   (setopt treesit-auto-install-grammar 'always
           treesit-enabled-modes
           '(python-ts-mode bash-ts-mode go-ts-mode go-mod-ts-mode)))
@@ -662,9 +655,12 @@ runs the top match."
          ("C-c l" . flymake-show-buffer-diagnostics)))
 
 ;; Go: tabs for indent, format on save via gopls.
+;; auto-save-visited-mode saves from an idle timer, where this-command
+;; is nil. Format only on user saves, not while the user types.
 (defun vp/eglot-format-on-save ()
-  "Format the buffer with eglot before save, when a server is attached."
-  (when (eglot-managed-p) (eglot-format-buffer)))
+  "Format the buffer with eglot before a user save, when a server is attached."
+  (when (and this-command (eglot-managed-p))
+    (eglot-format-buffer)))
 
 (defun vp/go-setup ()
   "Per-buffer Go setup."
