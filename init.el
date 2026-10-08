@@ -849,11 +849,17 @@ searchable (C-c n f, C-c n g)."
   ;; No splits: agenda and src-block editing use the current window.
   (org-agenda-window-setup 'current-window)
   (org-src-window-setup 'current-window)
-  ;; De-noise the agenda: no category column, hide the :agenda: tag.
-  (org-agenda-prefix-format '((agenda . "  %?-12t% s")
-                              (todo   . "  ")
-                              (tags   . "  ")
+  ;; Show the category (file name or #+category:) and keep the items
+  ;; of one category together. Hide the :agenda: tag.
+  (org-agenda-prefix-format '((agenda . "  %-12:c%?-12t% s")
+                              (todo   . "  %-12:c")
+                              (tags   . "  %-12:c")
                               (search . "  ")))
+  (org-agenda-sorting-strategy
+   '((agenda habit-down time-up priority-down category-keep)
+     (todo   category-keep priority-down)
+     (tags   category-keep priority-down)
+     (search category-keep)))
   (org-agenda-hide-tags-regexp "\\`agenda\\'")
   (org-agenda-block-separator ?─)
   (org-agenda-skip-scheduled-if-done t)
