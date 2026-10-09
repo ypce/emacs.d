@@ -162,7 +162,7 @@ faces and render as white boxes in GUI frames."
   ;; q kills help buffers instead of burying them.
   (quit-window-kill-buffer '(help-mode))
   :hook ((prog-mode . display-line-numbers-mode)
-         (prog-mode . electric-pair-local-mode)
+         ((prog-mode text-mode) . electric-pair-local-mode)
          (prog-mode . hs-minor-mode)   ; code folding (rewritten in Emacs 31)
          (org-mode . visual-wrap-prefix-mode)
          ((prog-mode text-mode) . completion-preview-mode))
@@ -986,6 +986,21 @@ searchable (C-c n f, C-c n g)."
                          '(("g" "draw figure"          org-draw)
                            ("e" "edit figure at point" org-draw-edit)
                            ("s" "setup/pairing"        org-draw-setup))))))
+
+;; Present an org file as slides: each top-level heading is one slide.
+;; Start/stop with M-x org-tree-slide-mode; arrows move between slides.
+(use-package org-tree-slide
+  :bind (:map org-tree-slide-mode-map
+         ("<right>" . org-tree-slide-move-next-tree)
+         ("<left>"  . org-tree-slide-move-previous-tree))
+  :custom
+  (org-tree-slide-slide-in-effect nil)
+  (org-tree-slide-skip-outline-level 3))
+
+;; Render mermaid src blocks with C-c C-c (needs mmdc from mermaid-cli).
+(use-package ob-mermaid
+  :after org
+  :demand t)
 
 
 ;;; Org Node (notes) -----

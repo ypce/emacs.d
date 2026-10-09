@@ -38,6 +38,7 @@ plain no-fallback client. After `brew upgrade emacs-plus@31`, run
 brew install ripgrep     # xref / project search
 brew install pandoc      # markdown preview rendering
 brew install git         # magit, package-vc, treesit grammar builds
+brew install mermaid-cli # mmdc: ob-mermaid renders org mermaid blocks
 ```
 
 Tree-sitter grammars build on first use and need git plus a C compiler
