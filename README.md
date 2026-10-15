@@ -61,9 +61,9 @@ mark when a session needs input in another tab.
 
 ### Text to speech (optional)
 
-`C-c t` (or `s-'` in GUI frames) speaks the region with
+`C-c t t` (or `s-'` in GUI frames) speaks the region with
 [kokoro-tts](https://github.com/nazdridoy/kokoro-tts);
-`C-c +` / `C-c -` adjust the speed (repeatable with bare `+` / `-`). The
+`C-c t +` / `C-c t -` adjust the speed (repeatable with bare `+` / `-`). The
 code lives in `lisp/vp-tts.el` and loads on first use. It calls the
 `kokoro` wrapper from the kokoro-tts-config repo
 (`~/Git/public/kokoro-tts-config`, symlinked to `~/.local/bin/kokoro`),

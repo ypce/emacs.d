@@ -103,7 +103,7 @@ model weights in ~/.local/share/kokoro-tts."
   (interactive)
   (vp/tts--adjust-speed -0.1))
 
-;; After C-c + or C-c -, a bare + - or = repeats the speed change.
+;; After C-c t + or C-c t -, a bare + - or = repeats the speed change.
 (defvar-keymap vp/tts-repeat-map
   :repeat t
   "+" #'vp/tts-speed-up

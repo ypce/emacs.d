@@ -222,30 +222,6 @@ faces and render as white boxes in GUI frames."
          ("<escape>" . quit-window)))
 
 
-;;; Small QoL commands -----
-(defun vp/remove-system-clipboard-format ()
-  "Round-trip the system clipboard through Emacs to strip rich-text formatting."
-  (interactive)
-  (let ((clipboard-text (gui-get-selection 'CLIPBOARD)))
-    (gui-set-selection 'CLIPBOARD clipboard-text)))
-
-(keymap-global-set "C-c r" #'vp/remove-system-clipboard-format)
-
-(defun vp/eval-last-sexp-and-replace ()
-  "Replace the preceding sexp with its value.
-On an error the text stays and the error shows; the kill ring stays clean."
-  (interactive)
-  (let* ((end (point))
-         (start (save-excursion (backward-sexp) (point)))
-         (value (eval (read (buffer-substring-no-properties start end))
-                      lexical-binding)))
-    (delete-region start end)
-    (prin1 value (current-buffer))))
-
-;; v = value. C-c C-<letter> keys belong to major modes (org, markdown).
-(keymap-global-set "C-c v" #'vp/eval-last-sexp-and-replace)
-
-
 ;;; File ops (C-c f) -----
 (defun vp/file--target ()
   "The current file; in dired the file at point; else the directory."
@@ -288,14 +264,18 @@ On an error the text stays and the error shows; the kill ring stays clean."
 
 
 ;;; Text to speech (kokoro-tts) -----
-;; Self-contained module; :bind autoloads it, so it loads on first use.
+;; Self-contained module; the autoloads load it on first use.
 (use-package vp-tts
   :ensure nil
   :load-path "lisp/"
-  :bind (("C-c t" . vp/tts-speak-dwim)   ; terminal frames get no super keys
-         ("s-'" . vp/tts-speak-dwim)     ; GUI frames
-         ("C-c +" . vp/tts-speed-up)
-         ("C-c -" . vp/tts-speed-down)))
+  :commands (vp/tts-speak-dwim vp/tts-speed-up vp/tts-speed-down)
+  :bind ("s-'" . vp/tts-speak-dwim)      ; GUI frames; C-c t t everywhere
+  :init
+  (keymap-global-set
+   "C-c t" (cons "tts" (vp/labeled-keymap
+                        '(("t" "speak (dwim)" vp/tts-speak-dwim)
+                          ("+" "faster"       vp/tts-speed-up)
+                          ("-" "slower"       vp/tts-speed-down))))))
 
 
 ;;; Theme + Font -----
@@ -702,6 +682,7 @@ runs the top match."
   :bind ("C-x g" . magit-status)
   :custom
   (magit-auto-revert-mode nil)   ; covered by global-auto-revert above
+  (magit-define-global-key-bindings nil)   ; C-x g above is enough
   ;; Reuse the current window; only diffs split.
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
 
@@ -1138,7 +1119,7 @@ Open the hub if it already exists."
 ;; claude-code-ide bridges the Claude Code CLI into Emacs over MCP.
 ;; ghostel (libghostty as an Emacs module) hosts its TUI.
 (use-package ghostel
-  :bind ("C-c o" . ghostel)               ; C-u C-c o opens one more
+  :defer t
   :custom
   ;; Outside elpa/ so package upgrades can't clobber a loaded module.
   (ghostel-module-directory (expand-file-name "ghostel/" user-emacs-directory))
@@ -1198,6 +1179,20 @@ Open the hub if it already exists."
   (claude-code-ide-emacs-tools-setup)
   (add-to-list 'display-buffer-alist
                '("\\`\\*cc " (display-buffer-full-frame))))
+
+
+;; One terminal per directory, like vp/eshell-here for eshell.
+(defun vp/ghostel-here (&optional arg)
+  "Show the ghostel terminal for this buffer's directory, or start one.
+With a prefix ARG, start one more terminal there."
+  (interactive "P")
+  ;; Load first: a defcustom that loads inside the let gets no
+  ;; global value.
+  (require 'ghostel)
+  (let ((ghostel-buffer-name
+         (format "*ghostel %s*" (abbreviate-file-name default-directory))))
+    (ghostel arg)))
+(keymap-global-set "C-c o" #'vp/ghostel-here)
 
 
 ;;; Eshell -----
@@ -1307,6 +1302,8 @@ The cd runs as a real command so eshell history records it."
   ;; ghostel-mode C-c chords; the keys still work.
   (add-to-list 'which-key-replacement-alist '((nil . "\\`vp/") . (nil . "")))
   (add-to-list 'which-key-replacement-alist '((nil . "\\`ghostel-") . t))
+  ;; Stock Emacs leaves an empty C-c ^ prefix in the popup.
+  (keymap-unset mode-specific-map "^" t)
   (which-key-mode))
 
 (put 'narrow-to-region 'disabled nil)
