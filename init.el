@@ -1138,7 +1138,7 @@ Open the hub if it already exists."
 ;; claude-code-ide bridges the Claude Code CLI into Emacs over MCP.
 ;; ghostel (libghostty as an Emacs module) hosts its TUI.
 (use-package ghostel
-  :defer t
+  :bind ("C-c o" . ghostel)               ; C-u C-c o opens one more
   :custom
   ;; Outside elpa/ so package upgrades can't clobber a loaded module.
   (ghostel-module-directory (expand-file-name "ghostel/" user-emacs-directory))
@@ -1189,9 +1189,15 @@ Open the hub if it already exists."
   ;; name goes stale and tab-bar-switch-to-tab creates a ghost tab.
   (claude-code-ide-switch-tab-on-ediff nil)
   :config
+  ;; *cc proj* and *cc proj:instance*, short for tab names.
+  (defun vp/claude-buffer-name (dir &optional instance)
+    (format "*cc %s%s*"
+            (file-name-nondirectory (directory-file-name dir))
+            (if instance (concat ":" instance) "")))
+  (setopt claude-code-ide-buffer-name-function #'vp/claude-buffer-name)
   (claude-code-ide-emacs-tools-setup)
   (add-to-list 'display-buffer-alist
-               '("\\*claude-code\\[" (display-buffer-full-frame))))
+               '("\\`\\*cc " (display-buffer-full-frame))))
 
 
 ;;; Eshell -----
@@ -1296,7 +1302,12 @@ The cd runs as a real command so eshell history records it."
   (which-key-sort-order 'which-key-key-order-alpha)
   (which-key-max-description-length 40)
   (which-key-add-column-padding 2)
-  :config (which-key-mode))
+  :config
+  ;; Show own commands without the vp/ namespace prefix. Hide the
+  ;; ghostel-mode C-c chords; the keys still work.
+  (add-to-list 'which-key-replacement-alist '((nil . "\\`vp/") . (nil . "")))
+  (add-to-list 'which-key-replacement-alist '((nil . "\\`ghostel-") . t))
+  (which-key-mode))
 
 (put 'narrow-to-region 'disabled nil)
 (put 'set-goal-column 'disabled nil)

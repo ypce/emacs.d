@@ -54,7 +54,7 @@ pipx install python-lsp-server   # pylsp
 ### Claude Code (optional)
 
 The `claude` CLI must be on PATH for claude-code-ide (`C-c i`).
-The ghostel terminal module downloads itself into `ghostel/` on first use.
+The ghostel terminal (`C-c o`) downloads its module into `ghostel/` on first use.
 Set `"preferredNotifChannel": "iterm2"` in `~/.claude.json` so Claude
 Code emits OSC 9 notifications; these drive the red tab attention
 mark when a session needs input in another tab.
