@@ -1128,33 +1128,13 @@ Open the hub if it already exists."
   ;; crushes tall symbols (⏵ ⏸). 1.0 = natural size, taller rows.
   (ghostel-glyph-scale-floor 0.8)
   :config
-  ;; Upstream bug: the mouse handlers map clicks with `posn-col-row',
-  ;; which divides by the frame default character size. In a
-  ;; text-scaled ghostel buffer the real cells are smaller, so
-  ;; forwarded clicks land on the unscaled grid. Divide by the
-  ;; buffer's own cell metrics instead, the same math ghostel
-  ;; reports to libghostty. Drop when fixed upstream.
-  (defun vp/ghostel-posn-col-row (fn posn &optional use-window)
-    "Map POSN to cells with the buffer's real cell size in ghostel windows."
-    (let ((win (posn-window posn)))
-      (if (and (windowp win)
-               (null (posn-area posn))
-               (with-current-buffer (window-buffer win)
-                 (derived-mode-p 'ghostel-mode)))
-          (with-current-buffer (window-buffer win)
-            (let ((xy (posn-x-y posn)))
-              (cons (/ (car xy) (default-font-width))
-                    (/ (cdr xy) (ghostel--cell-height)))))
-        (funcall fn posn use-window))))
-  (advice-add 'posn-col-row :around #'vp/ghostel-posn-col-row)
-
   ;; Claude Code and other TUIs send an OSC 9 notification when they
-  ;; need input.  Mark the tab that holds the buffer, then notify.
-  (defun vp/ghostel-notify (title body)
-    "Mark this buffer's tab as waiting for input, then desktop-notify."
-    (vp/tab-attention-mark)
-    (ghostel-default-notify title body))
-  (setopt ghostel-notification-function #'vp/ghostel-notify))
+  ;; need input.  Mark the tab that holds the buffer; the default
+  ;; hook entry still sends the desktop notification.
+  (defun vp/ghostel-notify (_title _body)
+    "Mark this buffer's tab as waiting for input."
+    (vp/tab-attention-mark))
+  (add-hook 'ghostel-notification-functions #'vp/ghostel-notify))
 
 (use-package claude-code-ide
   ;; :ensure nil is required next to :vc, else both handlers install.
