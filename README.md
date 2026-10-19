@@ -89,7 +89,8 @@ modifier keys in `emacsclient -t`.
 - Notes/agenda live in `~/Notes` (created automatically; `inbox.org` and
   `agenda.org` are the agenda anchors, other files opt in with
   `#+filetags: :agenda:`).
-- Eshell (`C-c s`): grey history suggestions as you type (TAB takes
+- Eshell (`C-c s`): two-line prompt (dir and git branch, then `❯`, red
+  after a failed command), live syntax colors, grey history suggestions as you type (TAB takes
   all, `M-f` one word), `C-r` fuzzy history, `z <words>` jumps to a
   recent dir (`z` alone or `C-c d` picks one), and `cd TAB` falls back
   to recent dirs when no local folder matches. History (10k) is

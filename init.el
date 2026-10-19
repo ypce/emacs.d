@@ -196,7 +196,7 @@ faces and render as white boxes in GUI frames."
          ("<remap> <capitalize-word>" . capitalize-dwim)
          ("<remap> <upcase-word>" . upcase-dwim)
          ("<remap> <downcase-word>" . downcase-dwim)
-         ("M-S-<down>" . duplicate-dwim)   ; pairs with drag-stuff M-<down>
+         ("M-S-<down>" . duplicate-dwim)
          ("M-=" . count-words)
          ("C-s-f" . toggle-frame-fullscreen)   ; macOS-native ⌃⌘F
          ("s-[" . previous-buffer)
@@ -412,16 +412,6 @@ Tracked dired/eshell visits plus parents of recent files."
   (completion-category-overrides '((file (styles basic partial-completion))))
   (orderless-expand-substring nil))
 
-;; Act on the thing at point or the current minibuffer candidate.
-(use-package embark
-  :bind (("C-." . embark-act)
-         :map minibuffer-local-map
-         ("C-c C-e" . embark-export)))
-
-;; Exports consult-ripgrep results to a grep buffer (e edits them).
-(use-package embark-consult
-  :after (embark consult))
-
 (when (executable-find "rg")
   (setopt xref-search-program 'ripgrep))
 
@@ -442,7 +432,7 @@ C-c, because they only matter in modal states."
   "j" #'dired-jump
   "." #'find-file
   "/" #'consult-ripgrep
-  "v" #'magit-status   ; v for vc: org-draw owns C-c g
+  "v" #'magit-status   ; v for vc
   "p" (cons "project" project-prefix-map))
 
 (defun vp/leader (_)
@@ -530,12 +520,6 @@ C-c, because they only matter in modal states."
   (meow-global-mode 1))
 
 
-;;; Editing aids -----
-(use-package drag-stuff
-  :bind (("M-<up>" . drag-stuff-up)
-         ("M-<down>" . drag-stuff-down)))
-
-
 ;;; Dired -----
 (use-package dired
   :ensure nil
@@ -564,17 +548,14 @@ C-c, because they only matter in modal states."
          ("h" . dired-up-directory)
          ("<mouse-2>" . dired-mouse-find-file)))
 
-;; The default font carries the icon glyphs.
+;; File-type icons where files are picked: dired and the minibuffer
+;; (C-x C-f, C-x b, recent files). The default font carries the glyphs.
 (use-package nerd-icons
   :custom (nerd-icons-font-family "AeonikMono Nerd Font Mono"))
 
 (use-package nerd-icons-dired
   :hook (dired-mode . nerd-icons-dired-mode))
 
-(use-package nerd-icons-ibuffer
-  :hook (ibuffer-mode . nerd-icons-ibuffer-mode))
-
-;; Icons for minibuffer completion candidates (C-x b, C-x C-f, M-x ...).
 (use-package nerd-icons-completion
   :after nerd-icons
   :config (nerd-icons-completion-mode 1))
@@ -924,27 +905,10 @@ searchable (C-c n f, C-c n g)."
   (org-modern-replace-stars "❯")
   (org-modern-list '((?* . "•") (?+ . "›") (?- . "–")))
   (org-modern-checkbox '((?X . "✓") (?\s . "☐") (?- . "–")))
-  ;; org-table-widget renders tables; both styling one table conflicts.
-  (org-modern-table nil)
   ;; No pill labels; TODO keywords render as glyphs (vp/org-prettify-todos).
   (org-modern-todo nil)
   (org-modern-tag nil)
   (org-modern-timestamp nil))
-
-;; Render org tables as responsive overlay widgets; the source table
-;; stays editable underneath (e edits, org-table-widget-toggle reveals).
-;; GUI frames only; tty frames show the plain table.
-(use-package textui
-  ;; :ensure nil is required next to :vc, else both handlers install.
-  :ensure nil
-  :vc (:url "https://github.com/yibie/textui" :rev :newest)
-  :defer t)
-
-(use-package org-table-widget
-  ;; :ensure nil is required next to :vc, else both handlers install.
-  :ensure nil
-  :vc (:url "https://github.com/yibie/org-table-widget" :rev :newest)
-  :hook (org-mode . org-table-widget-mode))
 
 ;; Show emphasis markers at point; org hides them otherwise.
 (use-package org-appear
@@ -953,33 +917,6 @@ searchable (C-c n f, C-c n g)."
   (org-appear-autoemphasis t)
   (org-appear-autolinks t)
   (org-appear-autosubmarkers t))
-
-;; Draw figures in a browser (tldraw) and embed them as PNG links.
-;; org-draw-setup copies a URL a phone/tablet on the same network can
-;; open; figures stay re-editable with org-draw-edit.
-(use-package org-draw
-  :defer t
-  :custom
-  ;; Opaque near-black canvas; matches the dark theme when displayed.
-  (org-draw-figure-background 'dark)
-  :init
-  (with-eval-after-load 'org
-    (keymap-set
-     org-mode-map
-     "C-c g" (cons "draw" (vp/labeled-keymap
-                           '(("g" "draw figure"          org-draw)
-                             ("e" "edit figure at point" org-draw-edit)
-                             ("s" "setup/pairing"        org-draw-setup)))))))
-
-;; Present an org file as slides: each top-level heading is one slide.
-;; Start/stop with M-x org-tree-slide-mode; arrows move between slides.
-(use-package org-tree-slide
-  :bind (:map org-tree-slide-mode-map
-         ("<right>" . org-tree-slide-move-next-tree)
-         ("<left>"  . org-tree-slide-move-previous-tree))
-  :custom
-  (org-tree-slide-slide-in-effect nil)
-  (org-tree-slide-skip-outline-level 3))
 
 ;; Render mermaid src blocks with C-c C-c (needs mmdc from mermaid-cli).
 ;; Mermaid only draws a diagram, so it runs without the y/n prompt.
@@ -1073,8 +1010,7 @@ Open the hub if it already exists."
 (setopt grep-use-headings t)
 
 (defun vp/notes-grep ()
-  "Live ripgrep over all notes.
-C-c C-e exports the hits to a grep buffer; `e' there edits them."
+  "Live ripgrep over all notes."
   (interactive)
   (require 'org)
   (consult-ripgrep org-directory))
@@ -1189,13 +1125,39 @@ With a prefix ARG, start one more terminal there."
 
 (setopt eshell-banner-message "")
 
+(defun vp/git-branch ()
+  "The git branch of `default-directory', or the short commit if detached.
+Reads HEAD directly: no git process per prompt."
+  (when-let* ((root (locate-dominating-file default-directory ".git"))
+              (git (expand-file-name ".git" root))
+              (dir (if (file-directory-p git)
+                       git
+                     ;; A worktree: .git is a file that points to the git dir.
+                     (with-temp-buffer
+                       (insert-file-contents git)
+                       (and (re-search-forward "^gitdir: \\(.+\\)" nil t)
+                            (expand-file-name (match-string 1) root)))))
+              (head (expand-file-name "HEAD" dir))
+              ((file-readable-p head)))
+    (with-temp-buffer
+      (insert-file-contents head)
+      (if (looking-at "ref: refs/heads/\\(.+\\)")
+          (match-string 1)
+        (buffer-substring 1 (min 8 (point-max)))))))
+
 (defun vp/eshell-prompt ()
-  "Basename-only prompt; remote dirs keep their TRAMP prefix."
+  "Dir name and git branch, then ❯ on its own line (red after a failure).
+Remote dirs keep their TRAMP prefix and skip the branch."
   (let ((base (file-name-nondirectory
-               (directory-file-name (abbreviate-file-name default-directory)))))
-    (concat (or (file-remote-p default-directory) "")
-            (if (string-empty-p base) "/" base)
-            " $ ")))
+               (directory-file-name (abbreviate-file-name default-directory))))
+        (remote (file-remote-p default-directory)))
+    (concat (propertize (concat (or remote "") (if (string-empty-p base) "/" base))
+                        'face 'eshell-prompt)
+            (when-let* (((not remote)) (branch (vp/git-branch)))
+              (propertize (concat "  " branch) 'face 'shadow))
+            "\n"
+            (propertize "❯" 'face (if (eq eshell-last-command-status 0) 'success 'error))
+            " ")))
 (setopt eshell-prompt-function #'vp/eshell-prompt)
 
 ;; Wrap long lines; with global truncate-lines they hscroll the window.
@@ -1307,8 +1269,7 @@ it) goes there. With no WORDS, pick one."
   ;; `clear' erases like a terminal; the default only scrolls.
   (defalias 'eshell/clear #'eshell/clear-scrollback))
 
-;; Colors the command line as you type: known commands, unknown ones
-;; in red, strings, and so on.
+;; Colors the command line as you type; unknown commands show red.
 (use-package eshell-syntax-highlighting
   :hook (eshell-mode . eshell-syntax-highlighting-mode))
 
