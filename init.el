@@ -98,7 +98,7 @@
 ;; init. Re-runs on each theme change.
 (defun vp/flat-mode-line (&rest _)
   "Give the mode-line and fringe the default background.
-No-op in non-graphic frames: there (face-background 'default) is a
+No-op in non-graphic frames: there (face-background \='default) is a
 tty pseudo-color (\"unspecified-bg\") that would poison the global
 faces and render as white boxes in GUI frames."
   (when (display-graphic-p)
@@ -312,20 +312,9 @@ faces and render as white boxes in GUI frames."
 
 
 ;;; Saving + Recent -----
-(defun vp/in-order-table (collection &rest metadata)
-  "A completion table over COLLECTION that keeps its order.
-METADATA entries are spliced into the table's metadata."
-  (lambda (str pred action)
-    (if (eq action 'metadata)
-        `(metadata (display-sort-function . identity)
-                   (cycle-sort-function . identity)
-                   ,@metadata)
-      (complete-with-action action collection str pred))))
-
 ;; Dired and eshell visits land in recentf as directory entries
 ;; (trailing slash), so recent DIRS are real visits, not just parents
-;; of recent files. recentf keeps files and dirs in one list; the two
-;; commands below split it by the trailing slash.
+;; of recent files. In consult-buffer they open dired.
 (defun vp/recentf-track-dir ()
   "Add the current directory to `recentf-list'."
   (recentf-add-file default-directory))
@@ -333,41 +322,32 @@ METADATA entries are spliced into the table's metadata."
 (add-hook 'dired-mode-hook #'vp/recentf-track-dir)
 (add-hook 'eshell-directory-change-hook #'vp/recentf-track-dir)
 
-(defun vp/recentf-open ()
-  "Open a recent file, most recent first.
-Orderless matches basename fragments anywhere in the path."
-  (interactive)
-  (find-file
-   (completing-read "Recent file: "
-                    (vp/in-order-table
-                     (mapcar #'abbreviate-file-name
-                             (seq-remove (lambda (f) (string-suffix-p "/" f))
-                                         recentf-list)))
-                    nil t)))
-
 (defun vp/dired-recent-dir ()
-  "Open dired in a recent directory.
+  "Open dired in a recent directory, most recent first.
 Tracked dired/eshell visits plus parents of recent files."
   (interactive)
   (let ((dirs (delete-dups
                (mapcar (lambda (f) (abbreviate-file-name (file-name-directory f)))
                        recentf-list))))
-    (dired (completing-read "Recent dir: " (vp/in-order-table dirs) nil t))))
+    (dired (completing-read "Recent dir: "
+                            (completion-table-with-metadata
+                             dirs '((display-sort-function . identity)))
+                            nil t))))
 
 (use-package recentf
   :ensure nil
   :hook (after-init . recentf-mode)
   ;; Dirs share the list with files (vp/recentf-track-dir); keep room.
   :custom
-  (recentf-max-saved-items 100)
+  (recentf-max-saved-items 300)
   ;; The daemon runs for weeks; do not lose the list on a crash.
   (recentf-autosave-interval 300)
-  :bind (("C-x C-r" . vp/recentf-open)   ; shadows find-file-read-only
-         ("C-c d" . vp/dired-recent-dir)))
+  :bind ("C-c d" . vp/dired-recent-dir))
 
 (use-package savehist
   :ensure nil
-  :hook (after-init . savehist-mode))
+  :hook (after-init . savehist-mode)
+  :custom (savehist-additional-variables '(search-ring regexp-search-ring)))
 
 (use-package saveplace
   :ensure nil
@@ -376,53 +356,45 @@ Tracked dired/eshell visits plus parents of recent files."
   :custom (save-place-autosave-interval 300))
 
 
-;;; Completions (built-in minibuffer UI, Emacs 31) -----
+;;; Completions (vertico + consult) -----
 (use-package minibuffer
   :ensure nil
   :custom
-  (completion-eager-display t)      ; Emacs 31: list shows without TAB
-  (completion-eager-update t)       ; Emacs 31: list filters as you type
   (completion-ignore-case t)
-  (completion-show-help nil)
-  (completions-format 'one-column)
-  (completions-group t)
-  (completions-detailed t)
-  (completions-max-height 14)
-  (completions-sort 'historical)    ; Emacs 31: recently used first
-  (completion-auto-select 'second-tab)
-  (completion-pcm-leading-wildcard t)   ; Emacs 31: substring-like file matching
-  ;; C-n/C-p move the highlight only. auto-choose would insert the
-  ;; candidate, and eager-update would then filter the list to it.
-  (minibuffer-completion-auto-choose nil)
+  (completions-detailed t)   ; annotations in describe-* prompts
   (enable-recursive-minibuffers t)
   (read-buffer-completion-ignore-case t)
   :config
   (minibuffer-depth-indicate-mode 1)
-  (minibuffer-electric-default-mode 1)
+  (minibuffer-electric-default-mode 1))
 
-  (keymap-set minibuffer-local-completion-map "C-n" #'minibuffer-next-completion)
-  (keymap-set minibuffer-local-completion-map "C-p" #'minibuffer-previous-completion)
+;; Vertical candidate list; RET takes the highlighted candidate, M-RET
+;; the literal input (a new file name that prefixes an existing one).
+(use-package vertico
+  :config (vertico-mode 1))
 
-  ;; Must-match prompts only: free-text prompts (find-file) keep
-  ;; literal RET, or a new name could never be typed.
-  (defun vp/minibuffer-ret-dwim ()
-    "Exit with an exact match, else choose the highlighted candidate.
-With no highlight yet, choose the first candidate - \"M-x e RET\"
-runs the top match."
-    (interactive)
-    (let ((win (get-buffer-window "*Completions*" 0)))
-      (cond ((test-completion (minibuffer-contents)
-                              minibuffer-completion-table
-                              minibuffer-completion-predicate)
-             (exit-minibuffer))
-            (win
-             (with-selected-window win
-               (unless (get-text-property (point) 'completion--string)
-                 (goto-char (point-min))
-                 (next-completion 1)))
-             (minibuffer-choose-completion))
-            (t (minibuffer-force-complete-and-exit)))))
-  (keymap-set minibuffer-local-must-match-map "RET" #'vp/minibuffer-ret-dwim))
+;; Bundled with vertico. DEL in a file prompt deletes a path component.
+(use-package vertico-directory
+  :ensure nil
+  :after vertico
+  :bind (:map vertico-map
+         ("DEL" . vertico-directory-delete-char)
+         ("M-DEL" . vertico-directory-delete-word))
+  :hook (rfn-eshadow-update-overlay . vertico-directory-tidy))
+
+;; Remaps upgrade the stock keys; new commands live on M-s and M-g.
+(use-package consult
+  :bind (("<remap> <switch-to-buffer>" . consult-buffer)   ; + recent and project files
+         ("<remap> <yank-pop>" . consult-yank-pop)
+         ("<remap> <goto-line>" . consult-goto-line)
+         ("<remap> <imenu>" . consult-imenu)
+         ("C-x C-r" . consult-recent-file)   ; shadows find-file-read-only
+         ("M-s l" . consult-line)
+         ("M-s r" . consult-ripgrep)
+         ("M-g o" . consult-outline))
+  :custom
+  (xref-show-xrefs-function #'consult-xref)
+  (xref-show-definitions-function #'consult-xref))
 
 ;; Match words in any order and fragment.
 (use-package orderless
@@ -437,27 +409,40 @@ runs the top match."
          :map minibuffer-local-map
          ("C-c C-e" . embark-export)))
 
+;; Exports consult-ripgrep results to a grep buffer (e edits them).
+(use-package embark-consult
+  :after (embark consult))
+
 (when (executable-find "rg")
   (setopt xref-search-program 'ripgrep))
 
 
 ;;; Modal editing (meow) -----
 ;; Official Colemak layout. SPC is not the meow keypad: it opens
-;; vp/leader-map, which inherits every global C-c binding. Real chords
-;; stay real chords, so the chord muscle memory stays portable.
-(defvar vp/leader-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map mode-specific-map)
-    ;; Direct entries relieve the most frequent C-x chords. They live
-    ;; here, not on C-c, because they only matter in modal states.
-    (keymap-set map "b" #'switch-to-buffer)
-    (keymap-set map "x" #'execute-extended-command)
-    (keymap-set map "k" #'kill-current-buffer)
-    (keymap-set map "w" #'save-buffer)
-    (keymap-set map "j" #'dired-jump)
-    (keymap-set map "p" (cons "project" project-prefix-map))
-    map)
-  "Leader keymap on SPC in meow normal and motion states.")
+;; vp/leader-map, then every C-c map active in the buffer (mode maps
+;; before the global one). Real chords stay real chords, so the chord
+;; muscle memory stays portable.
+(defvar-keymap vp/leader-map
+  :doc "Direct SPC entries in meow normal and motion states.
+They relieve the most frequent C-x chords. They live here, not on
+C-c, because they only matter in modal states."
+  "b" #'switch-to-buffer
+  "x" #'execute-extended-command
+  "k" #'kill-current-buffer
+  "w" #'save-buffer
+  "j" #'dired-jump
+  "." #'find-file
+  "/" #'consult-ripgrep
+  "v" #'magit-status   ; v for vc: org-draw owns C-c g
+  "p" (cons "project" project-prefix-map))
+
+(defun vp/leader (_)
+  "Compose `vp/leader-map' with the C-c maps active in this buffer."
+  (make-composed-keymap
+   (cons vp/leader-map
+         (seq-filter #'keymapp
+                     (mapcar (lambda (map) (keymap-lookup map "C-c"))
+                             (current-active-maps))))))
 
 (use-package meow
   :config
@@ -527,8 +512,9 @@ runs the top match."
    '("'" . repeat)
    '("<escape>" . ignore))
   (keymap-set vp/leader-map "?" #'meow-cheatsheet)
-  (keymap-set meow-normal-state-keymap "SPC" (cons "leader" vp/leader-map))
-  (keymap-set meow-motion-state-keymap "SPC" (cons "leader" vp/leader-map))
+  ;; A filter, so the composition happens per key press in the buffer.
+  (dolist (map (list meow-normal-state-keymap meow-motion-state-keymap))
+    (keymap-set map "SPC" '(menu-item "leader" nil :filter vp/leader)))
   ;; Shells open in insert state.
   (dolist (mode '(eshell-mode ghostel-mode))
     (add-to-list 'meow-mode-state-list (cons mode 'insert)))
@@ -751,7 +737,8 @@ runs the top match."
   ;; the ghostel block); the mark clears when the buffer is shown.
   (defface vp/tab-attention
     '((t :inherit tab-bar-tab-inactive :foreground "#ff2d55" :weight bold))
-    "Face for a tab that holds a buffer waiting for user action.")
+    "Face for a tab that holds a buffer waiting for user action."
+    :group 'tab-bar-faces)
 
   (defvar vp/tab-attention-buffers nil
     "Buffers that wait for user action while not displayed.")
@@ -788,8 +775,10 @@ runs the top match."
 
 ;;; Org -----
 (defun vp/all-org-files ()
-  "All org files under `org-directory' (refile targets)."
-  (directory-files-recursively org-directory "\\.org$"))
+  "All org files under `org-directory' except archive/ (refile targets)."
+  (directory-files-recursively
+   org-directory "\\.org\\'" nil
+   (lambda (dir) (not (string= (file-name-nondirectory dir) "archive")))))
 
 (defun vp/refresh-agenda-files (&rest _)
   "Set `org-agenda-files': inbox.org, agenda.org, and files with the
@@ -821,6 +810,7 @@ searchable (C-c n f, C-c n g)."
   (org-tags-column 0)
   (org-fold-catch-invisible-edits 'show-and-error)
   (org-special-ctrl-a/e t)
+  (org-return-follows-link t)
   (org-insert-heading-respects-content t)
   (org-clock-persist 'history)
   (org-clock-out-when-done t)
@@ -907,13 +897,17 @@ searchable (C-c n f, C-c n g)."
   (org-clock-persistence-insinuate)
   (add-hook 'org-capture-mode-hook #'delete-other-windows))
 
+(defun vp/capture-inbox ()
+  "Capture a TODO to inbox.org without the template menu."
+  (interactive)
+  (org-capture nil "i"))
+
 (keymap-global-set "C-c a" #'org-agenda)
 (keymap-global-set "C-c c" #'org-capture)
 
 
 ;;; Org visuals -----
 (use-package org-modern
-  :after org
   :hook ((org-mode . org-modern-mode)
          (org-agenda-finalize . org-modern-agenda))
   :custom
@@ -958,15 +952,15 @@ searchable (C-c n f, C-c n g)."
   :defer t
   :custom
   ;; Opaque near-black canvas; matches the dark theme when displayed.
-  (org-draw-figure-background 'dark))
-
-(with-eval-after-load 'org
-  (keymap-set
-   org-mode-map
-   "C-c g" (cons "draw" (vp/labeled-keymap
-                         '(("g" "draw figure"          org-draw)
-                           ("e" "edit figure at point" org-draw-edit)
-                           ("s" "setup/pairing"        org-draw-setup))))))
+  (org-draw-figure-background 'dark)
+  :init
+  (with-eval-after-load 'org
+    (keymap-set
+     org-mode-map
+     "C-c g" (cons "draw" (vp/labeled-keymap
+                           '(("g" "draw figure"          org-draw)
+                             ("e" "edit figure at point" org-draw-edit)
+                             ("s" "setup/pairing"        org-draw-setup)))))))
 
 ;; Present an org file as slides: each top-level heading is one slide.
 ;; Start/stop with M-x org-tree-slide-mode; arrows move between slides.
@@ -979,17 +973,19 @@ searchable (C-c n f, C-c n g)."
   (org-tree-slide-skip-outline-level 3))
 
 ;; Render mermaid src blocks with C-c C-c (needs mmdc from mermaid-cli).
+;; Mermaid only draws a diagram, so it runs without the y/n prompt.
 (use-package ob-mermaid
   :after org
-  :demand t)
+  :config
+  (setopt org-confirm-babel-evaluate
+          (lambda (lang _body) (not (string= lang "mermaid")))))
 
 
 ;;; Org Node (notes) -----
 ;; org-mem indexes watched org files in a subprocess: instant
 ;; find/backlinks, no database.
 (use-package org-node
-  :after org
-  :demand t   ; load with org so the indexing modes start
+  :after org   ; load with org so the indexing modes start
   :init
   ;; Watch ONLY ~/Notes: watch dirs are re-walked in the main thread on
   ;; an idle timer, and big trees cause stutter. Org files elsewhere
@@ -1067,11 +1063,12 @@ Open the hub if it already exists."
 ;; Group grep results under one heading per file (Emacs 30).
 (setopt grep-use-headings t)
 
-(defun vp/notes-grep (regexp)
-  "Grep all notes for REGEXP. In the results, `e' starts Grep Edit."
-  (interactive "sGrep notes: ")
+(defun vp/notes-grep ()
+  "Live ripgrep over all notes.
+C-c C-e exports the hits to a grep buffer; `e' there edits them."
+  (interactive)
   (require 'org)
-  (rgrep regexp "*.org" org-directory))
+  (consult-ripgrep org-directory))
 
 (keymap-global-set
  "C-c n" (cons "notes" (vp/labeled-keymap
@@ -1079,6 +1076,7 @@ Open the hub if it already exists."
                           ("i" "insert link"        org-node-insert-link)
                           ("g" "grep notes"         vp/notes-grep)
                           ("b" "backlinks/context"  org-node-context-toggle)
+                          ("n" "capture to inbox"   vp/capture-inbox)
                           ("d" "daily note (today)" vp/daily-today)
                           ("p" "new project hub"    vp/new-project)
                           ("s" "browse dailies"     org-node-seq-dispatch)))))
@@ -1206,15 +1204,6 @@ With a prefix ARG, start one more terminal there."
       (with-editor-export-editor)
     (setenv "EDITOR" "emacsclient")))
 
-(defun vp/eshell-history ()
-  "Pick a command from eshell history with completion, most recent first."
-  (interactive)
-  (let ((cmd (completing-read
-              "History: "
-              (vp/in-order-table (delete-dups (ring-elements eshell-history-ring))))))
-    (eshell-kill-input)
-    (insert cmd)))
-
 ;; esh-mode, not eshell: eshell-mode-map lives in esh-mode.el, so a
 ;; binding hung on the eshell feature fires before the map exists.
 (use-package esh-mode
@@ -1222,7 +1211,7 @@ With a prefix ARG, start one more terminal there."
   :hook (((eshell-mode eshell-directory-change) . vp/eshell-export-editor)
          (eshell-mode . vp/eshell-wrap-lines))
   :bind (:map eshell-mode-map
-         ("C-r" . vp/eshell-history))
+         ("C-r" . consult-history))
   :config
   ;; `clear' erases like a terminal; the default only scrolls.
   (defalias 'eshell/clear #'eshell/clear-scrollback))

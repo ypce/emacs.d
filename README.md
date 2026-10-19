@@ -35,7 +35,7 @@ plain no-fallback client. After `brew upgrade emacs-plus@31`, run
 ### CLI tools
 
 ```sh
-brew install ripgrep     # xref / project search
+brew install ripgrep     # consult-ripgrep, xref, project search
 brew install pandoc      # markdown preview rendering
 brew install git         # magit, package-vc, treesit grammar builds
 brew install mermaid-cli # mmdc: ob-mermaid renders org mermaid blocks
@@ -78,9 +78,12 @@ modifier keys in `emacsclient -t`.
 ## Notes
 
 - Modal editing: meow with the official Colemak layout. `SPC` opens the
-  leader map, which inherits all global `C-c` bindings (`SPC ?` shows the
-  cheatsheet). Direct leader entries relieve frequent chords: `b` buffers,
-  `x` M-x, `k` kill buffer, `w` save, `j` dired-jump, `p` project map.
+  leader map: direct entries, then every `C-c` map active in the buffer
+  (mode maps first, so `SPC e` reaches eglot and `SPC C-c` reaches org's
+  `C-c C-c`; `SPC ?` shows the cheatsheet). Direct entries relieve
+  frequent chords: `b` buffers, `x` M-x, `k` kill buffer, `w` save,
+  `j` dired-jump, `.` find-file, `/` project ripgrep, `v` magit,
+  `p` project map.
   `U` is undo-redo. Shells open in insert state. The meow keypad is not
   used; chords are typed as real chords.
 - Notes/agenda live in `~/Notes` (created automatically; `inbox.org` and
