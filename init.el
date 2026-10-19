@@ -322,17 +322,26 @@ faces and render as white boxes in GUI frames."
 (add-hook 'dired-mode-hook #'vp/recentf-track-dir)
 (add-hook 'eshell-directory-change-hook #'vp/recentf-track-dir)
 
-(defun vp/dired-recent-dir ()
-  "Open dired in a recent directory, most recent first.
+(defun vp/recent-dirs ()
+  "Recent directories, most recent first.
 Tracked dired/eshell visits plus parents of recent files."
+  (delete-dups
+   (mapcar (lambda (f) (abbreviate-file-name (file-name-directory f)))
+           recentf-list)))
+
+(defun vp/recent-dirs-table ()
+  "A completion table over `vp/recent-dirs' that keeps its order."
+  (completion-table-with-metadata
+   (vp/recent-dirs) '((display-sort-function . identity)
+                      (cycle-sort-function . identity))))
+
+(defun vp/read-recent-dir ()
+  (completing-read "Recent dir: " (vp/recent-dirs-table) nil t))
+
+(defun vp/dired-recent-dir ()
+  "Open dired in a recent directory."
   (interactive)
-  (let ((dirs (delete-dups
-               (mapcar (lambda (f) (abbreviate-file-name (file-name-directory f)))
-                       recentf-list))))
-    (dired (completing-read "Recent dir: "
-                            (completion-table-with-metadata
-                             dirs '((display-sort-function . identity)))
-                            nil t))))
+  (dired (vp/read-recent-dir)))
 
 (use-package recentf
   :ensure nil
@@ -1204,17 +1213,112 @@ With a prefix ARG, start one more terminal there."
       (with-editor-export-editor)
     (setenv "EDITOR" "emacsclient")))
 
+;; Write each command to the history file at once, like zsh
+;; inc_append_history; the default writes only when the buffer dies.
+(defun vp/eshell-save-history (&rest _)
+  "Append new history entries to the history file."
+  (eshell-write-history nil t))
+
+;; fish-style autosuggestion: completion-preview shows the newest
+;; history line that starts with the input. Preview commands only: on
+;; TAB with no preview, pcomplete completes files and commands.
+(defun vp/eshell-history-capf ()
+  "Complete the whole input line from eshell history, newest first."
+  (when (and (memq this-command completion-preview-commands)
+             (>= (point) eshell-last-output-end)
+             (eolp))
+    (list (marker-position eshell-last-output-end) (point)
+          (completion-table-with-metadata
+           (ring-elements eshell-history-ring)
+           '((display-sort-function . identity)
+             (cycle-sort-function . identity)))
+          :exclusive 'no)))
+
+(defun vp/eshell-completion-setup ()
+  (add-hook 'completion-at-point-functions #'vp/eshell-history-capf nil t)
+  (add-hook 'eshell-input-filter-functions #'vp/eshell-save-history 90 t)
+  (setq-local completion-preview-minimum-symbol-length 1)
+  (completion-preview-mode 1))
+
+;; Recent dirs, zoxide-style: the list that C-c d and dired use.
+(defun eshell/z (&rest words)
+  "cd to the most recent directory whose path contains all WORDS.
+A WORDS that names a recent dir exactly (as `pcomplete/z' inserts
+it) goes there. With no WORDS, pick one."
+  (let* ((words (mapcar (lambda (w) (format "%s" w)) words))
+         (dirs (vp/recent-dirs))
+         (case-fold-search t))
+    (eshell/cd
+     (cond ((null words) (vp/read-recent-dir))
+           ((and (length= words 1)
+                 (car (member (concat "~/" (car words)) dirs))))
+           ((seq-find (lambda (dir)
+                        (seq-every-p (lambda (w) (string-match-p (regexp-quote w) dir))
+                                     words))
+                      dirs))
+           (t (error "z: no recent dir matches %s" (string-join words " ")))))))
+
+;; Home-relative candidates: pcomplete would escape a leading ~.
+(defun pcomplete/z ()
+  "Complete z from the recent dirs."
+  (pcomplete-here
+   (completion-table-with-metadata
+    (mapcar (lambda (dir) (string-remove-prefix "~/" dir)) (vp/recent-dirs))
+    '((display-sort-function . identity)))))
+
+;; cd TAB: local folders first; with no local match, the recent dirs
+;; (absolute, so the path stays valid from any directory).
+(with-eval-after-load 'pcmpl-unix
+  (defun pcomplete/cd ()
+    "Complete local directories, then recent ones."
+    (while (pcomplete-here
+            (completion-table-in-turn
+             (pcomplete-dirs)
+             (completion-table-with-metadata
+              (mapcar #'expand-file-name (vp/recent-dirs))
+              '((display-sort-function . identity))))))))
+
+(defun vp/eshell-recent-dir ()
+  "Pick a recent dir and cd there as a real command."
+  (interactive)
+  (let ((dir (vp/read-recent-dir)))
+    (goto-char (point-max))
+    (eshell-kill-input)
+    (insert (format "cd \"%s\"" dir))
+    (eshell-send-input)))
+
 ;; esh-mode, not eshell: eshell-mode-map lives in esh-mode.el, so a
 ;; binding hung on the eshell feature fires before the map exists.
 (use-package esh-mode
   :ensure nil
   :hook (((eshell-mode eshell-directory-change) . vp/eshell-export-editor)
-         (eshell-mode . vp/eshell-wrap-lines))
+         (eshell-mode . vp/eshell-wrap-lines)
+         (eshell-mode . vp/eshell-completion-setup))
   :bind (:map eshell-mode-map
-         ("C-r" . consult-history))
+         ("C-r" . consult-history)
+         ("C-c d" . vp/eshell-recent-dir))   ; dired elsewhere
+  :custom
+  (eshell-history-size 10000)
+  (eshell-hist-ignoredups 'erase)   ; a rerun moves to the top
+  (eshell-history-append t)         ; vp/eshell-save-history appends
+  (eshell-scroll-to-bottom-on-input 'this)
+  (eshell-cmpl-ignore-case t)
   :config
   ;; `clear' erases like a terminal; the default only scrolls.
   (defalias 'eshell/clear #'eshell/clear-scrollback))
+
+;; Colors the command line as you type: known commands, unknown ones
+;; in red, strings, and so on.
+(use-package eshell-syntax-highlighting
+  :hook (eshell-mode . eshell-syntax-highlighting-mode))
+
+;; M-f takes one word of the grey suggestion; TAB takes all of it.
+(with-eval-after-load 'completion-preview
+  (keymap-set completion-preview-active-mode-map "M-f" #'completion-preview-insert-word))
+
+;; TAB completion everywhere lists candidates in vertico, not a
+;; *Completions* window.
+(setopt completion-in-region-function #'consult-completion-in-region)
 
 (defun vp/eshell-here ()
   "Open the shared eshell, cd'd to this buffer's directory.
