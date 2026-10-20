@@ -23,6 +23,18 @@
 ;; of this Emacs. C-x # finishes the edit. Without this they use vi.
 (setenv "EDITOR" "emacsclient")
 
+;; C-c C-c also finishes, like magit's commit buffer. Temp files only
+;; (Claude's prompt, pass): an org or markdown file opened with
+;; emacsclient keeps its own C-c C-c.
+(define-minor-mode vp/temp-edit-mode
+  "C-c C-c finishes an emacsclient edit of a temp file."
+  :keymap (define-keymap "C-c C-c" #'server-edit))
+
+(defun vp/temp-edit-maybe ()
+  (when (file-in-directory-p buffer-file-name temporary-file-directory)
+    (vp/temp-edit-mode 1)))
+(add-hook 'server-visit-hook #'vp/temp-edit-maybe)
+
 
 ;;; Packages -----
 ;; package-quickstart (early-init) activates packages before init.el;
