@@ -113,6 +113,15 @@ faces and render as white boxes in GUI frames."
 (add-hook 'enable-theme-functions       #'vp/flat-mode-line)
 
 
+;;; GC -----
+;; Collect when no frame has focus, so a pause rarely lands while
+;; typing. The threshold still forces a collection when it must.
+(defun vp/gc-when-unfocused ()
+  (unless (seq-some #'frame-focus-state (frame-list))
+    (garbage-collect)))
+(add-function :after after-focus-change-function #'vp/gc-when-unfocused)
+
+
 ;;; Basic Emacs options -----
 (use-package emacs
   :ensure nil
@@ -141,6 +150,9 @@ faces and render as white boxes in GUI frames."
   (lazy-count-prefix-format "(%s/%s) ")
   (isearch-allow-motion t)     ; M-< / M-> jump to first/last match
   (isearch-repeat-on-direction-change t)
+  ;; A space in C-s matches any text on the line: "def foo" finds
+  ;; "def very_long_foo". M-s SPC toggles it back to literal spaces.
+  (search-whitespace-regexp ".*?")
   (sentence-end-double-space nil)
   (save-interprogram-paste-before-kill t)
   (kill-do-not-save-duplicates t)
@@ -351,6 +363,9 @@ Tracked dired/eshell visits plus parents of recent files."
   (recentf-max-saved-items 300)
   ;; The daemon runs for weeks; do not lose the list on a crash.
   (recentf-autosave-interval 300)
+  ;; Temp dirs (pass decrypts entries there) and git internals are
+  ;; never places to go back to.
+  (recentf-exclude '("\\`/\\(private/\\)?\\(tmp\\|var/folders\\)/" "/\\.git/"))
   :bind ("C-c d" . vp/dired-recent-dir))
 
 (use-package savehist
@@ -542,6 +557,8 @@ C-c, because they only matter in modal states."
   (dired-recursive-copies 'always)
   (dired-recursive-deletes 'top)
   (dired-mouse-drag-files t)   ; drag files from dired into other apps
+  (dired-vc-rename-file t)     ; R in a repo does git mv
+  (dired-create-destination-dirs 'ask)
   ;; h = up a directory (shadows describe-mode; C-h m remains).
   ;; Mouse clicks open in the same window, like RET does.
   :bind (:map dired-mode-map
@@ -892,7 +909,12 @@ searchable (C-c n f, C-c n g)."
   (interactive)
   (org-capture nil "i"))
 
-(keymap-global-set "C-c a" #'org-agenda)
+(defun vp/agenda (&optional arg)
+  "Open the overview agenda. With a prefix ARG, show the dispatcher."
+  (interactive "P")
+  (if arg (org-agenda) (org-agenda nil "o")))
+
+(keymap-global-set "C-c a" #'vp/agenda)
 (keymap-global-set "C-c c" #'org-capture)
 
 
@@ -1265,6 +1287,11 @@ it) goes there. With no WORDS, pick one."
   (eshell-history-append t)         ; vp/eshell-save-history appends
   (eshell-scroll-to-bottom-on-input 'this)
   (eshell-cmpl-ignore-case t)
+  ;; Tracked, unlike eshell/ (history and other state).
+  (eshell-aliases-file (expand-file-name "etc/eshell-aliases" user-emacs-directory))
+  ;; Like zsh cp -i / mv -i; rm already moves to the trash.
+  (eshell-cp-interactive-query t)
+  (eshell-mv-interactive-query t)
   :config
   ;; `clear' erases like a terminal; the default only scrolls.
   (defalias 'eshell/clear #'eshell/clear-scrollback))

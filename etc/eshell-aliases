@@ -1,0 +1,13 @@
+alias - cd -
+alias , cd ..
+alias ,, cd ../..
+alias ,,, cd ../../..
+alias gc git clone ssh://git@github.com/$1
+alias gg git commit -m (mapconcat (quote eshell-stringify) eshell-command-arguments " ")
+alias ghcp ~/Git/git-helpers/git-commit-prompt.py $*
+alias ghprp ~/Git/git-helpers/git-pr-prompt.py $*
+alias h history $*
+alias la ls -la $*
+alias ll ls -l $*
+alias m view-file $1
+alias q exit
