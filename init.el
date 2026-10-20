@@ -223,8 +223,6 @@ faces and render as white boxes in GUI frames."
          ("M-S-<down>" . duplicate-dwim)
          ("M-=" . count-words)
          ("C-s-f" . toggle-frame-fullscreen)   ; macOS-native ⌃⌘F
-         ("s-[" . previous-buffer)
-         ("s-]" . next-buffer)
          ("<escape>" . keyboard-escape-quit)
          ("<remap> <kill-buffer>" . kill-current-buffer)
          ("<remap> <list-buffers>" . ibuffer)))
@@ -790,6 +788,203 @@ C-c, because they only matter in modal states."
       (force-mode-line-update t)))
   (add-hook 'window-buffer-change-functions #'vp/tab-attention-clear)
   (tab-bar-mode 1))
+
+
+;;; Buffer sidebar (ibuffer) -----
+;; SPC e: a left side window that lists buffers by remote host, org, or
+;; project. One on/off state for all tabs. s-[ and s-] step through it
+;; in list order (wrap at the ends); with no sidebar on screen they are
+;; plain previous-buffer / next-buffer. Loads ibuffer on first use.
+(use-package ibuffer
+  :ensure nil
+  :bind (("s-[" . vp/sidebar-previous-buffer)
+         ("s-]" . vp/sidebar-next-buffer)
+         :map vp/leader-map
+         ("e" . vp/sidebar-toggle))
+  :config
+  (require 'ibuf-ext)
+  (require 'hl-line)
+  (require 'nerd-icons)
+
+  (defconst vp/sidebar-name "*Sidebar*")
+
+  (add-to-list 'display-buffer-alist
+               `(,(regexp-quote vp/sidebar-name)
+                 display-buffer-in-side-window
+                 (side . left) (slot . 0) (window-width . 32)
+                 (preserve-size . (t . nil))
+                 (window-parameters (no-delete-other-windows . t)
+                                    (no-other-window . t))))
+
+  (defvar-local vp/sidebar--group nil
+    "Cached group name of this buffer; project lookup is too slow per redraw.")
+
+  (defun vp/sidebar-group ()
+    "Group name of the current buffer: remote host, org, project, or other."
+    (with-memoization vp/sidebar--group
+      (cond ((file-remote-p default-directory)
+             (concat "@" (file-remote-p default-directory 'host)))
+            ((file-in-directory-p default-directory org-directory) "org")
+            ((when-let* ((pr (project-current nil)))
+               (file-name-nondirectory (directory-file-name (project-root pr)))))
+            (t "other"))))
+
+  (defun vp/sidebar-hidden-p (buf)
+    "Hide internal buffers, keep agent and shell buffers."
+    (let ((name (buffer-name buf)))
+      (or (equal name vp/sidebar-name)
+          (and (string-prefix-p "*" name)
+               (not (string-match-p "\\`\\*\\(?:cc \\|ghostel\\|eshell\\)" name))))))
+
+  (defun vp/sidebar-groups ()
+    (mapcar (lambda (g) (list g (cons 'predicate `(equal (vp/sidebar-group) ,g))))
+            (sort (delete-dups
+                   (mapcar (lambda (b) (with-current-buffer b (vp/sidebar-group)))
+                           (seq-remove (lambda (b) (or (string-prefix-p " " (buffer-name b))
+                                                       (vp/sidebar-hidden-p b)))
+                                       (buffer-list))))
+                  #'string<)))
+
+  (defun vp/sidebar--regroup (&rest _)
+    "Rebuild groups before each redraw, so new projects get a header."
+    (when (equal (buffer-name) vp/sidebar-name)
+      (setq ibuffer-filter-groups (vp/sidebar-groups))))
+  (advice-add 'ibuffer-update :before #'vp/sidebar--regroup)
+
+  (defun vp/sidebar--strip-keymaps (&rest _)
+    "Drop ibuffer's per-name keymap: its mouse-1 toggles marks, and
+text-property keymaps take priority over `vp/sidebar-map'."
+    (when (equal (buffer-name) vp/sidebar-name)
+      (with-silent-modifications
+        (remove-text-properties (point-min) (point-max) '(keymap nil)))))
+  (advice-add 'ibuffer-update :after #'vp/sidebar--strip-keymaps)
+
+  (defun vp/sidebar--no-title (&rest _)
+    "Drop the column titles that ibuffer puts in the header line."
+    (when (equal (buffer-name) vp/sidebar-name)
+      (setq header-line-format nil)))
+  (advice-add 'ibuffer-update-title-and-summary :after #'vp/sidebar--no-title)
+
+  (define-ibuffer-column icon (:name " ")
+    (if (string-prefix-p "*cc " (buffer-name))
+        (nerd-icons-mdicon "nf-md-robot")   ; agent sessions are ghostel too
+      (nerd-icons-icon-for-buffer)))
+
+  (defun vp/sidebar-visit ()
+    "Show the buffer at point in the last used main window."
+    (interactive)
+    (let ((buf (ibuffer-current-buffer t)))
+      (select-window (get-mru-window nil nil t))
+      (switch-to-buffer buf)))
+
+  (defun vp/sidebar-mouse-visit (event)
+    (interactive "e")
+    (mouse-set-point event)
+    (vp/sidebar-visit))
+
+  (defvar-keymap vp/sidebar-map
+    :parent ibuffer-mode-map
+    "RET" #'vp/sidebar-visit
+    "<down-mouse-1>" #'ignore            ; no drag region, no flashing
+    "<drag-mouse-1>" #'ignore
+    "<mouse-1>" #'vp/sidebar-mouse-visit
+    "<mouse-2>" #'vp/sidebar-mouse-visit
+    "q" #'vp/sidebar-toggle)   ; quit-window would leave it on in other tabs
+
+  (defun vp/sidebar-follow (&rest _)
+    "Move the sidebar highlight to the buffer in the selected window."
+    (when-let* ((win (get-buffer-window vp/sidebar-name))
+                (buf (window-buffer (selected-window)))
+                ((not (eq win (selected-window)))))
+      (with-selected-window win
+        (goto-char (point-min))
+        (while (and (not (eobp))
+                    (not (eq (car (get-text-property (point) 'ibuffer-properties)) buf)))
+          (forward-line 1))
+        (hl-line-highlight))))
+
+  (defun vp/sidebar--cycle (n)
+    "Show the buffer N rows away in sidebar order, wrapping around.
+Without a visible sidebar, fall back to `next-buffer'/`previous-buffer'."
+    (if-let* ((win (get-buffer-window vp/sidebar-name)))
+        (progn
+          (when (eq win (selected-window))
+            (select-window (get-mru-window nil nil t)))
+          (let* ((bufs (with-current-buffer vp/sidebar-name
+                         (save-excursion
+                           (goto-char (point-min))
+                           (let (acc)
+                             (while (not (eobp))
+                               (when-let* ((b (car (get-text-property
+                                                    (point) 'ibuffer-properties))))
+                                 (push b acc))
+                               (forward-line 1))
+                             (nreverse acc)))))
+                 (i (seq-position bufs (current-buffer))))
+            (when bufs
+              (switch-to-buffer
+               (nth (mod (if i (+ i n) (if (> n 0) 0 -1)) (length bufs)) bufs)))))
+      (if (> n 0) (next-buffer) (previous-buffer))))
+
+  (defun vp/sidebar-next-buffer ()
+    (interactive)
+    (vp/sidebar--cycle 1))
+
+  (defun vp/sidebar-previous-buffer ()
+    (interactive)
+    (vp/sidebar--cycle -1))
+
+  (defvar vp/sidebar-on nil
+    "Non-nil shows the sidebar in every tab.")
+
+  (defun vp/sidebar--show ()
+    (save-selected-window
+      (ibuffer nil vp/sidebar-name nil t nil (vp/sidebar-groups)
+               '((mark " " icon " " (name 26 26 :left :elide)))))
+    (with-current-buffer vp/sidebar-name
+      (setq-local ibuffer-sorting-mode 'alphabetic   ; stable positions
+                  ibuffer-show-empty-filter-groups nil
+                  ibuffer-display-summary nil
+                  ibuffer-use-header-line 'title   ; title leaves the buffer text
+                  ibuffer-never-show-predicates (list #'vp/sidebar-hidden-p)
+                  hl-line-sticky-flag t
+                  mode-line-format nil)
+      (use-local-map vp/sidebar-map)
+      (ibuffer-auto-mode 1)
+      (hl-line-mode 1)
+      (ibuffer-update nil t))
+    (vp/sidebar-follow))
+
+  (defun vp/sidebar-sync (&rest _)
+    "Make this tab match `vp/sidebar-on'; each tab keeps its own windows."
+    (let ((win (get-buffer-window vp/sidebar-name)))
+      (cond ((and vp/sidebar-on (not win)) (vp/sidebar--show))
+            ((and win (not vp/sidebar-on)) (delete-window win)))))
+
+  (defun vp/sidebar-toggle ()
+    "Open and focus the sidebar in all tabs; focus it if open; close it
+if focused.  The sidebar is not in the `other-window' cycle."
+    (interactive)
+    (let ((win (get-buffer-window vp/sidebar-name)))
+      (cond ((and win (eq win (selected-window)))
+             (setq vp/sidebar-on nil)
+             (vp/sidebar-sync))
+            (win (select-window win))
+            (t (setq vp/sidebar-on t)
+               (vp/sidebar-sync)
+               (select-window (get-buffer-window vp/sidebar-name))))))
+
+  (defun vp/sidebar--leave (&rest _)
+    "Open new tabs from the main window: `tab-new' keeps only the
+selected window, which must not be the sidebar."
+    (when (equal (buffer-name) vp/sidebar-name)
+      (select-window (get-mru-window nil nil t))))
+  (advice-add 'tab-bar-new-tab-to :before #'vp/sidebar--leave)
+
+  (add-hook 'tab-bar-tab-post-select-functions #'vp/sidebar-sync)
+  (add-hook 'tab-bar-tab-post-open-functions #'vp/sidebar-sync)
+  (add-hook 'window-buffer-change-functions #'vp/sidebar-follow)
+  (add-hook 'window-selection-change-functions #'vp/sidebar-follow))
 
 
 ;;; Org -----
