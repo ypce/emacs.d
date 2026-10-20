@@ -1357,6 +1357,14 @@ The cd runs as a real command so eshell history records it."
    '((tramp-direct-async-process . t)))
   (connection-local-set-profiles
    '(:application tramp :protocol "ssh") 'vp/tramp-direct-async)
+  ;; dzdo (Centrify sudo) as a hop, root by default:
+  ;; /ssh:host|dzdo:host:/path. Same login as the stock sudo method.
+  (add-to-list 'tramp-methods
+               `("dzdo"
+                 (tramp-login-program "dzdo")
+                 (tramp-login-args (("-u" "%u") ("-s") ("-H") ("%l")))
+                 ,@(nthcdr 3 (assoc "sudo" tramp-methods))))
+  (add-to-list 'tramp-default-user-alist '("dzdo" nil "root"))
   ;; Do not probe VC over the connection on every remote find-file.
   (setopt vc-ignore-dir-regexp
           (format "%s\\|%s" vc-ignore-dir-regexp tramp-file-name-regexp)))
