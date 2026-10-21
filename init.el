@@ -207,7 +207,8 @@ faces and render as white boxes in GUI frames."
   (undelete-frame-mode 1)             ; M-x undelete-frame recovers a closed client frame
   (repeat-mode 1)
   (pixel-scroll-precision-mode 1)
-  ;; tty: dim … / ↩ instead of $ and \ (GUI frames use fringe arrows)
+  ;; Dim … / ↩ instead of $ and \: tty frames, and GUI frames on the
+  ;; right, which has no fringe (early-init.el)
   (unless standard-display-table
     (setq standard-display-table (make-display-table)))
   (set-display-table-slot standard-display-table 'truncation
@@ -866,8 +867,7 @@ a buffer in it waits for user action."
         (when titled
           (vp/sidebar--spacer)
           (insert (propertize
-                   (concat (nerd-icons-mdicon (if folded "nf-md-menu_right" "nf-md-menu_down")
-                                              :face 'shadow)
+                   (concat " " (propertize (if folded "▸" "▾") 'font-lock-face 'shadow)
                            " " (propertize name 'font-lock-face face)
                            (when folded
                              (propertize (format "  %d" (length hidden))
@@ -984,9 +984,9 @@ into, so it stays open."
           (hl-line-highlight)))))
 
   (defun vp/sidebar--fit ()
-    "Fit the sidebar width to its longest line plus padding."
+    "Fit the sidebar width to its longest line plus right padding."
     (when-let* ((win (get-buffer-window vp/sidebar-name)))
-      (let ((width (+ 2 (save-excursion
+      (let ((width (+ 1 (save-excursion
                           (goto-char (point-min))
                           (let ((max 0))
                             (while (not (eobp))
@@ -1074,7 +1074,7 @@ The sidebar is not in the `other-window' cycle."
             (win (select-window win))
             (t (save-selected-window
                  (ibuffer nil vp/sidebar-name nil t nil nil   ; groups: vp/sidebar--regroup
-                          '((indent icon " " (label 0 26 :left :elide)))))
+                          '((" " indent icon " " (label 0 26 :left :elide)))))
                (with-current-buffer vp/sidebar-name
                  (setq-local ibuffer-sorting-mode 'alphabetic   ; stable positions
                              ibuffer-show-empty-filter-groups nil
@@ -1083,13 +1083,17 @@ The sidebar is not in the `other-window' cycle."
                              ibuffer-never-show-predicates (list #'vp/sidebar-hidden-p)
                              hl-line-sticky-flag t
                              cursor-in-non-selected-windows nil
-                             fringe-indicator-alist '((truncation nil nil))
                              mode-line-format nil)
                  (use-local-map vp/sidebar-map)
                  (ibuffer-auto-mode 1)
                  (hl-line-mode 1)
                  (ibuffer-update nil t))
-               (select-window (get-buffer-window vp/sidebar-name))))))
+               (let ((win (get-buffer-window vp/sidebar-name)))
+                 ;; No fringes: the frame border alone is the gutter, as
+                 ;; at the top. Rows pad one column on each side inside
+                 ;; the highlight.
+                 (set-window-fringes win 0 0)
+                 (select-window win))))))
 
   ;; No cursor: the highlight shows the position. meow resets
   ;; cursor-type on each window switch, so the rule goes to meow.

@@ -34,4 +34,7 @@
 
 ;; Padding between frame edge and text (GUI frames only).
 (push '(internal-border-width . 12) default-frame-alist)
+;; No right fringe: the border alone pads the right edge, as at the
+;; top. Wrapped and cut lines show ↩ / … in the text (see init.el).
+(push '(right-fringe . 0) default-frame-alist)
 ;;; early-init.el ends here
