@@ -772,6 +772,10 @@ C-c, because they only matter in modal states."
   (require 'hl-line)
   (require 'nerd-icons)
 
+  (defun vp/sidebar-p ()
+    "Non-nil in the sidebar buffer."
+    (equal (buffer-name) vp/sidebar-name))
+
   (add-to-list 'display-buffer-alist
                `(,(regexp-quote vp/sidebar-name)
                  display-buffer-in-side-window
@@ -828,13 +832,13 @@ Keyed on the directory, so dired and eshell regroup when they move.")
 
   (defun vp/sidebar--regroup (&rest _)
     "Rebuild groups before each redraw, so new projects get a header."
-    (when (equal (buffer-name) vp/sidebar-name)
+    (when (vp/sidebar-p)
       (setq ibuffer-filter-groups (vp/sidebar-groups))))
   (advice-add 'ibuffer-update :before #'vp/sidebar--regroup)
 
   (defun vp/sidebar--no-title (&rest _)
     "Drop the column titles that ibuffer puts in the header line."
-    (when (equal (buffer-name) vp/sidebar-name)
+    (when (vp/sidebar-p)
       (setq header-line-format nil)))
   (advice-add 'ibuffer-update-title-and-summary :after #'vp/sidebar--no-title)
 
@@ -851,7 +855,7 @@ Keyed on the directory, so dired and eshell regroup when they move.")
 A group of one buffer gets no name row. Thin gaps go around groups
 with a name. A folded group turns red when a buffer in it waits for
 user action."
-    (if (not (equal (buffer-name) vp/sidebar-name))
+    (if (not (vp/sidebar-p))
         (funcall fn name display-name filter-string format bmarklist)
       (let* ((folded (member name ibuffer-hidden-filter-groups))
              (titled (or folded (cdr bmarklist)))
@@ -899,7 +903,7 @@ user action."
 
   (defun vp/sidebar--main-window ()
     "Leave the sidebar for the last used main window."
-    (when (equal (buffer-name) vp/sidebar-name)
+    (when (vp/sidebar-p)
       (select-window (get-mru-window nil nil t))))
 
   (defun vp/sidebar-visit ()
@@ -995,7 +999,7 @@ into, so it stays open."
   (defun vp/sidebar--after-update (&rest _)
     "Redraws erase the buffer, collapse the hl-line overlay, and can
 change the longest name."
-    (when (equal (buffer-name) vp/sidebar-name)
+    (when (vp/sidebar-p)
       (vp/sidebar--fit)
       (vp/sidebar-follow)))
   (advice-add 'ibuffer-update :after #'vp/sidebar--after-update)
@@ -1076,6 +1080,7 @@ The sidebar is not in the `other-window' cycle."
                              ibuffer-use-header-line 'title   ; title leaves the buffer text
                              ibuffer-never-show-predicates (list #'vp/sidebar-hidden-p)
                              hl-line-sticky-flag t
+                             cursor-in-non-selected-windows nil
                              fringe-indicator-alist '((truncation nil nil))
                              mode-line-format nil)
                  (use-local-map vp/sidebar-map)
@@ -1083,6 +1088,12 @@ The sidebar is not in the `other-window' cycle."
                  (hl-line-mode 1)
                  (ibuffer-update nil t))
                (select-window (get-buffer-window vp/sidebar-name))))))
+
+  ;; No cursor: the highlight shows the position. meow resets
+  ;; cursor-type on each window switch, so the rule goes to meow.
+  (with-eval-after-load 'meow
+    (add-to-list 'meow-update-cursor-functions-alist
+                 (cons #'vp/sidebar-p (lambda () (setq cursor-type nil)))))
 
   (add-hook 'window-buffer-change-functions #'vp/sidebar-follow)
   (add-hook 'window-selection-change-functions #'vp/sidebar-follow))
