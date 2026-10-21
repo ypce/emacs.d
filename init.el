@@ -781,17 +781,21 @@ C-c, because they only matter in modal states."
                                     (no-other-window . t))))
 
   (defvar-local vp/sidebar--group nil
-    "Cached group name of this buffer; project lookup is too slow per redraw.")
+    "(DIRECTORY . GROUP) cache; project lookup is too slow per redraw.
+Keyed on the directory, so dired and eshell regroup when they move.")
 
   (defun vp/sidebar-group ()
     "Group name of the current buffer: remote host, org, project, or other."
-    (with-memoization vp/sidebar--group
-      (cond ((file-remote-p default-directory)
-             (concat "@" (file-remote-p default-directory 'host)))
-            ((file-in-directory-p default-directory org-directory) "org")
-            ((when-let* ((pr (project-current nil)))
-               (file-name-nondirectory (directory-file-name (project-root pr)))))
-            (t "other"))))
+    (unless (equal (car vp/sidebar--group) default-directory)
+      (setq vp/sidebar--group
+            (cons default-directory
+                  (cond ((file-remote-p default-directory)
+                         (concat "@" (file-remote-p default-directory 'host)))
+                        ((file-in-directory-p default-directory org-directory) "org")
+                        ((when-let* ((pr (project-current nil)))
+                           (file-name-nondirectory (directory-file-name (project-root pr)))))
+                        (t "other")))))
+    (cdr vp/sidebar--group))
 
   (defun vp/sidebar-hidden-p (buf)
     "Hide internal buffers, keep agent and shell buffers."
@@ -932,8 +936,11 @@ into, so it stays open."
     (mouse-set-point event)
     (vp/sidebar-visit))
 
+  ;; Navigation only: no ibuffer parent, so no mark, kill, sort, or
+  ;; filter keys. s-w kills. meow motion state supplies e for up.
   (defvar-keymap vp/sidebar-map
-    :parent ibuffer-mode-map
+    :suppress t
+    "n" #'next-line
     "RET" #'vp/sidebar-visit
     "<down-mouse-1>" #'ignore            ; no drag region, no flashing
     "<drag-mouse-1>" #'ignore
