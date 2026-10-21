@@ -557,7 +557,18 @@ C-c, because they only matter in modal states."
   ;; and this drops the coreutils dependency. Remote dired still uses
   ;; the remote ls.
   (setopt ls-lisp-use-insert-directory-program nil
-          ls-lisp-dirs-first t)
+          ls-lisp-dirs-first t
+          ;; One date format for new and old files: always 2 columns.
+          ls-lisp-use-localized-time-format t
+          ls-lisp-format-time-list '("%Y-%m-%d %H:%M" "%Y-%m-%d %H:%M"))
+  ;; While s sorts by date (newest first), the date stays visible in
+  ;; dired-hide-details-mode (columns 6-7, 8 for the 3-word date of a
+  ;; remote ls).
+  (defun vp/dired-show-mtime ()
+    (setq-local dired-hide-details-preserved-columns
+                (and (string-match-p dired-sort-by-date-regexp dired-actual-switches)
+                     '(6 7 8))))
+  (add-hook 'dired-before-readin-hook #'vp/dired-show-mtime)
   :custom
   (dired-listing-switches "-alhv")
   ;; Header shows the basename only, not the absolute path.
