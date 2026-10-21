@@ -851,26 +851,28 @@ Keyed on the directory, so dired and eshell regroup when they move.")
       (insert (propertize "\n" 'font-lock-face '(:height 0.2) 'vp/sidebar-spacer t))))
 
   (defun vp/sidebar--group-header (fn name display-name filter-string format bmarklist)
-    "A dim name with a fold chevron instead of bold [ name ].
+    "A dim name with a fold triangle instead of bold [ name ].
 A group of one buffer gets no name row. Thin gaps go around groups
-with a name. A folded group turns red when a buffer in it waits for
-user action."
+with a name. A folded group shows its buffer count and turns red when
+a buffer in it waits for user action."
     (if (not (vp/sidebar-p))
         (funcall fn name display-name filter-string format bmarklist)
       (let* ((folded (member name ibuffer-hidden-filter-groups))
              (titled (or folded (cdr bmarklist)))
-             (face (if (and folded vp/attention-buffers
-                            (seq-some (lambda (b) (memq b vp/attention-buffers))
-                                      (vp/sidebar--group-buffers name)))
+             (hidden (and folded (vp/sidebar--group-buffers name)))
+             (face (if (seq-some (lambda (b) (memq b vp/attention-buffers)) hidden)
                        'vp/attention
                      'shadow)))
         (when titled
           (vp/sidebar--spacer)
           (insert (propertize
-                   (concat (nerd-icons-codicon (if folded "nf-cod-chevron_right"
-                                                 "nf-cod-chevron_down")
-                                               :face face)
-                           " " (propertize name 'font-lock-face face) "\n")
+                   (concat (nerd-icons-mdicon (if folded "nf-md-menu_right" "nf-md-menu_down")
+                                              :face 'shadow)
+                           " " (propertize name 'font-lock-face face)
+                           (when folded
+                             (propertize (format "  %d" (length hidden))
+                                         'font-lock-face 'shadow))
+                           "\n")
                    'ibuffer-filter-group-name name)))
         (when bmarklist
           (put-text-property
