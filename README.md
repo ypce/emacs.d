@@ -60,8 +60,8 @@ works there); `C-c C-c` or `C-x #` sends it back. For long pastes,
 paste inside that buffer: Claude's `[Pasted text]` placeholder cannot
 be expanded. `PgUp`/`PgDn` and `Ctrl+O` scroll the conversation.
 Set `"preferredNotifChannel": "iterm2"` in `~/.claude.json` so Claude
-Code emits OSC 9 notifications; these drive the red tab attention
-mark when a session needs input in another tab.
+Code emits OSC 9 notifications; these turn a session's name red
+in the buffer sidebar (`SPC e`) when it needs input off screen.
 
 ### Text to speech (optional)
 
