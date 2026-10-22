@@ -793,6 +793,8 @@ C-c, because they only matter in modal states."
                  display-buffer-in-side-window
                  (side . left) (slot . 0)   ; width: vp/sidebar--fit
                  (preserve-size . (t . nil))
+                 ;; Else other-window displays reuse it as the LRU window.
+                 (dedicated . t)
                  (window-parameters (no-delete-other-windows . t)
                                     (no-other-window . t))))
 
