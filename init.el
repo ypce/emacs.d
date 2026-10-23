@@ -203,7 +203,7 @@
         " - Emacs"))
 
 
-;;; File ops (C-c f) -----
+;;; File ops -----
 (defun vp/file--target ()
   "The current file; in dired the file at point; else the directory."
   ;; expand-file-name: `open' gets the path verbatim, nothing expands ~
@@ -229,14 +229,6 @@
     (kill-new p)
     (message "%s" p)))
 
-(defvar-keymap vp/file-map
-  :doc "File commands on C-c f."
-  "r" '("rename/move file"   . rename-visited-file)
-  "o" '("reveal in Finder"   . vp/file-reveal)
-  "e" '("open (default app)" . vp/file-open-default)
-  "y" '("copy file path"     . vp/file-copy-path))
-(keymap-global-set "C-c f" (cons "file" vp/file-map))
-
 
 ;;; Text to speech (kokoro-tts) -----
 ;; Self-contained module; the autoloads load it on first use.
@@ -244,14 +236,7 @@
   :ensure nil
   :load-path "lisp/"
   :commands (vp/tts-speak-dwim vp/tts-speed-up vp/tts-speed-down)
-  :bind ("s-'" . vp/tts-speak-dwim)      ; GUI frames; C-c t t everywhere
-  :init
-  (defvar-keymap vp/tts-map
-    :doc "Text to speech commands on C-c t."
-    "t" '("speak (dwim)" . vp/tts-speak-dwim)
-    "+" '("faster"       . vp/tts-speed-up)
-    "-" '("slower"       . vp/tts-speed-down))
-  (keymap-global-set "C-c t" (cons "tts" vp/tts-map)))
+  :bind ("s-'" . vp/tts-speak-dwim))     ; GUI frames; C-c t t everywhere
 
 
 ;;; Theme + Font -----
@@ -320,8 +305,7 @@ Tracked dired/eshell visits plus parents of recent files."
   (recentf-autosave-interval 300)
   ;; Temp dirs (pass decrypts entries there) and git internals are
   ;; never places to go back to.
-  (recentf-exclude '("\\`/\\(private/\\)?\\(tmp\\|var/folders\\)/" "/\\.git/"))
-  :bind ("C-c d" . vp/dired-recent-dir))
+  (recentf-exclude '("\\`/\\(private/\\)?\\(tmp\\|var/folders\\)/" "/\\.git/")))
 
 (use-package savehist
   :ensure nil
@@ -388,32 +372,97 @@ Tracked dired/eshell visits plus parents of recent files."
   (setopt xref-search-program 'ripgrep))
 
 
-;;; Modal editing (meow) -----
-;; Official Colemak layout. SPC is not the meow keypad: it opens
-;; vp/leader-map, then every C-c map active in the buffer (mode maps
-;; before the global one). Real chords stay real chords, so the chord
-;; muscle memory stays portable.
-(defvar-keymap vp/leader-map
-  :doc "Direct SPC entries in meow normal and motion states.
-They relieve the most frequent C-x chords. They live here, not on
-C-c, because they only matter in modal states."
-  "b" #'switch-to-buffer
-  "x" #'execute-extended-command
-  "k" #'kill-current-buffer
-  "w" #'save-buffer
-  "j" #'dired-jump
-  "." #'find-file
-  "/" #'consult-ripgrep
-  "v" #'magit-status   ; v for vc
-  "p" (cons "project" project-prefix-map))
+;;; Keys (C-c, and SPC in meow) -----
+;; All user commands are on C-c <letter>, the keys that the Emacs
+;; conventions keep for users: a direct command, or a noun prefix with
+;; letters after it. In meow, SPC is the same map (see Modal editing).
+;; Major modes own C-c with punctuation or a control key (org's C-c .
+;; and C-c C-c), so no user key uses them. A mode map adds user keys
+;; only on a letter with no global binding: C-c m is the mindmap
+;; prefix in org.
+(defvar-keymap vp/code-map
+  :doc "Code commands on C-c c (eglot, eldoc, flymake)."
+  "a" '("code actions"     . eglot-code-actions)
+  "d" '("doc at point"     . eldoc-doc-buffer)
+  "f" '("format buffer"    . eglot-format-buffer)
+  "o" '("organize imports" . eglot-code-action-organize-imports)
+  "r" '("rename symbol"    . eglot-rename)
+  "x" '("diagnostics"      . flymake-show-buffer-diagnostics))
 
+(defvar-keymap vp/file-map
+  :doc "File commands on C-c f."
+  "f" '("find file"          . find-file)
+  "r" '("rename/move file"   . rename-visited-file)
+  "o" '("reveal in Finder"   . vp/file-reveal)
+  "e" '("open (default app)" . vp/file-open-default)
+  "y" '("copy file path"     . vp/file-copy-path))
+
+(defvar-keymap vp/notes-map
+  :doc "Notes and org commands on C-c n."
+  "a" '("agenda"             . vp/agenda)
+  "c" '("capture (menu)"     . org-capture)
+  "f" '("find/create note"   . org-node-find)
+  "i" '("insert link"        . org-node-insert-link)
+  "g" '("grep notes"         . vp/notes-grep)
+  "b" '("backlinks/context"  . org-node-context-toggle)
+  "n" '("capture to inbox"   . vp/capture-inbox)
+  "d" '("daily note (today)" . vp/daily-today)
+  "p" '("new project hub"    . vp/new-project)
+  "s" '("browse dailies"     . org-node-seq-dispatch))
+
+(defvar-keymap vp/open-map
+  :doc "Shells on C-c o."
+  "t" '("terminal (ghostel)" . vp/ghostel-here)
+  "e" '("eshell"             . vp/eshell-here))
+
+;; In org-mindmap-mode-map (see Org Node).
+(defvar-keymap vp/mindmap-map
+  :doc "Mindmap commands on C-c m in org."
+  "d" '("delete node"       . org-mindmap-delete-node)
+  "v" '("switch layout"     . org-mindmap-switch-layout)
+  "p" '("switch compaction" . org-mindmap-switch-compaction)
+  "m" '("list to mindmap"   . org-mindmap-list-to-mindmap)
+  "l" '("mindmap to list"   . org-mindmap-to-list))
+
+;; = and -, unshifted, like text-scale-adjust (C-x C-= / C-x C--).
+(defvar-keymap vp/tts-map
+  :doc "Text to speech commands on C-c t."
+  "t" '("speak (dwim)" . vp/tts-speak-dwim)
+  "=" '("faster"       . vp/tts-speed-up)
+  "-" '("slower"       . vp/tts-speed-down))
+
+(define-keymap :keymap mode-specific-map
+  "a" '("claude"      . claude-code-ide-menu)
+  "b" '("buffer"      . switch-to-buffer)   ; consult-buffer via remap
+  "c" (cons "code" vp/code-map)
+  "d" '("recent dir"  . vp/dired-recent-dir)
+  "e" '("sidebar"     . vp/sidebar-toggle)
+  "f" (cons "file" vp/file-map)
+  "g" '("git"         . magit-status)
+  "h" '("cheatsheet"  . meow-cheatsheet)
+  "j" '("dired here"  . dired-jump)
+  "k" '("kill buffer" . kill-current-buffer)
+  "n" (cons "notes" vp/notes-map)
+  "o" (cons "open" vp/open-map)
+  "p" (cons "project" project-prefix-map)
+  "s" '("search (rg)" . consult-ripgrep)
+  "t" (cons "tts" vp/tts-map)
+  "w" '("save"        . save-buffer)
+  "x" '("M-x"         . execute-extended-command))
+
+
+;;; Modal editing (meow) -----
+;; Official Colemak layout. SPC is C-c: it opens every C-c map active
+;; in the buffer, mode maps first, the same lookup as C-c. So SPC m
+;; gets the mindmap keys in org, and SPC C-c gets org's C-c C-c.
+;; Not the meow keypad: it changes later keys to C-<key> and has its
+;; own popup. Real chords stay real chords.
 (defun vp/leader (_)
-  "Compose `vp/leader-map' with the C-c maps active in this buffer."
+  "The C-c maps active in this buffer, composed, mode maps first."
   (make-composed-keymap
-   (cons vp/leader-map
-         (seq-filter #'keymapp
-                     (mapcar (lambda (map) (keymap-lookup map "C-c"))
-                             (current-active-maps))))))
+   (seq-filter #'keymapp
+               (mapcar (lambda (map) (keymap-lookup map "C-c"))
+                       (current-active-maps)))))
 
 (use-package meow
   :config
@@ -482,7 +531,6 @@ C-c, because they only matter in modal states."
    '("z" . meow-pop-selection)
    '("'" . repeat)
    '("<escape>" . ignore))
-  (keymap-set vp/leader-map "?" #'meow-cheatsheet)
   ;; A filter, so the composition happens per key press in the buffer.
   (dolist (map (list meow-normal-state-keymap meow-motion-state-keymap))
     (keymap-set map "SPC" '(menu-item "leader" nil :filter vp/leader)))
@@ -574,12 +622,6 @@ C-c, because they only matter in modal states."
           go-ts-mode
           bash-ts-mode sh-mode
           markdown-mode) . eglot-ensure)
-  :bind (:map eglot-mode-map
-         ("C-c C-d" . eldoc-doc-buffer)
-         ("C-c e f" . eglot-format-buffer)
-         ("C-c e r" . eglot-rename)
-         ("C-c e x" . eglot-code-actions)
-         ("C-c e o" . eglot-code-action-organize-imports))
   :custom
   (eglot-autoshutdown t)
   (eglot-extend-to-xref t)
@@ -589,7 +631,7 @@ C-c, because they only matter in modal states."
   :ensure nil
   :custom
   (eldoc-echo-area-use-multiline-p nil)
-  ;; Flymake diagnostics at point show in the echo area without C-c l.
+  ;; Flymake diagnostics at point show in the echo area without C-c c x.
   (eldoc-help-at-pt t))
 
 (use-package flymake
@@ -597,14 +639,14 @@ C-c, because they only matter in modal states."
   :hook (prog-mode . flymake-mode)
   :bind (:map flymake-mode-map
          ("M-n" . flymake-goto-next-error)
-         ("M-p" . flymake-goto-prev-error)
-         ("C-c l" . flymake-show-buffer-diagnostics)))
+         ("M-p" . flymake-goto-prev-error)))
 
 ;; One tab per level: the offset must equal tab-width (4, global).
 (setopt go-ts-indent-offset 4)
 
 ;; Format Go on user saves only: auto-save-visited-mode saves from an
 ;; idle timer, where this-command is nil.
+(declare-function eglot-format-buffer "eglot")
 (defun vp/eglot-format-on-save ()
   "Format the buffer with eglot before a user save, when a server is attached."
   (when (and this-command (eglot-managed-p))
@@ -679,7 +721,7 @@ C-c, because they only matter in modal states."
 (keymap-global-set "s-O" #'other-frame)
 
 ;;; Buffer sidebar -----
-;; SPC e: a left side window that lists buffers by remote host, org,
+;; C-c e: a left side window that lists buffers by remote host, org,
 ;; or project, with Claude Code sessions last (RET on a dormant one
 ;; resumes it). The super keys follow its order: s-[ / s-] step (wrap
 ;; at the ends; a folded group is one stop), s-w kills and shows the
@@ -692,14 +734,13 @@ C-c, because they only matter in modal states."
 (use-package vp-sidebar
   :ensure nil
   :load-path "lisp/"
-  :commands vp/sidebar-attention-mark   ; see the ghostel block
+  :commands (vp/sidebar-toggle
+             vp/sidebar-attention-mark)   ; see the ghostel block
   :bind (("s-[" . vp/sidebar-previous-buffer)
          ("s-]" . vp/sidebar-next-buffer)
          ("s-w" . vp/sidebar-kill-buffer)
          ("s-t" . vp/sidebar-dired)
-         ("s-." . vp/sidebar-fold)
-         :map vp/leader-map
-         ("e" . vp/sidebar-toggle))
+         ("s-." . vp/sidebar-fold))
   :config
   ;; meow is off in the sidebar (see Modal editing), so SPC needs the
   ;; leader here.
@@ -840,9 +881,6 @@ searchable (C-c n f, C-c n g)."
   (interactive "P")
   (if arg (org-agenda) (org-agenda nil "o")))
 
-(keymap-global-set "C-c a" #'vp/agenda)
-(keymap-global-set "C-c c" #'org-capture)
-
 
 ;;; Org visuals -----
 (use-package org-modern
@@ -912,12 +950,8 @@ searchable (C-c n f, C-c n g)."
   :ensure nil
   :vc (:url "https://github.com/krvkir/org-mindmap" :rev :newest)
   :hook (org-mode . org-mindmap-mode)
-  :bind (:map org-mindmap-mode-map
-         ("C-c m d" . org-mindmap-delete-node)
-         ("C-c m v" . org-mindmap-switch-layout)
-         ("C-c m p" . org-mindmap-switch-compaction)
-         ("C-c m m" . org-mindmap-list-to-mindmap)
-         ("C-c m l" . org-mindmap-to-list)))
+  :config
+  (keymap-set org-mindmap-mode-map "C-c m" (cons "mindmap" vp/mindmap-map)))
 
 (defun vp/daily-today ()
   "Open today's daily note; create it as a node in the \"d\" sequence if missing."
@@ -962,18 +996,6 @@ Open the hub if it already exists."
   (interactive)
   (require 'org)
   (consult-ripgrep org-directory))
-
-(defvar-keymap vp/notes-map
-  :doc "Notes commands on C-c n."
-  "f" '("find/create note"   . org-node-find)
-  "i" '("insert link"        . org-node-insert-link)
-  "g" '("grep notes"         . vp/notes-grep)
-  "b" '("backlinks/context"  . org-node-context-toggle)
-  "n" '("capture to inbox"   . vp/capture-inbox)
-  "d" '("daily note (today)" . vp/daily-today)
-  "p" '("new project hub"    . vp/new-project)
-  "s" '("browse dailies"     . org-node-seq-dispatch))
-(keymap-global-set "C-c n" (cons "notes" vp/notes-map))
 
 ;; TODO keywords as glyphs via prettify-symbols; the text stays
 ;; underneath, and point on a glyph expands it for editing.
@@ -1029,7 +1051,7 @@ Open the hub if it already exists."
   ;; :ensure nil is required next to :vc, else both handlers install.
   :ensure nil
   :vc (:url "https://github.com/manzaltu/claude-code-ide.el" :rev :newest)
-  :bind ("C-c i" . claude-code-ide-menu)
+  :commands claude-code-ide-menu
   :custom
   (claude-code-ide-terminal-backend 'ghostel)
   ;; A plain buffer, not a side window: sessions take the whole frame.
@@ -1057,7 +1079,6 @@ With a prefix ARG, start one more terminal there."
   (let ((ghostel-buffer-name
          (format "*ghostel %s*" (abbreviate-file-name default-directory))))
     (ghostel arg)))
-(keymap-global-set "C-c o" #'vp/ghostel-here)
 
 
 ;;; Eshell -----
@@ -1211,8 +1232,6 @@ The cd runs as a real command so eshell history records it."
       (eshell-kill-input)
       (insert (format "cd \"%s\"" dir))
       (eshell-send-input))))
-
-(keymap-global-set "C-c s" #'vp/eshell-here)
 
 
 ;;; Remote (TRAMP, built-in) -----
