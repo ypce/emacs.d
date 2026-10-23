@@ -120,7 +120,6 @@
   :custom
   (use-short-answers t)
   (scroll-conservatively 101)
-  (fast-but-imprecise-scrolling t)
   (scroll-error-top-bottom t)   ; move point to the boundary before erroring
   (help-window-select t)
   (help-window-keep-selected t)
@@ -183,14 +182,12 @@
   (undelete-frame-mode 1)             ; M-x undelete-frame recovers a closed client frame
   (repeat-mode 1)
   (pixel-scroll-precision-mode 1)
-  ;; Dim … / ↩ instead of $ and \: tty frames, and GUI frames on the
-  ;; right, which has no fringe (early-init.el)
-  (unless standard-display-table
-    (setq standard-display-table (make-display-table)))
+  ;; Dim glyphs instead of $ and \: tty frames, and GUI frames on the
+  ;; right, which has no fringe (early-init.el). Keep … for cut lines;
+  ;; the mode default is →.
+  (prettify-special-glyphs-mode 1)
   (set-display-table-slot standard-display-table 'truncation
-                          (make-glyph-code ?… 'shadow))
-  (set-display-table-slot standard-display-table 'wrap
-                          (make-glyph-code ?↩ 'shadow))
+                          (make-glyph-code ?… 'special-glyphs))
 
   :bind (("M-o" . other-window)
          ;; dwim case commands: act on the region when active, else the word
@@ -213,12 +210,6 @@
                    (abbreviate-file-name (buffer-file-name))
                  "%b"))
         " - Emacs"))
-
-;; q kills via quit-window-kill-buffer; escape mirrors it.
-(use-package help-mode
-  :ensure nil
-  :bind (:map help-mode-map
-         ("<escape>" . quit-window)))
 
 
 ;;; File ops (C-c f) -----
