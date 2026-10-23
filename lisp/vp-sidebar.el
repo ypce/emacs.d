@@ -13,14 +13,16 @@
 (require 'project)
 (require 'nerd-icons)
 (require 'text-property-search)
+(require 'subr-x)
 
 (declare-function claude-code-ide "claude-code-ide")
 (defvar claude-code-ide-cli-extra-flags)
 
 (defconst vp/sidebar-name "*Sidebar*")
 
-(defconst vp/sidebar-claude "claude"
-  "Group of Claude Code sessions, drawn last.")
+(defconst vp/sidebar-claude "✻ claude"
+  "Group of Claude Code sessions, drawn last.
+The spark is Claude Code's own mark; no project name can match it.")
 
 (defvar vp/sidebar-claude-directory "~/.claude/"
   "Claude Code state: sessions/ (live registry) and projects/ (transcripts).")
@@ -31,6 +33,10 @@ The full history stays in the claude --resume picker.")
 
 (defface vp/sidebar-attention '((t :foreground "#ff2d55"))
   "Face for a buffer that waits for user action."
+  :group 'convenience)
+
+(defface vp/sidebar-spark '((t :foreground "#d97757"))
+  "Face for the spark in the Claude group name (Claude orange)."
   :group 'convenience)
 
 (defvar vp/sidebar--attention nil
@@ -144,6 +150,7 @@ is decoded: the records hold confidential conversation text."
 (defun vp/sidebar--read-transcript (file size)
   "Session (ID CWD TITLE) of transcript FILE of SIZE bytes, or nil.
 A session that moved to a new ID, or that never got a title, is nil.
+`vp/sidebar--scan' also skips sessions whose directory is gone.
 The cwd is in the first records and the title records repeat, so the
 first and last 128 KB are enough."
   (with-temp-buffer
@@ -181,7 +188,8 @@ once per modification time."
                                           (cons mtime (vp/sidebar--read-transcript
                                                        (car f) (file-attribute-size (cdr f))))
                                           vp/sidebar--transcripts)))))
-            (when session
+            ;; Not cached: a deleted folder can come back.
+            (when (and session (file-directory-p (nth 1 session)))
               (push session found)
               (when (length= found vp/sidebar-dormant-max)
                 (throw 'done nil)))))))
@@ -240,6 +248,13 @@ once per modification time."
     'vp/sidebar row
     'help-echo (and (consp row) (abbreviate-file-name (nth 1 row))))))
 
+(defun vp/sidebar--group-label (name face)
+  "NAME in FACE; the spark of the Claude group keeps its own color."
+  (let ((label (propertize name 'face face)))
+    (when (equal name vp/sidebar-claude)
+      (put-text-property 0 1 'face 'vp/sidebar-spark label))
+    label))
+
 (defun vp/sidebar--insert-group (name rows)
   "Insert group NAME with ROWS (buffers and dormant sessions).
 A group of one row gets no name row. Thin gaps go around groups with
@@ -251,12 +266,13 @@ buffer in it waits for user action."
       (vp/sidebar--spacer)
       (insert (propertize
                (concat " " (propertize (if folded "▸" "▾") 'face 'shadow)
-                       " " (propertize name 'face
-                                       (if (and folded
-                                                (seq-some (lambda (r) (memq r vp/sidebar--attention))
-                                                          rows))
-                                           'vp/sidebar-attention
-                                         'shadow))
+                       " " (vp/sidebar--group-label
+                            name
+                            (if (and folded
+                                     (seq-some (lambda (r) (memq r vp/sidebar--attention))
+                                               rows))
+                                'vp/sidebar-attention
+                              'shadow))
                        (when folded
                          (propertize (format "  %d" (length rows)) 'face 'shadow))
                        " \n")
