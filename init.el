@@ -1,6 +1,6 @@
 ;;; init.el --- init -*- lexical-binding: t; -*-
 ;;; Commentary:
-;; Built-in-first config for Emacs 31.
+;; Built-in-first config.
 ;;; Code:
 
 ;;; PATH -----
@@ -130,7 +130,7 @@
   (initial-scratch-message "")
   (initial-major-mode 'text-mode)
   (initial-buffer-choice t)
-  (kill-region-dwim 'emacs-word)   ; Emacs 31: C-w with no region kills a word
+  (kill-region-dwim 'emacs-word)   ; C-w with no region kills a word
   (ring-bell-function 'ignore)
   (uniquify-buffer-name-style 'forward)
   (isearch-lazy-count t)
@@ -155,14 +155,13 @@
   ;; ghostty renders the real cursor shape; meow states become visible
   ;; in tty frames (bar in insert, box in normal).
   (xterm-update-cursor t)
-  ;; TAB on a block-start line cycles folding (hs-minor-mode, Emacs 31);
+  ;; TAB on a block-start line cycles folding (hs-minor-mode);
   ;; elsewhere TAB keeps indent/complete.
   (hs-cycle-filter 'hs-hideable-block-p)
-  ;; q kills help buffers instead of burying them.
   (quit-window-kill-buffer '(help-mode))
   :hook ((prog-mode . display-line-numbers-mode)
          ((prog-mode text-mode) . electric-pair-local-mode)
-         (prog-mode . hs-minor-mode)   ; code folding (rewritten in Emacs 31)
+         (prog-mode . hs-minor-mode)   ; code folding
          (org-mode . visual-wrap-prefix-mode)
          ((prog-mode text-mode) . completion-preview-mode))
   :config
@@ -388,7 +387,6 @@ Tracked dired/eshell visits plus parents of recent files."
   (xref-show-xrefs-function #'consult-xref)
   (xref-show-definitions-function #'consult-xref))
 
-;; Match words in any order and fragment.
 (use-package orderless
   :custom
   (completion-styles '(orderless basic))
@@ -965,7 +963,7 @@ Open the hub if it already exists."
       ;; Save so org-mem indexes the hub and the agenda picks it up.
       (save-buffer))))
 
-;; Group grep results under one heading per file (Emacs 30).
+;; Group grep results under one heading per file.
 (setopt grep-use-headings t)
 
 (defun vp/notes-grep ()
@@ -1260,7 +1258,7 @@ The cd runs as a real command so eshell history records it."
           (format "%s\\|%s" vc-ignore-dir-regexp tramp-file-name-regexp)))
 
 
-;;; Which Key (built-in since Emacs 30) -----
+;;; Which Key -----
 (use-package which-key
   :ensure nil
   :custom

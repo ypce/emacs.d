@@ -12,7 +12,7 @@
 ;; Log async native-comp warnings without popping a buffer.
 (setopt native-comp-async-report-warnings-errors 'silent)
 
-;; No background native compilation on battery (Emacs 31).
+;; No background native compilation on battery.
 (setopt native-comp-async-on-battery-power nil)
 
 ;; LSP replies are often larger than the 64 KB default chunk.
