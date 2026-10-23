@@ -238,19 +238,13 @@
     (kill-new p)
     (message "%s" p)))
 
-(defun vp/labeled-keymap (specs)
-  "A keymap from SPECS, a list of (KEY LABEL COMMAND); which-key shows LABEL."
-  (let ((map (make-sparse-keymap)))
-    (pcase-dolist (`(,key ,label ,cmd) specs)
-      (keymap-set map key (cons label cmd)))
-    map))
-
-(keymap-global-set
- "C-c f" (cons "file" (vp/labeled-keymap
-                       '(("r" "rename/move file"   rename-visited-file)
-                         ("o" "reveal in Finder"   vp/file-reveal)
-                         ("e" "open (default app)" vp/file-open-default)
-                         ("y" "copy file path"     vp/file-copy-path)))))
+(defvar-keymap vp/file-map
+  :doc "File commands on C-c f."
+  "r" '("rename/move file"   . rename-visited-file)
+  "o" '("reveal in Finder"   . vp/file-reveal)
+  "e" '("open (default app)" . vp/file-open-default)
+  "y" '("copy file path"     . vp/file-copy-path))
+(keymap-global-set "C-c f" (cons "file" vp/file-map))
 
 
 ;;; Text to speech (kokoro-tts) -----
@@ -261,11 +255,12 @@
   :commands (vp/tts-speak-dwim vp/tts-speed-up vp/tts-speed-down)
   :bind ("s-'" . vp/tts-speak-dwim)      ; GUI frames; C-c t t everywhere
   :init
-  (keymap-global-set
-   "C-c t" (cons "tts" (vp/labeled-keymap
-                        '(("t" "speak (dwim)" vp/tts-speak-dwim)
-                          ("+" "faster"       vp/tts-speed-up)
-                          ("-" "slower"       vp/tts-speed-down))))))
+  (defvar-keymap vp/tts-map
+    :doc "Text to speech commands on C-c t."
+    "t" '("speak (dwim)" . vp/tts-speak-dwim)
+    "+" '("faster"       . vp/tts-speed-up)
+    "-" '("slower"       . vp/tts-speed-down))
+  (keymap-global-set "C-c t" (cons "tts" vp/tts-map)))
 
 
 ;;; Theme + Font -----
@@ -984,16 +979,17 @@ Open the hub if it already exists."
   (require 'org)
   (consult-ripgrep org-directory))
 
-(keymap-global-set
- "C-c n" (cons "notes" (vp/labeled-keymap
-                        '(("f" "find/create note"   org-node-find)
-                          ("i" "insert link"        org-node-insert-link)
-                          ("g" "grep notes"         vp/notes-grep)
-                          ("b" "backlinks/context"  org-node-context-toggle)
-                          ("n" "capture to inbox"   vp/capture-inbox)
-                          ("d" "daily note (today)" vp/daily-today)
-                          ("p" "new project hub"    vp/new-project)
-                          ("s" "browse dailies"     org-node-seq-dispatch)))))
+(defvar-keymap vp/notes-map
+  :doc "Notes commands on C-c n."
+  "f" '("find/create note"   . org-node-find)
+  "i" '("insert link"        . org-node-insert-link)
+  "g" '("grep notes"         . vp/notes-grep)
+  "b" '("backlinks/context"  . org-node-context-toggle)
+  "n" '("capture to inbox"   . vp/capture-inbox)
+  "d" '("daily note (today)" . vp/daily-today)
+  "p" '("new project hub"    . vp/new-project)
+  "s" '("browse dailies"     . org-node-seq-dispatch))
+(keymap-global-set "C-c n" (cons "notes" vp/notes-map))
 
 ;; TODO keywords as glyphs via prettify-symbols; the text stays
 ;; underneath, and point on a glyph expands it for editing.
