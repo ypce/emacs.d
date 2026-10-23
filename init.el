@@ -101,26 +101,6 @@
     mode-line-misc-info
     " "))
 
-;; Blend mode-line and fringe into the buffer background (box = padding).
-;; Runs on frame hooks so the first GUI frame applies it after daemon
-;; init. Re-runs on each theme change.
-(defun vp/flat-mode-line (&rest _)
-  "Give the mode-line and fringe the default background.
-No-op in non-graphic frames: there (face-background \='default) is a
-tty pseudo-color (\"unspecified-bg\") that would poison the global
-faces and render as white boxes in GUI frames."
-  (when (display-graphic-p)
-    (dolist (face '(mode-line mode-line-active mode-line-inactive))
-      (set-face-attribute face nil
-                          :background (face-background 'default)
-                          :box `(:line-width 6 :color ,(face-background 'default))))
-    (set-face-attribute 'fringe nil :background (face-background 'default))))
-
-(add-hook 'window-setup-hook            #'vp/flat-mode-line)
-(add-hook 'server-after-make-frame-hook #'vp/flat-mode-line)
-(add-hook 'enable-theme-functions       #'vp/flat-mode-line)
-
-
 ;;; GC -----
 ;; Collect when no frame has focus, so a pause rarely lands while
 ;; typing. The threshold still forces a collection when it must.
@@ -312,14 +292,6 @@ faces and render as white boxes in GUI frames."
 ;; "Monospace" does not resolve on macOS and falls back to a
 ;; proportional font; inherit default so fixed-pitch stays monospace.
 (set-face-attribute 'fixed-pitch nil :family 'unspecified :inherit 'default)
-
-(defun vp/transparent-background ()
-  "Unset the default background in terminal frames for true transparency."
-  (unless (display-graphic-p)
-    (set-face-background 'default "unspecified-bg" (selected-frame))))
-
-(add-hook 'window-setup-hook            #'vp/transparent-background)
-(add-hook 'server-after-make-frame-hook #'vp/transparent-background)
 
 ;; Ignore document colors in eww/HTML; they clash with a dark theme.
 (setopt shr-use-colors nil)
