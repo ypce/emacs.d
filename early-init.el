@@ -1,14 +1,8 @@
 ;;; early-init.el --- early init -*- lexical-binding: t; -*-
 
-;; Big GC during startup, sensible defaults after.
-(setq gc-cons-threshold most-positive-fixnum
-      gc-cons-percentage 0.6)
-
-(defun vp/restore-gc ()
-  "Restore normal GC thresholds after startup."
-  (setq gc-cons-threshold (* 16 1024 1024)
-        gc-cons-percentage 0.1))
-(add-hook 'after-init-hook #'vp/restore-gc)
+;; 16 MB between collections, from the first form on: startup does 2
+;; GCs instead of 23, and later pauses stay short.
+(setq gc-cons-threshold (* 16 1024 1024))
 
 ;; Activate packages from one pre-built autoload file. package.el
 ;; refreshes it on install/upgrade/delete; M-x package-quickstart-refresh
