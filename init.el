@@ -592,13 +592,7 @@ C-c, because they only matter in modal states."
   :custom
   (eglot-autoshutdown t)
   (eglot-extend-to-xref t)
-  (eglot-events-buffer-config '(:size 0))   ; perf: no event logs
-  :config
-  (dolist (entry '(((python-ts-mode)       . ("pylsp"))
-                   ((go-ts-mode)           . ("gopls"))
-                   ((bash-ts-mode sh-mode) . ("bash-language-server" "start"))
-                   ((markdown-mode)        . ("marksman"))))
-    (add-to-list 'eglot-server-programs entry)))
+  (eglot-events-buffer-config '(:size 0)))   ; perf: no event logs
 
 (use-package eldoc
   :ensure nil
@@ -615,20 +609,19 @@ C-c, because they only matter in modal states."
          ("M-p" . flymake-goto-prev-error)
          ("C-c l" . flymake-show-buffer-diagnostics)))
 
-;; Go: tabs for indent, format on save via gopls.
-;; auto-save-visited-mode saves from an idle timer, where this-command
-;; is nil. Format only on user saves, not while the user types.
+;; One tab per level: the offset must equal tab-width (4, global).
+(setopt go-ts-indent-offset 4)
+
+;; Format Go on user saves only: auto-save-visited-mode saves from an
+;; idle timer, where this-command is nil.
 (defun vp/eglot-format-on-save ()
   "Format the buffer with eglot before a user save, when a server is attached."
   (when (and this-command (eglot-managed-p))
     (eglot-format-buffer)))
 
-(defun vp/go-setup ()
-  "Per-buffer Go setup."
-  (setq-local tab-width 4
-              indent-tabs-mode t)
+(defun vp/go-format-on-save ()
   (add-hook 'before-save-hook #'vp/eglot-format-on-save nil t))
-(add-hook 'go-ts-mode-hook #'vp/go-setup)
+(add-hook 'go-ts-mode-hook #'vp/go-format-on-save)
 
 (use-package markdown-mode
   :mode ("README\\.md\\'" . gfm-mode)
