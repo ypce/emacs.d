@@ -62,6 +62,8 @@ be expanded. `PgUp`/`PgDn` and `Ctrl+O` scroll the conversation.
 Set `"preferredNotifChannel": "iterm2"` in `~/.claude.json` so Claude
 Code emits OSC 9 notifications; these turn a session's name red
 in the buffer sidebar (`SPC e`) when it needs input off screen.
+The sidebar also lists the five newest dormant sessions from
+`~/.claude/projects/`; `RET` on one resumes it in its directory.
 
 ### Text to speech (optional)
 

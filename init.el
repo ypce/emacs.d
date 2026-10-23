@@ -545,11 +545,12 @@ C-c, because they only matter in modal states."
   (add-to-list 'meow-mode-state-list '(eshell-mode . insert))
   ;; No meow in terminals: the TUI owns every key, ESC included
   ;; (Claude's interrupt). Scroll and copy in ghostel copy mode
-  ;; (C-c C-t). Depth 90: meow-global-mode turns on from this hook too.
-  (defun vp/meow-off-in-terminals ()
-    (when (derived-mode-p 'ghostel-mode)
+  ;; (C-c C-t). The sidebar binds its own keys and has no cursor.
+  ;; Depth 90: meow-global-mode turns on from this hook too.
+  (defun vp/meow-off ()
+    (when (derived-mode-p 'ghostel-mode 'vp/sidebar-mode)
       (meow-mode -1)))
-  (add-hook 'after-change-major-mode-hook #'vp/meow-off-in-terminals 90)
+  (add-hook 'after-change-major-mode-hook #'vp/meow-off 90)
   ;; Buffers without meow keep their own cursor (ghostel sets it from
   ;; the terminal); meow resets it on each window change otherwise.
   (add-to-list 'meow-update-cursor-functions-alist
@@ -739,49 +740,21 @@ C-c, because they only matter in modal states."
 (keymap-global-set "s-W" #'delete-frame)
 (keymap-global-set "s-O" #'other-frame)
 
-;;; Buffer sidebar (ibuffer) -----
+;;; Buffer sidebar -----
 ;; SPC e: a left side window that lists buffers by remote host, org,
-;; or project. The super keys follow its order: s-[ / s-] step (wrap
+;; or project, with Claude Code sessions last (RET on a dormant one
+;; resumes it). The super keys follow its order: s-[ / s-] step (wrap
 ;; at the ends; a folded group is one stop), s-w kills and shows the
-;; next row, s-t opens dired at the project root, s-b picks a buffer
-;; by name, s-. folds the group (or click its name). Super keys pass
-;; through ghostel, so they also work in Claude sessions. With no
-;; sidebar on screen, s-[ / s-] are plain previous-buffer /
-;; next-buffer. Loads ibuffer on first use.
-(defconst vp/sidebar-name "*Sidebar*")
-
-;; Attention marks: a buffer name turns red in the sidebar while it
-;; waits for user action. Ghostel notifications feed the list (see the
-;; ghostel block); the mark clears when the buffer is shown.
-(defface vp/attention '((t :foreground "#ff2d55"))
-  "Face for a buffer that waits for user action.")
-
-(defvar vp/attention-buffers nil
-  "Buffers that wait for user action while not displayed.")
-
-(defun vp/sidebar--refresh ()
-  (when-let* ((buf (get-buffer vp/sidebar-name)))
-    (with-current-buffer buf (ibuffer-update nil t))))
-
-(defun vp/attention-mark ()
-  "Mark the current buffer as waiting for user action, unless visible."
-  (unless (or (get-buffer-window nil t)
-              (memq (current-buffer) vp/attention-buffers))
-    (push (current-buffer) vp/attention-buffers)
-    (vp/sidebar--refresh)))
-
-(defun vp/attention-clear (_frame)
-  "Drop attention marks for buffers that are now on screen."
-  (when-let* ((gone (seq-filter (lambda (buf)
-                                  (or (not (buffer-live-p buf))
-                                      (get-buffer-window buf t)))
-                                vp/attention-buffers)))
-    (setq vp/attention-buffers (seq-difference vp/attention-buffers gone))
-    (vp/sidebar--refresh)))
-(add-hook 'window-buffer-change-functions #'vp/attention-clear)
-
-(use-package ibuffer
+;; next row, s-t opens dired at the project root, s-. folds the group
+;; (or click its name). Super keys pass through ghostel, so they also
+;; work in Claude sessions. With no sidebar on screen, s-[ / s-] are
+;; plain previous-buffer / next-buffer.
+;; In lisp/, not user-lisp/: user-lisp auto-scrape loads loaddefs-gen
+;; on every start (+150 ms daemon init).
+(use-package vp-sidebar
   :ensure nil
+  :load-path "lisp/"
+  :commands vp/sidebar-attention-mark   ; see the ghostel block
   :bind (("s-[" . vp/sidebar-previous-buffer)
          ("s-]" . vp/sidebar-next-buffer)
          ("s-w" . vp/sidebar-kill-buffer)
@@ -790,342 +763,9 @@ C-c, because they only matter in modal states."
          :map vp/leader-map
          ("e" . vp/sidebar-toggle))
   :config
-  (require 'ibuf-ext)
-  (require 'hl-line)
-  (require 'nerd-icons)
-
-  (defun vp/sidebar-p ()
-    "Non-nil in the sidebar buffer."
-    (equal (buffer-name) vp/sidebar-name))
-
-  (add-to-list 'display-buffer-alist
-               `(,(regexp-quote vp/sidebar-name)
-                 display-buffer-in-side-window
-                 (side . left) (slot . 0)   ; width: vp/sidebar--fit
-                 (preserve-size . (t . nil))
-                 ;; Else other-window displays reuse it as the LRU window.
-                 (dedicated . t)
-                 (window-parameters (no-delete-other-windows . t)
-                                    (no-other-window . t))))
-
-  (defvar-local vp/sidebar--group nil
-    "(DIRECTORY . GROUP) cache; project lookup is too slow per redraw.
-Keyed on the directory, so dired and eshell regroup when they move.")
-
-  (defun vp/sidebar-group ()
-    "Group name of the current buffer: remote host, org, project, or other."
-    (unless (equal (car vp/sidebar--group) default-directory)
-      (setq vp/sidebar--group
-            (cons default-directory
-                  (cond ((file-remote-p default-directory)
-                         (concat "@" (file-remote-p default-directory 'host)))
-                        ((file-in-directory-p default-directory org-directory) "org")
-                        ((when-let* ((pr (project-current nil)))
-                           (file-name-nondirectory (directory-file-name (project-root pr)))))
-                        (t "other")))))
-    (cdr vp/sidebar--group))
-
-  (defun vp/sidebar-hidden-p (buf)
-    "Hide internal buffers, keep agent and shell buffers."
-    (let ((name (buffer-name buf)))
-      (or (equal name vp/sidebar-name)
-          (and (string-prefix-p "*" name)
-               (not (string-match-p "\\`\\*\\(?:cc \\|ghostel\\|eshell\\)" name))))))
-
-  (defun vp/sidebar--listed ()
-    (seq-remove (lambda (b) (or (string-prefix-p " " (buffer-name b))
-                                (vp/sidebar-hidden-p b)))
-                (buffer-list)))
-
-  (defun vp/sidebar-groups ()
-    (mapcar (lambda (g) (list g (cons 'predicate `(equal (vp/sidebar-group) ,g))))
-            (sort (delete-dups
-                   (mapcar (lambda (b) (with-current-buffer b (vp/sidebar-group)))
-                           (vp/sidebar--listed)))
-                  #'string<)))
-
-  (defun vp/sidebar--group-buffers (group)
-    "Buffers of GROUP in sidebar order, also when it is folded."
-    (with-current-buffer vp/sidebar-name
-      (mapcar #'car (ibuffer-sort-bufferlist
-                     (mapcar (lambda (b) (cons b ?\s))
-                             (seq-filter (lambda (b)
-                                           (equal (with-current-buffer b (vp/sidebar-group))
-                                                  group))
-                                         (vp/sidebar--listed)))))))
-
-  (defun vp/sidebar--regroup (&rest _)
-    "Rebuild groups before each redraw, so new projects get a header."
-    (when (vp/sidebar-p)
-      (setq ibuffer-filter-groups (vp/sidebar-groups))))
-  (advice-add 'ibuffer-update :before #'vp/sidebar--regroup)
-
-  (defun vp/sidebar--no-title (&rest _)
-    "Drop the column titles that ibuffer puts in the header line."
-    (when (vp/sidebar-p)
-      (setq header-line-format nil)))
-  (advice-add 'ibuffer-update-title-and-summary :after #'vp/sidebar--no-title)
-
-  (defvar vp/sidebar--indent nil
-    "Non-nil while rows of a group with a name row are inserted.")
-
-  (defun vp/sidebar--spacer ()
-    "Insert a thin blank line, unless one is just above."
-    (unless (or (bobp) (get-text-property (1- (point)) 'vp/sidebar-spacer))
-      (insert (propertize "\n" 'font-lock-face '(:height 0.2) 'vp/sidebar-spacer t))))
-
-  (defun vp/sidebar--group-header (fn name display-name filter-string format bmarklist)
-    "A dim name with a fold triangle instead of bold [ name ].
-A group of one buffer gets no name row. Thin gaps go around groups
-with a name. A folded group shows its buffer count and turns red when
-a buffer in it waits for user action."
-    (if (not (vp/sidebar-p))
-        (funcall fn name display-name filter-string format bmarklist)
-      (let* ((folded (member name ibuffer-hidden-filter-groups))
-             (titled (or folded (cdr bmarklist)))
-             (hidden (and folded (vp/sidebar--group-buffers name)))
-             (face (if (seq-some (lambda (b) (memq b vp/attention-buffers)) hidden)
-                       'vp/attention
-                     'shadow)))
-        (when titled
-          (vp/sidebar--spacer)
-          (insert (propertize
-                   (concat " " (propertize (if folded "▸" "▾") 'font-lock-face 'shadow)
-                           " " (propertize name 'font-lock-face face)
-                           (when folded
-                             (propertize (format "  %d" (length hidden))
-                                         'font-lock-face 'shadow))
-                           "\n")
-                   'ibuffer-filter-group-name name)))
-        (when bmarklist
-          (put-text-property
-           (point)
-           (let ((vp/sidebar--indent titled))
-             (dolist (entry bmarklist)
-               (ibuffer-insert-buffer-line (car entry) (cdr entry) format))
-             (point))
-           'ibuffer-filter-group name))
-        (when titled (vp/sidebar--spacer)))))
-  (advice-add 'ibuffer-insert-filter-group :around #'vp/sidebar--group-header)
-
-  ;; Aligns the icon under the group name, past the chevron.
-  (define-ibuffer-column indent (:name "")
-    (if vp/sidebar--indent "  " ""))
-
-  (define-ibuffer-column icon (:name " ")
-    (if (string-prefix-p "*cc " (buffer-name))
-        (nerd-icons-mdicon "nf-md-robot")   ; agent sessions are ghostel too
-      (nerd-icons-icon-for-buffer)))
-
-  ;; Not the stock name column: that one carries a keymap whose mouse-1
-  ;; toggles marks, and text-property keymaps win over `vp/sidebar-map'.
-  ;; Plain names: only attention gets a face.
-  (define-ibuffer-column label (:name "Name")
-    (propertize (string-trim (string-remove-prefix "*cc " (buffer-name)) ; icon says it
-                             "\\*" "\\*")
-                'font-lock-face
-                (and (memq buffer vp/attention-buffers) 'vp/attention)))
-
-  (defun vp/sidebar--main-window ()
-    "Leave the sidebar for the last used main window."
-    (when (vp/sidebar-p)
-      (select-window (get-mru-window nil nil t))))
-
-  (defun vp/sidebar-visit ()
-    "Show the buffer at point in the last used main window.
-On a group name, fold or unfold the group."
-    (interactive)
-    (if (get-text-property (point) 'ibuffer-filter-group-name)
-        (vp/sidebar-fold)
-      (when-let* ((buf (ibuffer-current-buffer)))
-        (vp/sidebar--main-window)
-        (switch-to-buffer buf))))
-
-  (defun vp/sidebar-fold ()
-    "Fold or unfold the group at point in the sidebar, else the group
-of the current buffer. A group of one buffer has no name row to fold
-into, so it stays open."
-    (interactive)
-    (when-let* ((side (get-buffer vp/sidebar-name))
-                (group (if (eq (current-buffer) side)
-                           (or (get-text-property (point) 'ibuffer-filter-group-name)
-                               (get-text-property (point) 'ibuffer-filter-group))
-                         (vp/sidebar-group))))
-      (with-current-buffer side
-        (cond ((member group ibuffer-hidden-filter-groups)
-               (setq ibuffer-hidden-filter-groups
-                     (delete group ibuffer-hidden-filter-groups)))
-              ((text-property-any (point-min) (point-max)
-                                  'ibuffer-filter-group-name group)
-               (push group ibuffer-hidden-filter-groups)))
-        (ibuffer-update nil t))))
-
-  (defun vp/sidebar-mouse-visit (event)
-    (interactive "e")
-    (mouse-set-point event)
-    (vp/sidebar-visit))
-
-  ;; Navigation only: no ibuffer parent, so no mark, kill, sort, or
-  ;; filter keys. s-w kills. meow motion state supplies e for up.
-  (defvar-keymap vp/sidebar-map
-    :suppress t
-    "n" #'next-line
-    "RET" #'vp/sidebar-visit
-    "<down-mouse-1>" #'ignore            ; no drag region, no flashing
-    "<drag-mouse-1>" #'ignore
-    "<mouse-1>" #'vp/sidebar-mouse-visit
-    "<mouse-2>" #'vp/sidebar-mouse-visit
-    "q" #'vp/sidebar-toggle)
-
-  (defun vp/sidebar--anchor (buf)
-    "Position of BUF's row in the sidebar, else of its folded group's name."
-    (let ((group (with-current-buffer buf (vp/sidebar-group)))
-          header)
-      (with-current-buffer vp/sidebar-name
-        (save-excursion
-          (goto-char (point-min))
-          (catch 'found
-            (while (not (eobp))
-              (when (eq (car (get-text-property (point) 'ibuffer-properties)) buf)
-                (throw 'found (point)))
-              (when (equal (get-text-property (point) 'ibuffer-filter-group-name) group)
-                (setq header (point)))
-              (forward-line 1))
-            (and header
-                 (member group ibuffer-hidden-filter-groups)
-                 (not (vp/sidebar-hidden-p buf))
-                 header))))))
-
-  (defun vp/sidebar-follow (&rest _)
-    "Move the sidebar highlight to the buffer in the selected window."
-    (when-let* ((win (get-buffer-window vp/sidebar-name))
-                (buf (window-buffer (selected-window)))
-                ((not (eq win (selected-window)))))
-      (let ((pos (vp/sidebar--anchor buf)))
-        (with-selected-window win
-          (goto-char (or pos (point-max)))
-          (hl-line-highlight)))))
-
-  (defun vp/sidebar--fit ()
-    "Fit the sidebar width to its longest line plus right padding."
-    (when-let* ((win (get-buffer-window vp/sidebar-name)))
-      (let ((width (+ 1 (save-excursion
-                          (goto-char (point-min))
-                          (let ((max 0))
-                            (while (not (eobp))
-                              (setq max (max max (string-width
-                                                  (buffer-substring (pos-bol) (pos-eol)))))
-                              (forward-line 1))
-                            max)))))
-        ;; IGNORE: preserve-size would block the resize.
-        (unless (= width (window-body-width win))
-          (window-resize win (- width (window-body-width win)) t t)))))
-
-  (defun vp/sidebar--after-update (&rest _)
-    "Redraws erase the buffer, collapse the hl-line overlay, and can
-change the longest name."
-    (when (vp/sidebar-p)
-      (vp/sidebar--fit)
-      (vp/sidebar-follow)))
-  (advice-add 'ibuffer-update :after #'vp/sidebar--after-update)
-
-  (defun vp/sidebar--stops ()
-    "Stops in sidebar order: one list per buffer row, one list of all
-its buffers per folded group."
-    (with-current-buffer vp/sidebar-name
-      (save-excursion
-        (goto-char (point-min))
-        (let (acc)
-          (while (not (eobp))
-            (if-let* ((b (car (get-text-property (point) 'ibuffer-properties))))
-                (push (list b) acc)
-              (when-let* ((g (get-text-property (point) 'ibuffer-filter-group-name))
-                          ((member g ibuffer-hidden-filter-groups)))
-                (push (vp/sidebar--group-buffers g) acc)))
-            (forward-line 1))
-          (nreverse acc)))))
-
-  (defun vp/sidebar--neighbor (n)
-    "The buffer N stops away from the current one, wrapping around.
-A folded group is one stop and stays folded: it yields its most
-recently used buffer, and the highlight sits on the group name."
-    (when-let* ((stops (vp/sidebar--stops)))
-      (let* ((i (seq-position stops (current-buffer) (lambda (s b) (memq b s))))
-             (stop (nth (mod (if i (+ i n) (if (> n 0) 0 -1)) (length stops)) stops)))
-        (seq-find (lambda (b) (memq b stop)) (buffer-list)))))
-
-  (defun vp/sidebar--cycle (n)
-    (if (get-buffer-window vp/sidebar-name)
-        (progn (vp/sidebar--main-window)
-               (when-let* ((buf (vp/sidebar--neighbor n)))
-                 (switch-to-buffer buf)))
-      (if (> n 0) (next-buffer) (previous-buffer))))
-
-  (defun vp/sidebar-next-buffer ()
-    (interactive)
-    (vp/sidebar--cycle 1))
-
-  (defun vp/sidebar-previous-buffer ()
-    (interactive)
-    (vp/sidebar--cycle -1))
-
-  (defun vp/sidebar-kill-buffer ()
-    "Kill the current buffer and show the next one in sidebar order."
-    (interactive)
-    (vp/sidebar--main-window)
-    (let ((next (and (get-buffer-window vp/sidebar-name)
-                     (vp/sidebar--neighbor 1)))
-          (buf (current-buffer)))
-      (when (and (kill-buffer buf)
-                 next (not (eq next buf)) (buffer-live-p next))
-        (switch-to-buffer next))))
-
-  (defun vp/sidebar-dired ()
-    "Open dired at the project root, else at this buffer's directory."
-    (interactive)
-    (vp/sidebar--main-window)
-    (dired (if-let* ((pr (project-current nil)))
-               (project-root pr)
-             default-directory)))
-
-  (defun vp/sidebar-toggle ()
-    "Open and focus the sidebar; focus it if open; close it if focused.
-The sidebar is not in the `other-window' cycle."
-    (interactive)
-    (let ((win (get-buffer-window vp/sidebar-name)))
-      (cond ((eq win (selected-window)) (delete-window win))
-            (win (select-window win))
-            (t (save-selected-window
-                 (ibuffer nil vp/sidebar-name nil t nil nil   ; groups: vp/sidebar--regroup
-                          '((" " indent icon " " (label 0 26 :left :elide)))))
-               (with-current-buffer vp/sidebar-name
-                 (setq-local ibuffer-sorting-mode 'alphabetic   ; stable positions
-                             ibuffer-show-empty-filter-groups nil
-                             ibuffer-display-summary nil
-                             ibuffer-use-header-line 'title   ; title leaves the buffer text
-                             ibuffer-never-show-predicates (list #'vp/sidebar-hidden-p)
-                             hl-line-sticky-flag t
-                             cursor-in-non-selected-windows nil
-                             mode-line-format nil)
-                 (use-local-map vp/sidebar-map)
-                 (ibuffer-auto-mode 1)
-                 (hl-line-mode 1)
-                 (ibuffer-update nil t))
-               (let ((win (get-buffer-window vp/sidebar-name)))
-                 ;; No fringes: the frame border alone is the gutter, as
-                 ;; at the top. Rows pad one column on each side inside
-                 ;; the highlight.
-                 (set-window-fringes win 0 0)
-                 (select-window win))))))
-
-  ;; No cursor: the highlight shows the position. meow resets
-  ;; cursor-type on each window switch, so the rule goes to meow.
-  (with-eval-after-load 'meow
-    (add-to-list 'meow-update-cursor-functions-alist
-                 (cons #'vp/sidebar-p (lambda () (setq cursor-type nil)))))
-
-  (add-hook 'window-buffer-change-functions #'vp/sidebar-follow)
-  (add-hook 'window-selection-change-functions #'vp/sidebar-follow))
+  ;; meow is off in the sidebar (see Modal editing), so SPC needs the
+  ;; leader here.
+  (keymap-set vp/sidebar-mode-map "SPC" '(menu-item "leader" nil :filter vp/leader)))
 
 
 ;;; Org -----
@@ -1444,10 +1084,7 @@ Open the hub if it already exists."
   ;; Claude Code and other TUIs send an OSC 9 notification when they
   ;; need input.  Mark the buffer in the sidebar; the default hook
   ;; entry still sends the desktop notification.
-  (defun vp/ghostel-notify (_title _body)
-    "Mark this buffer as waiting for input."
-    (vp/attention-mark))
-  (add-hook 'ghostel-notification-functions #'vp/ghostel-notify))
+  (add-hook 'ghostel-notification-functions #'vp/sidebar-attention-mark))
 
 (use-package claude-code-ide
   ;; :ensure nil is required next to :vc, else both handlers install.
