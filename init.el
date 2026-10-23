@@ -541,9 +541,19 @@ C-c, because they only matter in modal states."
   ;; A filter, so the composition happens per key press in the buffer.
   (dolist (map (list meow-normal-state-keymap meow-motion-state-keymap))
     (keymap-set map "SPC" '(menu-item "leader" nil :filter vp/leader)))
-  ;; Shells open in insert state.
-  (dolist (mode '(eshell-mode ghostel-mode))
-    (add-to-list 'meow-mode-state-list (cons mode 'insert)))
+  ;; eshell input is buffer text, so modal edits work there.
+  (add-to-list 'meow-mode-state-list '(eshell-mode . insert))
+  ;; No meow in terminals: the TUI owns every key, ESC included
+  ;; (Claude's interrupt). Scroll and copy in ghostel copy mode
+  ;; (C-c C-t). Depth 90: meow-global-mode turns on from this hook too.
+  (defun vp/meow-off-in-terminals ()
+    (when (derived-mode-p 'ghostel-mode)
+      (meow-mode -1)))
+  (add-hook 'after-change-major-mode-hook #'vp/meow-off-in-terminals 90)
+  ;; Buffers without meow keep their own cursor (ghostel sets it from
+  ;; the terminal); meow resets it on each window change otherwise.
+  (add-to-list 'meow-update-cursor-functions-alist
+               (cons (lambda () (not meow-mode)) #'ignore))
   (meow-global-mode 1))
 
 
