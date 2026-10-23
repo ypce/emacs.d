@@ -375,13 +375,13 @@ Tracked dired/eshell visits plus parents of recent files."
 ;;; Keys (C-c, and SPC in meow) -----
 ;; All user commands are on C-c <letter>, the keys that the Emacs
 ;; conventions keep for users: a direct command, or a noun prefix with
-;; letters after it. In meow, SPC is the same map (see Modal editing).
-;; Major modes own C-c with punctuation or a control key (org's C-c .
-;; and C-c C-c), so no user key uses them. A mode map adds user keys
-;; only on a letter with no global binding: C-c m is the mindmap
-;; prefix in org.
+;; letters after it. Major modes own C-c with punctuation or a control
+;; key (org's C-c . and C-c C-c), so no user key uses them. meow's
+;; keypad reaches this map as SPC <letter>, except for c h x m g, which
+;; the keypad keeps for C-c C-, C-h, C-x, M- and C-M- (see Modal
+;; editing). No user key uses those letters.
 (defvar-keymap vp/code-map
-  :doc "Code commands on C-c c (eglot, eldoc, flymake)."
+  :doc "Code commands on C-c l (eglot, eldoc, flymake)."
   "a" '("code actions"     . eglot-code-actions)
   "d" '("doc at point"     . eldoc-doc-buffer)
   "f" '("format buffer"    . eglot-format-buffer)
@@ -397,6 +397,14 @@ Tracked dired/eshell visits plus parents of recent files."
   "e" '("open (default app)" . vp/file-open-default)
   "y" '("copy file path"     . vp/file-copy-path))
 
+(defvar-keymap vp/mindmap-map
+  :doc "Mindmap commands on C-c n m, in org mindmap blocks."
+  "d" '("delete node"       . org-mindmap-delete-node)
+  "v" '("switch layout"     . org-mindmap-switch-layout)
+  "p" '("switch compaction" . org-mindmap-switch-compaction)
+  "m" '("list to mindmap"   . org-mindmap-list-to-mindmap)
+  "l" '("mindmap to list"   . org-mindmap-to-list))
+
 (defvar-keymap vp/notes-map
   :doc "Notes and org commands on C-c n."
   "a" '("agenda"             . vp/agenda)
@@ -408,21 +416,13 @@ Tracked dired/eshell visits plus parents of recent files."
   "n" '("capture to inbox"   . vp/capture-inbox)
   "d" '("daily note (today)" . vp/daily-today)
   "p" '("new project hub"    . vp/new-project)
-  "s" '("browse dailies"     . org-node-seq-dispatch))
+  "s" '("browse dailies"     . org-node-seq-dispatch)
+  "m" (cons "mindmap" vp/mindmap-map))
 
 (defvar-keymap vp/open-map
   :doc "Shells on C-c o."
   "t" '("terminal (ghostel)" . vp/ghostel-here)
   "e" '("eshell"             . vp/eshell-here))
-
-;; In org-mindmap-mode-map (see Org Node).
-(defvar-keymap vp/mindmap-map
-  :doc "Mindmap commands on C-c m in org."
-  "d" '("delete node"       . org-mindmap-delete-node)
-  "v" '("switch layout"     . org-mindmap-switch-layout)
-  "p" '("switch compaction" . org-mindmap-switch-compaction)
-  "m" '("list to mindmap"   . org-mindmap-list-to-mindmap)
-  "l" '("mindmap to list"   . org-mindmap-to-list))
 
 ;; = and -, unshifted, like text-scale-adjust (C-x C-= / C-x C--).
 (defvar-keymap vp/tts-map
@@ -434,35 +434,25 @@ Tracked dired/eshell visits plus parents of recent files."
 (define-keymap :keymap mode-specific-map
   "a" '("claude"      . claude-code-ide-menu)
   "b" '("buffer"      . switch-to-buffer)   ; consult-buffer via remap
-  "c" (cons "code" vp/code-map)
   "d" '("recent dir"  . vp/dired-recent-dir)
   "e" '("sidebar"     . vp/sidebar-toggle)
   "f" (cons "file" vp/file-map)
-  "g" '("git"         . magit-status)
-  "h" '("cheatsheet"  . meow-cheatsheet)
   "j" '("dired here"  . dired-jump)
   "k" '("kill buffer" . kill-current-buffer)
+  "l" (cons "code" vp/code-map)       ; l for LSP
   "n" (cons "notes" vp/notes-map)
   "o" (cons "open" vp/open-map)
   "p" (cons "project" project-prefix-map)
   "s" '("search (rg)" . consult-ripgrep)
   "t" (cons "tts" vp/tts-map)
-  "w" '("save"        . save-buffer)
-  "x" '("M-x"         . execute-extended-command))
+  "v" '("git"         . magit-status)   ; v for VC
+  "w" '("save"        . save-buffer))
 
 
 ;;; Modal editing (meow) -----
-;; Official Colemak layout. SPC is C-c: it opens every C-c map active
-;; in the buffer, mode maps first, the same lookup as C-c. So SPC m
-;; gets the mindmap keys in org, and SPC C-c gets org's C-c C-c.
-;; Not the meow keypad: it changes later keys to C-<key> and has its
-;; own popup. Real chords stay real chords.
-(defun vp/leader (_)
-  "The C-c maps active in this buffer, composed, mode maps first."
-  (make-composed-keymap
-   (seq-filter #'keymapp
-               (mapcar (lambda (map) (keymap-lookup map "C-c"))
-                       (current-active-maps)))))
+;; Official Colemak layout. SPC is the stock meow keypad: SPC x f is
+;; C-x C-f, SPC c c is C-c C-c, SPC h f is C-h f, SPC m x is M-x, and
+;; other letters are C-c <letter>. Real chords stay real chords.
 
 (use-package meow
   :config
@@ -531,9 +521,6 @@ Tracked dired/eshell visits plus parents of recent files."
    '("z" . meow-pop-selection)
    '("'" . repeat)
    '("<escape>" . ignore))
-  ;; A filter, so the composition happens per key press in the buffer.
-  (dolist (map (list meow-normal-state-keymap meow-motion-state-keymap))
-    (keymap-set map "SPC" '(menu-item "leader" nil :filter vp/leader)))
   ;; eshell input is buffer text, so modal edits work there.
   (add-to-list 'meow-mode-state-list '(eshell-mode . insert))
   ;; No meow in terminals: the TUI owns every key, ESC included
@@ -631,7 +618,7 @@ Tracked dired/eshell visits plus parents of recent files."
   :ensure nil
   :custom
   (eldoc-echo-area-use-multiline-p nil)
-  ;; Flymake diagnostics at point show in the echo area without C-c c x.
+  ;; Flymake diagnostics at point show in the echo area without C-c l x.
   (eldoc-help-at-pt t))
 
 (use-package flymake
@@ -740,11 +727,7 @@ Tracked dired/eshell visits plus parents of recent files."
          ("s-]" . vp/sidebar-next-buffer)
          ("s-w" . vp/sidebar-kill-buffer)
          ("s-t" . vp/sidebar-dired)
-         ("s-." . vp/sidebar-fold))
-  :config
-  ;; meow is off in the sidebar (see Modal editing), so SPC needs the
-  ;; leader here.
-  (keymap-set vp/sidebar-mode-map "SPC" '(menu-item "leader" nil :filter vp/leader)))
+         ("s-." . vp/sidebar-fold)))
 
 
 ;;; Org -----
@@ -944,14 +927,12 @@ searchable (C-c n f, C-c n g)."
 
 ;; Editable Unicode mind maps inside org "mindmap" blocks. Insert a
 ;; block with C-c C-, m; RET/TAB add siblings/children, M-RET edits,
-;; M-arrows move nodes. The rest lives on the C-c m prefix.
+;; M-arrows move nodes. The rest lives on the C-c n m prefix.
 (use-package org-mindmap
   ;; :ensure nil is required next to :vc, else both handlers install.
   :ensure nil
   :vc (:url "https://github.com/krvkir/org-mindmap" :rev :newest)
-  :hook (org-mode . org-mindmap-mode)
-  :config
-  (keymap-set org-mindmap-mode-map "C-c m" (cons "mindmap" vp/mindmap-map)))
+  :hook (org-mode . org-mindmap-mode))
 
 (defun vp/daily-today ()
   "Open today's daily note; create it as a node in the \"d\" sequence if missing."

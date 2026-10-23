@@ -78,11 +78,12 @@ see that repo's README for setup on a new machine.
 ## Notes
 
 - Keys: all user commands are on `C-c <letter>` (the map is in the Keys
-  section of `init.el`). `SPC` in meow is the same map, mode maps
-  included (`SPC C-c` is org's `C-c C-c`).
-- Modal editing: meow with the official Colemak layout.
-  `U` is undo-redo. Shells open in insert state. The meow keypad is not
-  used; chords are typed as real chords.
+  section of `init.el`).
+- Modal editing: meow with the official Colemak layout. `SPC` is the
+  stock meow keypad: `SPC <letter>` is `C-c <letter>`, and `SPC x`,
+  `SPC c`, `SPC h`, `SPC m`, `SPC g` type `C-x C-`, `C-c C-`, `C-h`,
+  `M-`, `C-M-` chords (`SPC x f` find file, `SPC m x` M-x). `U` is
+  undo-redo. Shells open in insert state.
 - Notes/agenda live in `~/Notes` (created automatically; `inbox.org` and
   `agenda.org` are the agenda anchors, other files opt in with
   `#+filetags: :agenda:`).
