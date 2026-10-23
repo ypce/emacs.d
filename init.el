@@ -383,6 +383,8 @@ Tracked dired/eshell visits plus parents of recent files."
          ("M-s r" . consult-ripgrep)
          ("M-g o" . consult-outline))
   :custom
+  ;; TAB completion lists candidates in vertico, not a *Completions* window.
+  (completion-in-region-function #'consult-completion-in-region)
   (xref-show-xrefs-function #'consult-xref)
   (xref-show-definitions-function #'consult-xref))
 
@@ -1179,27 +1181,6 @@ it) goes there. With no WORDS, pick one."
     (mapcar (lambda (dir) (string-remove-prefix "~/" dir)) (vp/recent-dirs))
     '((display-sort-function . identity)))))
 
-;; cd TAB: local folders first; with no local match, the recent dirs
-;; (absolute, so the path stays valid from any directory).
-(with-eval-after-load 'pcmpl-unix
-  (defun pcomplete/cd ()
-    "Complete local directories, then recent ones."
-    (while (pcomplete-here
-            (completion-table-in-turn
-             (pcomplete-dirs)
-             (completion-table-with-metadata
-              (mapcar #'expand-file-name (vp/recent-dirs))
-              '((display-sort-function . identity))))))))
-
-(defun vp/eshell-recent-dir ()
-  "Pick a recent dir and cd there as a real command."
-  (interactive)
-  (let ((dir (vp/read-recent-dir)))
-    (goto-char (point-max))
-    (eshell-kill-input)
-    (insert (format "cd \"%s\"" dir))
-    (eshell-send-input)))
-
 ;; esh-mode, not eshell: eshell-mode-map lives in esh-mode.el, so a
 ;; binding hung on the eshell feature fires before the map exists.
 (use-package esh-mode
@@ -1208,8 +1189,7 @@ it) goes there. With no WORDS, pick one."
          (eshell-mode . vp/eshell-wrap-lines)
          (eshell-mode . vp/eshell-completion-setup))
   :bind (:map eshell-mode-map
-         ("C-r" . consult-history)
-         ("C-c d" . vp/eshell-recent-dir))   ; dired elsewhere
+         ("C-r" . consult-history))
   :custom
   (eshell-history-size 10000)
   (eshell-hist-ignoredups 'erase)   ; a rerun moves to the top
@@ -1220,10 +1200,7 @@ it) goes there. With no WORDS, pick one."
   (eshell-aliases-file (expand-file-name "etc/eshell-aliases" user-emacs-directory))
   ;; Like zsh cp -i / mv -i; rm already moves to the trash.
   (eshell-cp-interactive-query t)
-  (eshell-mv-interactive-query t)
-  :config
-  ;; `clear' erases like a terminal; the default only scrolls.
-  (defalias 'eshell/clear #'eshell/clear-scrollback))
+  (eshell-mv-interactive-query t))
 
 ;; Colors the command line as you type; unknown commands show red.
 (use-package eshell-syntax-highlighting
@@ -1232,10 +1209,6 @@ it) goes there. With no WORDS, pick one."
 ;; M-f takes one word of the grey suggestion; TAB takes all of it.
 (with-eval-after-load 'completion-preview
   (keymap-set completion-preview-active-mode-map "M-f" #'completion-preview-insert-word))
-
-;; TAB completion everywhere lists candidates in vertico, not a
-;; *Completions* window.
-(setopt completion-in-region-function #'consult-completion-in-region)
 
 (defun vp/eshell-here ()
   "Open the shared eshell, cd'd to this buffer's directory.

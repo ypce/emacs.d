@@ -2,6 +2,7 @@ alias - cd -
 alias , cd ..
 alias ,, cd ../..
 alias ,,, cd ../../..
+alias clear clear-scrollback
 alias gc git clone ssh://git@github.com/$1
 alias gg git commit -m (mapconcat (quote eshell-stringify) eshell-command-arguments " ")
 alias ghcp ~/Git/git-helpers/git-commit-prompt.py $*

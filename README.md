@@ -98,8 +98,7 @@ modifier keys in `emacsclient -t`.
 - Eshell (`C-c s`): two-line prompt (dir and git branch, then `❯`, red
   after a failed command), live syntax colors, grey history suggestions as you type (TAB takes
   all, `M-f` one word), `C-r` fuzzy history, `z <words>` jumps to a
-  recent dir (`z` alone or `C-c d` picks one), and `cd TAB` falls back
-  to recent dirs when no local folder matches. History (10k) is
+  recent dir (`z` alone picks one, `z TAB` completes). History (10k) is
   written after each command. Aliases (`ll`, `,` for `cd ..`, `gg msg`
   to commit, ...) live in `etc/eshell-aliases`.
 - `C-c a` opens the overview agenda; `C-u C-c a` the dispatcher.
