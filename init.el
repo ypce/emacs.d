@@ -14,11 +14,6 @@
 
 
 ;;; Server -----
-;; The launchd daemon owns the emacsclient socket. This guard is a
-;; safety net: a stray GUI instance must not steal the socket.
-(require 'server)
-(unless (or (daemonp) (server-running-p))
-  (server-start))
 ;; Child processes (Claude Code's C-g, git in ghostel) edit in a buffer
 ;; of this Emacs. C-x # finishes the edit. Without this they use vi.
 (setenv "EDITOR" "emacsclient")
@@ -26,6 +21,7 @@
 ;; C-c C-c also finishes, like magit's commit buffer. Temp files only
 ;; (Claude's prompt, pass): an org or markdown file opened with
 ;; emacsclient keeps its own C-c C-c.
+(declare-function server-edit "server")   ; loaded before server-visit-hook runs
 (define-minor-mode vp/temp-edit-mode
   "C-c C-c finishes an emacsclient edit of a temp file."
   :keymap (define-keymap "C-c C-c" #'server-edit))
