@@ -33,8 +33,8 @@
 
 
 ;;; Packages -----
-;; package-quickstart (early-init) activates packages before init.el;
-;; only --batch runs miss that and need package-initialize.
+;; Startup activates packages before init.el (package-quickstart makes it
+;; fast). `emacs --batch -l init.el' skips that and needs the call.
 (require 'package)
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
 (unless (bound-and-true-p package--activated)
