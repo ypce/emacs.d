@@ -42,8 +42,8 @@ The full history stays in the claude --resume picker.")
 (defvar vp/sidebar--attention nil
   "Buffers that wait for user action while not displayed.")
 
-(defvar vp/sidebar--folded nil
-  "Names of folded groups.")
+(defvar vp/sidebar--folded '(history)
+  "Folded groups: group names, and `history' for the dormant sessions.")
 
 (defvar vp/sidebar--groups nil
   "Groups as last drawn: ((GROUP (NAME . BUFFER)...)...).")
@@ -255,13 +255,13 @@ once per modification time."
       (put-text-property 0 1 'face 'vp/sidebar-spark label))
     label))
 
-(defun vp/sidebar--insert-group (name rows)
-  "Insert group NAME with ROWS (buffers and dormant sessions).
-A group of one row gets no name row. Thin gaps go around groups with
-a name. A folded group shows its row count and turns red when a
-buffer in it waits for user action."
+(defun vp/sidebar--insert-group (name rows &optional history)
+  "Insert group NAME with buffer ROWS, then the HISTORY subgroup.
+HISTORY is a list of dormant sessions. A group of one row gets no name
+row. Thin gaps go around groups with a name. A folded group shows its
+row count and turns red when a buffer in it waits for user action."
   (let* ((folded (member name vp/sidebar--folded))
-         (titled (or folded (cdr rows))))
+         (titled (or folded (cdr rows) history)))
     (when titled
       (vp/sidebar--spacer)
       (insert (propertize
@@ -280,7 +280,19 @@ buffer in it waits for user action."
     (unless folded
       (dolist (row rows)
         ;; Aligns the icon under the group name, past the triangle.
-        (vp/sidebar--insert-row row (if titled "  " ""))))
+        (vp/sidebar--insert-row row (if titled "  " "")))
+      (when history
+        (let ((hfolded (memq 'history vp/sidebar--folded)))
+          (insert (propertize
+                   (concat "   " (propertize (if hfolded "▸" "▾") 'face 'shadow)
+                           (propertize " history" 'face 'shadow)
+                           (when hfolded
+                             (propertize (format "  %d" (length history)) 'face 'shadow))
+                           " \n")
+                   'vp/sidebar 'history))
+          (unless hfolded
+            (dolist (row history)
+              (vp/sidebar--insert-row row "    "))))))
     (when titled (vp/sidebar--spacer))))
 
 (defun vp/sidebar--draw ()
@@ -290,15 +302,12 @@ buffer in it waits for user action."
           (groups (mapcar (lambda (g) (cons (car g) (mapcar #'cdr (cdr g))))
                           vp/sidebar--groups))
           (inhibit-read-only t))
-      (when vp/sidebar--dormant
-        (let ((claude (assoc vp/sidebar-claude groups)))
-          (unless claude
-            (setq claude (list vp/sidebar-claude)
-                  groups (nconc groups (list claude))))
-          (setcdr claude (append (cdr claude) vp/sidebar--dormant))))
+      (when (and vp/sidebar--dormant (not (assoc vp/sidebar-claude groups)))
+        (setq groups (nconc groups (list (list vp/sidebar-claude)))))
       (erase-buffer)
       (pcase-dolist (`(,name . ,rows) groups)
-        (vp/sidebar--insert-group name rows))
+        (vp/sidebar--insert-group name rows (and (equal name vp/sidebar-claude)
+                                                 vp/sidebar--dormant)))
       (goto-char (or (vp/sidebar--pos at) (point-min))))
     ;; Not `fit-window-to-buffer': it measures only the rows on screen.
     (when-let* ((win (get-buffer-window)))
@@ -403,10 +412,11 @@ Fits `ghostel-notification-functions'."
 
 (defun vp/sidebar-visit ()
   "Show the buffer at point in the last used main window.
-On a dormant session, resume it. On a group name, fold or unfold."
+On a dormant session, resume it. On a group or history name, fold
+or unfold."
   (interactive)
   (pcase (get-text-property (pos-bol) 'vp/sidebar)
-    ((pred stringp) (vp/sidebar-fold))
+    ((or (pred stringp) 'history) (vp/sidebar-fold))
     ((and (pred bufferp) buf) (vp/sidebar--main-window) (switch-to-buffer buf))
     (`(,id ,cwd . ,_) (vp/sidebar--main-window) (vp/sidebar--resume id cwd))))
 
@@ -424,9 +434,9 @@ name row stays open."
   (when-let* ((side (get-buffer vp/sidebar-name))
               (group (if (eq (current-buffer) side)
                          (pcase (get-text-property (pos-bol) 'vp/sidebar)
-                           ((and (pred stringp) g) g)
+                           ((and (or (pred stringp) 'history) g) g)
                            ((and (pred bufferp) b) (vp/sidebar--group b))
-                           ((pred consp) vp/sidebar-claude))
+                           ((pred consp) 'history))
                        (vp/sidebar--group (current-buffer)))))
     (cond ((member group vp/sidebar--folded)
            (setq vp/sidebar--folded (delete group vp/sidebar--folded)))
