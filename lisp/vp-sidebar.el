@@ -31,6 +31,13 @@ The spark is Claude Code's own mark; no project name can match it.")
   "Number of dormant Claude Code sessions to list, newest first.
 The full history stays in the claude --resume picker.")
 
+(defvar vp/sidebar-label-max 30
+  "Longest row label; longer names end in an ellipsis.
+With the indent and icon, the sidebar is at most about 38 columns.")
+
+(defvar vp/sidebar-min-width 22
+  "Narrowest sidebar, in columns, so a few short names do not shrink it.")
+
 (defface vp/sidebar-attention '((t :foreground "#ff2d55"))
   "Face for a buffer that waits for user action."
   :group 'convenience)
@@ -224,7 +231,7 @@ once per modification time."
 
 (defun vp/sidebar--label (text face)
   "TEXT elided to fit, with one column of padding, in FACE."
-  (propertize (concat (truncate-string-to-width text 26 nil nil t) " ")
+  (propertize (concat (truncate-string-to-width text vp/sidebar-label-max nil nil t) " ")
               'face face))
 
 (defun vp/sidebar--insert-row (row indent)
@@ -311,8 +318,9 @@ row count and turns red when a buffer in it waits for user action."
       (goto-char (or (vp/sidebar--pos at) (point-min))))
     ;; Not `fit-window-to-buffer': it measures only the rows on screen.
     (when-let* ((win (get-buffer-window)))
-      (let ((cols (ceiling (car (window-text-pixel-size win nil nil t))
-                           (frame-char-width (window-frame win)))))
+      (let ((cols (max vp/sidebar-min-width
+                       (ceiling (car (window-text-pixel-size win nil nil t))
+                                (frame-char-width (window-frame win))))))
         ;; IGNORE: preserve-size would block the resize. Then preserve
         ;; the new width, else a frame resize restores the old one.
         (window-resize-no-error win (- cols (window-body-width win)) t t)
@@ -500,6 +508,9 @@ With no sidebar on screen, step N buffers in the window's history."
   :doc "Navigation only: s-w kills, g rescans Claude sessions."
   "n" #'vp/sidebar-next
   "e" #'vp/sidebar-previous
+  ;; Arrows and C-n / C-p also step by row, past the spacer lines.
+  "<remap> <next-line>" #'vp/sidebar-next
+  "<remap> <previous-line>" #'vp/sidebar-previous
   "RET" #'vp/sidebar-visit
   "<down-mouse-1>" #'ignore             ; no drag region, no flashing
   "<drag-mouse-1>" #'ignore
