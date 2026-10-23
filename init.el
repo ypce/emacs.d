@@ -1241,7 +1241,7 @@ The cd runs as a real command so eshell history records it."
   :config
   ;; Run remote async processes (eshell commands, compile, grep) as a
   ;; plain `ssh host cmd', skipping TRAMP's login-shell handshake.
-  ;; Direct-async processes do not see tramp-remote-path additions.
+  ;; Limits: no interrupt-process (C-c C-c), no multi-hop.
   (connection-local-set-profile-variables
    'vp/tramp-direct-async
    '((tramp-direct-async-process . t)))
