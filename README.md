@@ -16,9 +16,8 @@ osacompile -o "/Applications/Emacs Client.app/Contents/Resources/Scripts/main.sc
 codesign --force --sign - "/Applications/Emacs Client.app"
 ```
 
-The daemon is the only Emacs. Connect with `emacsclient -nw` (the `e`
-alias) in a terminal, or `Emacs Client.app` (Dock/Spotlight) for GUI
-frames. Never launch `Emacs.app` directly and never use `emacsclient
+The daemon is the only Emacs. Connect with `Emacs Client.app`
+(Dock/Spotlight); GUI frames only. Never launch `Emacs.app` directly and never use `emacsclient
 -a ''`: both spawn a second Emacs outside launchd's control. The
 shipped `Emacs Client.app` applet hardcodes a Cellar version path and
 an `-a ''` fallback; `etc/emacs-client.applescript` replaces it with a
@@ -75,11 +74,6 @@ code lives in `lisp/vp-tts.el` and loads on first use. It calls the
 (`~/Git/public/kokoro-tts-config`, symlinked to `~/.local/bin/kokoro`),
 which points the CLI at the model weights in `~/.local/share/kokoro-tts`;
 see that repo's README for setup on a new machine.
-
-### Terminal frames (optional)
-
-kkp needs a kitty-keyboard-protocol terminal (ghostty, wezterm) for full
-modifier keys in `emacsclient -t`.
 
 ## Notes
 

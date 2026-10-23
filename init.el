@@ -43,11 +43,6 @@
 (require 'use-package)
 (setopt use-package-always-ensure t)   ; built-ins opt out with :ensure nil
 
-;; Full modifier keys in kitty-protocol terminals (ghostty, wezterm).
-;; Loads on the first tty frame; GUI frames never need it.
-(use-package kkp
-  :hook (tty-setup . global-kkp-mode))
-
 
 ;;; Mode line (hand-rolled, zero dependencies) -----
 (defface vp/ml-buffer
@@ -152,9 +147,6 @@
   (show-paren-delay 0.05)
   (show-paren-context-when-offscreen 'overlay)
   (view-read-only t)
-  ;; ghostty renders the real cursor shape; meow states become visible
-  ;; in tty frames (bar in insert, box in normal).
-  (xterm-update-cursor t)
   ;; TAB on a block-start line cycles folding (hs-minor-mode);
   ;; elsewhere TAB keeps indent/complete.
   (hs-cycle-filter 'hs-hideable-block-p)
@@ -181,8 +173,8 @@
   (undelete-frame-mode 1)             ; M-x undelete-frame recovers a closed client frame
   (repeat-mode 1)
   (pixel-scroll-precision-mode 1)
-  ;; Dim glyphs instead of $ and \: tty frames, and GUI frames on the
-  ;; right, which has no fringe (early-init.el). Keep … for cut lines;
+  ;; Dim glyphs instead of $ and \ on the right, which has no fringe
+  ;; (early-init.el). Keep … for cut lines;
   ;; the mode default is →.
   (prettify-special-glyphs-mode 1)
   (set-display-table-slot standard-display-table 'truncation
@@ -270,7 +262,6 @@
 (setopt dracula-pro-pro-enlarge-headings nil)
 (load-theme 'dracula-pro-pro t)
 
-;; GUI frames only; terminal frames use the terminal's font.
 (set-face-attribute 'default nil
                     :family "AeonikMono Nerd Font Mono" :weight 'light :height 200)
 

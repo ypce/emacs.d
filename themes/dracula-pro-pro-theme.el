@@ -88,6 +88,7 @@ The theme has to be reloaded after changing anything in this group."
       (faces '(;; default
                (cursor :background ,dracula-pro-pro-fg3)
                (completions-first-difference :foreground ,dracula-pro-pro-pink :weight bold)
+               (default :background ,dracula-pro-pro-bg :foreground ,dracula-pro-pro-fg)
                (fringe :background ,dracula-pro-pro-bg :foreground ,dracula-pro-pro-fg4)
                (highlight :foreground ,dracula-pro-pro-fg3 :background ,dracula-pro-pro-bg3)
                (hl-line :background ,dracula-pro-pro-current :extend t)
@@ -324,14 +325,7 @@ The theme has to be reloaded after changing anything in this group."
                                (((min-colors 256))      ; terminal withs 256 colors
                                 ,(funcall expand-for-kind term-colors spec))
                                (t                       ; should be only tty-like envs
-                                ,(funcall expand-for-kind tty-colors spec)))))))
-  ;; Terminal frames get no default background, so the terminal's own
-  ;; (transparent) background shows.
-  (custom-theme-set-faces
-   'dracula-pro-pro
-   `(default ((((type tty)) :foreground ,(cadr (assq 'dracula-pro-pro-fg colors)))
-              (t :background ,(cadr (assq 'dracula-pro-pro-bg colors))
-                 :foreground ,(cadr (assq 'dracula-pro-pro-fg colors)))))))
+                                ,(funcall expand-for-kind tty-colors spec))))))))
 
 
 ;;;###autoload
