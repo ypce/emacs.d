@@ -241,7 +241,7 @@
   :ensure nil
   :load-path "lisp/"
   :commands (vp/tts-speak-dwim vp/tts-speed-up vp/tts-speed-down)
-  :bind ("s-'" . vp/tts-speak-dwim))     ; GUI frames; C-c t t everywhere
+  :bind ("s-r" . vp/tts-speak-dwim))     ; r for read; C-c t t everywhere
 
 
 ;;; Theme + Font -----
@@ -713,11 +713,11 @@ Tracked dired/eshell visits plus parents of recent files."
 ;;; Buffer sidebar -----
 ;; C-c e: a left side window that lists buffers by remote host, org,
 ;; or project, with Claude Code sessions last (RET on a dormant one
-;; resumes it). The super keys follow its order: s-[ / s-] step (wrap
+;; resumes it). The super keys follow its order: s-l / s-u step (wrap
 ;; at the ends; a folded group is one stop), s-w kills and shows the
-;; next row, s-t opens dired at the project root, s-. folds the group
+;; next row, s-t opens dired at the project root, s-f folds the group
 ;; (or click its name). Super keys pass through ghostel, so they also
-;; work in Claude sessions. With no sidebar on screen, s-[ / s-] are
+;; work in Claude sessions. With no sidebar on screen, s-l / s-u are
 ;; plain previous-buffer / next-buffer.
 ;; In lisp/, not user-lisp/: user-lisp auto-scrape loads loaddefs-gen
 ;; on every start (+150 ms daemon init).
@@ -726,11 +726,11 @@ Tracked dired/eshell visits plus parents of recent files."
   :load-path "lisp/"
   :commands (vp/sidebar-toggle
              vp/sidebar-attention-mark)   ; see the ghostel block
-  :bind (("s-[" . vp/sidebar-previous-buffer)
-         ("s-]" . vp/sidebar-next-buffer)
+  :bind (("s-l" . vp/sidebar-previous-buffer)
+         ("s-u" . vp/sidebar-next-buffer)
          ("s-w" . vp/sidebar-kill-buffer)
          ("s-t" . vp/sidebar-dired)
-         ("s-." . vp/sidebar-fold)))
+         ("s-f" . vp/sidebar-fold)))
 
 
 ;;; Org -----
@@ -1044,17 +1044,19 @@ Open the hub if it already exists."
                '("\\`\\*cc " (display-buffer-full-frame))))
 
 
-;; One terminal per directory, like vp/eshell-here for eshell.
+;; One terminal per directory; from a terminal, one more.
 (defun vp/ghostel-here (&optional arg)
   "Show the ghostel terminal for this buffer's directory, or start one.
-With a prefix ARG, start one more terminal there."
+From a terminal, or with a prefix ARG, start one more there.
+A numeric ARG selects or starts terminal number ARG."
   (interactive "P")
   ;; Load first: a defcustom that loads inside the let gets no
   ;; global value.
   (require 'ghostel)
   (let ((ghostel-buffer-name
          (format "*ghostel %s*" (abbreviate-file-name default-directory))))
-    (ghostel arg)))
+    ;; Not in Claude sessions: they are ghostel-mode too.
+    (ghostel (or arg (string-prefix-p "*ghostel " (buffer-name))))))
 
 
 ;;; Eshell -----
@@ -1198,11 +1200,12 @@ it) goes there. With no WORDS, pick one."
 
 (defun vp/eshell-here ()
   "Open the shared eshell, cd'd to this buffer's directory.
-The cd runs as a real command so eshell history records it."
+From an eshell, start one more. The cd runs as a real command so
+eshell history records it."
   (interactive)
   ;; file-truename also normalizes macOS firmlink paths.
   (let ((dir (file-truename default-directory)))
-    (eshell)
+    (eshell (derived-mode-p 'eshell-mode))
     (goto-char (point-max))   ; point can be mid-buffer in a reused session
     (unless (string= (file-truename default-directory) dir)
       (eshell-kill-input)

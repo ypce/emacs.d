@@ -1,7 +1,8 @@
 ;;; vp-sidebar.el --- Buffer sidebar -*- lexical-binding: t; -*-
 ;;; Commentary:
-;; A left side window that lists buffers by remote host, org, or
-;; project, with Claude Code sessions last: live ones as their
+;; A left side window that lists the `remember-notes' scratchpad
+;; first, then buffers by remote host, org, or project, with Claude
+;; Code sessions last: live ones as their
 ;; buffers, recent dormant ones as rows that resume them. The super
 ;; keys follow its order (see `vp/sidebar-next-buffer'). Each line
 ;; carries one `vp/sidebar' text property: a buffer, a group name, or
@@ -17,12 +18,17 @@
 
 (declare-function claude-code-ide "claude-code-ide")
 (defvar claude-code-ide-cli-extra-flags)
+(defvar remember-notes-buffer-name)
 
 (defconst vp/sidebar-name "*Sidebar*")
 
 (defconst vp/sidebar-claude "✻ claude"
   "Group of Claude Code sessions, drawn last.
 The spark is Claude Code's own mark; no project name can match it.")
+
+(defconst vp/sidebar-notes "\0 notes"
+  "Group of the `remember-notes' buffer, drawn first.
+The NUL keeps it apart from project names; one row draws no name.")
 
 (defvar vp/sidebar-claude-directory "~/.claude/"
   "Claude Code state: sessions/ (live registry) and projects/ (transcripts).")
@@ -74,18 +80,25 @@ Keyed on the directory, so Dired and Eshell regroup when they move.")
 
 (defun vp/sidebar--listed-p (buf)
   "Non-nil if BUF gets a row.
-Internal buffers stay out; agent and shell buffers stay in."
+Internal buffers stay out; notes, agent, and shell buffers stay in."
   (let ((name (buffer-name buf)))
     (not (or (string-prefix-p " " name)
              (and (string-prefix-p "*" name)
+                  (not (vp/sidebar--notes-p name))
                   (not (string-match-p "\\`\\*\\(?:cc \\|ghostel\\|eshell\\)"
                                        name)))))))
 
+(defun vp/sidebar--notes-p (name)
+  "Non-nil if NAME is the `remember-notes' buffer."
+  (equal name (bound-and-true-p remember-notes-buffer-name)))
+
 (defun vp/sidebar--group (buf)
-  "Group of BUF: Claude, remote host, org, project, or other."
+  "Group of BUF: notes, Claude, remote host, org, project, or other."
   (with-current-buffer buf
-    (if (string-prefix-p "*cc " (buffer-name))
-        vp/sidebar-claude
+    (cond
+     ((vp/sidebar--notes-p (buffer-name)) vp/sidebar-notes)
+     ((string-prefix-p "*cc " (buffer-name)) vp/sidebar-claude)
+     (t
       (unless (equal (car vp/sidebar--group-cache) default-directory)
         (setq vp/sidebar--group-cache
               (cons default-directory
@@ -98,21 +111,19 @@ Internal buffers stay out; agent and shell buffers stay in."
                              (file-name-nondirectory
                               (directory-file-name (project-root pr)))))
                           (t "other")))))
-      (cdr vp/sidebar--group-cache))))
+      (cdr vp/sidebar--group-cache)))))
 
 (defun vp/sidebar--collect ()
   "Listed buffers as ((GROUP (NAME . BUFFER)...)...).
-Groups and rows sort by name, so positions stay stable; Claude is last."
+Groups and rows sort by name, so positions stay stable; notes are
+first and Claude is last."
   (let (groups)
     (dolist (buf (buffer-list))
       (when (vp/sidebar--listed-p buf)
         (push (cons (buffer-name buf) buf)
               (alist-get (vp/sidebar--group buf) groups nil nil #'equal))))
     (sort (mapcar (lambda (g) (cons (car g) (sort (cdr g) :key #'car))) groups)
-          :key #'car
-          :lessp (lambda (a b)
-                   (and (not (equal a vp/sidebar-claude))
-                        (or (equal b vp/sidebar-claude) (string< a b))))
+          :key (lambda (g) (list (equal (car g) vp/sidebar-claude) (car g)))
           :in-place t)))
 
 ;;; Claude Code sessions
@@ -247,7 +258,9 @@ once per modification time."
                      (with-current-buffer row (nerd-icons-icon-for-buffer)))
                    " "
                    (vp/sidebar--label
-                    (string-trim (string-remove-prefix "*cc " name) "\\*" "\\*")
+                    ;; *cc proj*<2> -> proj<2>
+                    (replace-regexp-in-string
+                     "\\`\\*\\(?:cc \\)?\\(.*?\\)\\*\\(<[0-9]+>\\)?\\'" "\\1\\2" name)
                     (and (memq row vp/sidebar--attention) 'vp/sidebar-attention))))
        (concat (nerd-icons-mdicon "nf-md-robot" :face 'shadow) " "
                (vp/sidebar--label (nth 2 row) 'shadow)))
@@ -539,7 +552,8 @@ The sidebar is not in the `other-window' cycle."
   (let ((win (get-buffer-window vp/sidebar-name)))
     (cond ((eq win (selected-window)) (delete-window win))
           (win (select-window win))
-          (t (with-current-buffer (get-buffer-create vp/sidebar-name)
+          (t (remember-notes nil)       ; the scratchpad row
+             (with-current-buffer (get-buffer-create vp/sidebar-name)
                (unless (derived-mode-p 'vp/sidebar-mode)
                  (vp/sidebar-mode)))
              (setq win (display-buffer

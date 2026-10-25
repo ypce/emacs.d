@@ -66,7 +66,7 @@ The sidebar also lists the five newest dormant sessions from
 
 ### Text to speech (optional)
 
-`C-c t t` (or `s-'` in GUI frames) speaks the region with
+`C-c t t` (or `s-r`) speaks the region with
 [kokoro-tts](https://github.com/nazdridoy/kokoro-tts);
 `C-c t =` / `C-c t -` adjust the speed (repeatable with bare `=` / `-`). The
 code lives in `lisp/vp-tts.el` and loads on first use. It calls the
@@ -93,5 +93,9 @@ see that repo's README for setup on a new machine.
   recent dir (`z` alone picks one, `z TAB` completes). History (10k) is
   written after each command. Aliases (`ll`, `,` for `cd ..`, `gg msg`
   to commit, ...) live in `etc/eshell-aliases`.
+- Shells: `C-c o t` / `C-c o e` show the terminal or eshell for this
+  directory; pressed inside one, they start one more.
+- Scratchpad: `M-x remember-notes` (`*notes*`, first row of the sidebar)
+  visits `notes` here and saves on idle; killing it only buries it.
 - `C-c n a` opens the overview agenda; `C-u C-c n a` the dispatcher.
 - Nix machines: `/etc/profiles/per-user/vp/bin` joins PATH when present.
