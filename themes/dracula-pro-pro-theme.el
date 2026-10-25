@@ -1,4 +1,4 @@
-;;; dracula-pro-pro-theme.el --- Dracula Pro -*- lexical-binding: nil; -*-
+;;; dracula-pro-pro-theme.el --- Dracula Pro -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2020-Today Dracula Theme.
 
@@ -10,333 +10,225 @@
 ;;; Commentary:
 ;; Dracula PRO color scheme, stripped to the faces this config actually
 ;; uses: built-ins (font-lock, dired, isearch, show-paren, org, outline,
-;; term, mode-line, completions) plus magit and markdown-mode. Face
+;; mode-line, completions) plus magit and markdown-mode. Face
 ;; groups for packages not installed here (helm, company, icicles,
 ;; powerline, gnus, mu4e, js2/3, web-mode, undo-tree, whitespace, …)
 ;; were removed from the upstream file; restore them from
 ;; mine/themes/dracula-pro-pro-theme.el if such a package returns.
+;; GUI colors only: this config has no terminal frames.
 
 ;;; Code:
 
-(require 'cl-lib)
 (deftheme dracula-pro-pro
   "Dracula PRO - Pro Variant")
 
-
-;;;; Configuration options:
-
-(defgroup dracula-pro-pro nil
-  "Dracula theme options.
-
-The theme has to be reloaded after changing anything in this group."
-  :group 'faces)
-
-(defcustom dracula-pro-pro-enlarge-headings t
-  "Use different font sizes for some headings and titles."
-  :type 'boolean
-  :group 'dracula-pro-pro)
-
-(defcustom dracula-pro-pro-height-title-1 1.3
-  "Font size 100%."
-  :type 'number
-  :group 'dracula-pro-pro)
-
-(defcustom dracula-pro-pro-height-title-2 1.1
-  "Font size 110%."
-  :type 'number
-  :group 'dracula-pro-pro)
-
-(defcustom dracula-pro-pro-height-title-3 1.0
-  "Font size 130%."
-  :type 'number
-  :group 'dracula-pro-pro)
-
-(defcustom dracula-pro-pro-height-doc-title 1.44
-  "Font size 144%."
-  :type 'number
-  :group 'dracula-pro-pro)
-
-(defcustom dracula-pro-pro-alternate-mode-line-and-minibuffer nil
-  "Use less bold and pink in the minibuffer."
-  :type 'boolean
-  :group 'dracula-pro-pro)
-
-
-;;;; Theme definition:
-
-;; Assigment form: VARIABLE COLOR [TTY-COLOR]
-(let ((colors '(;; Upstream theme color
-                (dracula-pro-pro-bg       "#22212C" "#201F2E" nil)             ; Background
-                (dracula-pro-pro-fg       "#F8F8F2" "#F9F9F1" "brightwhite")   ; Foreground
-                (dracula-pro-pro-current  "#454158" "#433D5C" "brightblack")   ; Current-line/selection
-                (dracula-pro-pro-comment  "#7970A9" "#756AAF" "blue")          ; Comment
-                (dracula-pro-pro-cyan     "#80FFEA" "#86F9E6" "brightcyan")    ; Cyan
-                (dracula-pro-pro-green    "#8AFF80" "#8FF986" "green")         ; Green
-                (dracula-pro-pro-orange   "#FFCA80" "#F9C986" "brightred")     ; Orange
-                (dracula-pro-pro-pink     "#FF80BF" "#F986BF" "magenta")       ; Pink
-                (dracula-pro-pro-purple   "#9580FF" "#9986F9" "brightmagenta") ; Purple
-                (dracula-pro-pro-red      "#FF9580" "#F99986" "red")           ; Red
-                (dracula-pro-pro-yellow   "#FFFF80" "#F9F986" "yellow")        ; Yellow
-                ;; Other colors
-                (dracula-pro-pro-bg2      "#201F2E" "#2B293D" "brightblack")
-                (dracula-pro-pro-bg3      "#2B293D" "#35334D" "brightblack")
-                (dracula-pro-pro-bg4      "#36334C" "#3F3D5C" "brightblack")
-                (dracula-pro-pro-fg2      "#EDEDDE" "#EBEBE0" "brightwhite")
-                (dracula-pro-pro-fg3      "#D6D6C2" "#D1D1C7" "white")
-                (dracula-pro-pro-fg4      "#BABAAB" "#B3B3B3" "white")
-                (dracula-pro-pro-alt-blue "#8A75F0" "#846EF7" "brightblue")))
-      (faces '(;; default
-               (cursor :background ,dracula-pro-pro-fg3)
-               (completions-first-difference :foreground ,dracula-pro-pro-pink :weight bold)
-               (default :background ,dracula-pro-pro-bg :foreground ,dracula-pro-pro-fg)
-               (fringe :background ,dracula-pro-pro-bg :foreground ,dracula-pro-pro-fg4)
-               (highlight :foreground ,dracula-pro-pro-fg3 :background ,dracula-pro-pro-bg3)
-               (hl-line :background ,dracula-pro-pro-current :extend t)
-               (lazy-highlight :foreground ,dracula-pro-pro-fg2 :background ,dracula-pro-pro-bg2)
-               (link :foreground ,dracula-pro-pro-cyan :underline t)
-               (line-number :slant italic :foreground ,dracula-pro-pro-bg4 :background ,dracula-pro-pro-bg)
-               (match :background ,dracula-pro-pro-yellow :foreground ,dracula-pro-pro-bg)
-               (minibuffer-prompt
-                ,@(if dracula-pro-pro-alternate-mode-line-and-minibuffer
-                      (list :weight 'normal :foreground dracula-pro-pro-fg)
-                    (list :weight 'bold :foreground dracula-pro-pro-pink)))
-               (read-multiple-choice-face :inherit completions-first-difference)
-               (region :inherit match :extend t)
-               (trailing-whitespace :foreground unspecified :background ,dracula-pro-pro-orange)
-               (vertical-border :foreground ,dracula-pro-pro-bg2)
-               (success :foreground ,dracula-pro-pro-green)
-               (warning :foreground ,dracula-pro-pro-orange)
-               (error :foreground ,dracula-pro-pro-red)
-               (header-line :background ,dracula-pro-pro-bg)
-               ;; ansi terminal palette (ghostel, eshell, compilation)
-               (ansi-color-black :foreground ,dracula-pro-pro-bg :background ,dracula-pro-pro-bg)
-               (ansi-color-red :foreground ,dracula-pro-pro-red :background ,dracula-pro-pro-red)
-               (ansi-color-green :foreground ,dracula-pro-pro-green :background ,dracula-pro-pro-green)
-               (ansi-color-yellow :foreground ,dracula-pro-pro-yellow :background ,dracula-pro-pro-yellow)
-               (ansi-color-blue :foreground ,dracula-pro-pro-purple :background ,dracula-pro-pro-purple)
-               (ansi-color-magenta :foreground ,dracula-pro-pro-pink :background ,dracula-pro-pro-pink)
-               (ansi-color-cyan :foreground ,dracula-pro-pro-cyan :background ,dracula-pro-pro-cyan)
-               (ansi-color-white :foreground ,dracula-pro-pro-fg :background ,dracula-pro-pro-fg)
-               (ansi-color-bright-black :foreground ,dracula-pro-pro-comment :background ,dracula-pro-pro-comment)
-               (ansi-color-bright-red :foreground "#FFAA99" :background "#FFAA99")
-               (ansi-color-bright-green :foreground "#A2FF99" :background "#A2FF99")
-               (ansi-color-bright-yellow :foreground "#FFFF99" :background "#FFFF99")
-               (ansi-color-bright-blue :foreground "#AA99FF" :background "#AA99FF")
-               (ansi-color-bright-magenta :foreground "#FF99CC" :background "#FF99CC")
-               (ansi-color-bright-cyan :foreground "#99FFEE" :background "#99FFEE")
-               (ansi-color-bright-white :foreground "#FFFFFF" :background "#FFFFFF")
-               ;; syntax
-               (font-lock-builtin-face :foreground ,dracula-pro-pro-orange)
-               (font-lock-comment-face :foreground ,dracula-pro-pro-comment)
-               (font-lock-comment-delimiter-face :foreground ,dracula-pro-pro-comment)
-               (font-lock-constant-face :foreground ,dracula-pro-pro-cyan)
-               (font-lock-doc-face :foreground ,dracula-pro-pro-comment)
-               (font-lock-function-name-face :foreground ,dracula-pro-pro-green :weight bold)
-               (font-lock-keyword-face :weight bold :foreground ,dracula-pro-pro-pink)
-               (font-lock-negation-char-face :foreground ,dracula-pro-pro-cyan)
-               (font-lock-preprocessor-face :foreground ,dracula-pro-pro-orange)
-               (font-lock-regexp-grouping-backslash :foreground ,dracula-pro-pro-cyan)
-               (font-lock-regexp-grouping-construct :foreground ,dracula-pro-pro-purple)
-               (font-lock-string-face :foreground ,dracula-pro-pro-yellow)
-               (font-lock-type-face :foreground ,dracula-pro-pro-purple)
-               (font-lock-variable-name-face :foreground ,dracula-pro-pro-fg
-                                             :weight bold)
-               (font-lock-warning-face :foreground ,dracula-pro-pro-orange :background ,dracula-pro-pro-bg2)
-               ;; dired
-               (dired-directory :foreground ,dracula-pro-pro-green :weight normal)
-               (dired-flagged :foreground ,dracula-pro-pro-pink)
-               (dired-header :foreground ,dracula-pro-pro-fg3 :background ,dracula-pro-pro-bg)
-               (dired-ignored :inherit shadow)
-               (dired-mark :foreground ,dracula-pro-pro-fg :weight bold)
-               (dired-marked :foreground ,dracula-pro-pro-orange :weight bold)
-               (dired-perm-write :foreground ,dracula-pro-pro-fg3 :underline t)
-               (dired-symlink :foreground ,dracula-pro-pro-yellow :weight normal :slant italic)
-               (dired-warning :foreground ,dracula-pro-pro-orange :underline t)
-               ;; isearch
-               (isearch :inherit match :weight bold)
-               (isearch-fail :foreground ,dracula-pro-pro-bg :background ,dracula-pro-pro-orange)
-               ;; magit
-               (magit-branch-local :foreground ,dracula-pro-pro-cyan)
-               (magit-branch-remote :foreground ,dracula-pro-pro-green)
-               (magit-tag :foreground ,dracula-pro-pro-orange)
-               (magit-section-heading :foreground ,dracula-pro-pro-pink :weight bold)
-               (magit-section-highlight :background ,dracula-pro-pro-bg3 :extend t)
-               (magit-diff-context-highlight :background ,dracula-pro-pro-bg3
-                                             :foreground ,dracula-pro-pro-fg3
-                                             :extend t)
-               (magit-diff-revision-summary :foreground ,dracula-pro-pro-orange
-                                            :background ,dracula-pro-pro-bg
-                                            :weight bold)
-               (magit-diff-revision-summary-highlight :foreground ,dracula-pro-pro-orange
-                                                      :background ,dracula-pro-pro-bg3
-                                                      :weight bold
-                                                      :extend t)
-               ;; the four following lines are just a patch of the
-               ;; upstream color to add the extend keyword.
-               (magit-diff-added :background "#335533"
-                                 :foreground "#ddffdd"
-                                 :extend t)
-               (magit-diff-added-highlight :background "#336633"
-                                           :foreground "#cceecc"
-                                           :extend t)
-               (magit-diff-removed :background "#553333"
-                                   :foreground "#ffdddd"
-                                   :extend t)
-               (magit-diff-removed-highlight :background "#663333"
-                                             :foreground "#eecccc"
-                                             :extend t)
-               (magit-diff-file-heading :foreground ,dracula-pro-pro-fg)
-               (magit-diff-file-heading-highlight :inherit magit-section-highlight)
-               (magit-diffstat-added :foreground ,dracula-pro-pro-green)
-               (magit-diffstat-removed :foreground ,dracula-pro-pro-red)
-               (magit-hash :foreground ,dracula-pro-pro-fg2)
-               (magit-hunk-heading :background ,dracula-pro-pro-bg3)
-               (magit-hunk-heading-highlight :background ,dracula-pro-pro-bg3)
-               (magit-log-author :foreground ,dracula-pro-pro-fg3)
-               (magit-process-ng :foreground ,dracula-pro-pro-orange :weight bold)
-               (magit-process-ok :foreground ,dracula-pro-pro-green :weight bold)
-               ;; markdown
-               (markdown-blockquote-face :foreground ,dracula-pro-pro-orange)
-               (markdown-code-face :foreground ,dracula-pro-pro-orange)
-               (markdown-footnote-face :foreground ,dracula-pro-pro-alt-blue)
-               (markdown-header-face :weight normal)
-               (markdown-header-face-1
-                :inherit bold :foreground ,dracula-pro-pro-pink
-                ,@(when dracula-pro-pro-enlarge-headings
-                    (list :height dracula-pro-pro-height-title-1)))
-               (markdown-header-face-2
-                :inherit bold :foreground ,dracula-pro-pro-purple
-                ,@(when dracula-pro-pro-enlarge-headings
-                    (list :height dracula-pro-pro-height-title-2)))
-               (markdown-header-face-3
-                :foreground ,dracula-pro-pro-green
-                ,@(when dracula-pro-pro-enlarge-headings
-                    (list :height dracula-pro-pro-height-title-3)))
-               (markdown-header-face-4 :foreground ,dracula-pro-pro-yellow)
-               (markdown-header-face-5 :foreground ,dracula-pro-pro-cyan)
-               (markdown-header-face-6 :foreground ,dracula-pro-pro-orange)
-               (markdown-header-face-7 :foreground ,dracula-pro-pro-alt-blue)
-               (markdown-header-face-8 :foreground ,dracula-pro-pro-fg)
-               (markdown-inline-code-face :foreground ,dracula-pro-pro-yellow)
-               (markdown-plain-url-face :inherit link)
-               (markdown-pre-face :foreground ,dracula-pro-pro-orange)
-               (markdown-table-face :foreground ,dracula-pro-pro-purple)
-               ;; mode-line
-               ;; Flat: the box pads the text, both blend into the buffer.
-               (mode-line :background ,dracula-pro-pro-bg :inverse-video nil
-                          :box (:line-width 6 :color ,dracula-pro-pro-bg))
-               (mode-line-inactive :background ,dracula-pro-pro-bg :inverse-video nil
-                                   :foreground ,dracula-pro-pro-fg
-                                   :box (:line-width 6 :color ,dracula-pro-pro-bg))
-               ;; org
-               (org-agenda-date :foreground ,dracula-pro-pro-cyan :underline nil)
-               (org-agenda-dimmed-todo-face :foreground ,dracula-pro-pro-comment)
-               (org-agenda-done :foreground ,dracula-pro-pro-green)
-               (org-agenda-structure :foreground ,dracula-pro-pro-purple)
-               (org-block :foreground ,dracula-pro-pro-orange)
-               (org-code :foreground ,dracula-pro-pro-yellow)
-               (org-column :background ,dracula-pro-pro-bg4)
-               (org-column-title :inherit org-column :weight bold :underline t)
-               (org-date :foreground ,dracula-pro-pro-cyan :underline t)
-               (org-document-info :foreground ,dracula-pro-pro-alt-blue)
-               (org-document-info-keyword :foreground ,dracula-pro-pro-comment)
-               (org-document-title :weight bold :foreground ,dracula-pro-pro-orange
-                                   ,@(when dracula-pro-pro-enlarge-headings
-                                       (list :height dracula-pro-pro-height-doc-title)))
-               (org-done :foreground ,dracula-pro-pro-green)
-               (org-ellipsis :foreground ,dracula-pro-pro-comment)
-               (org-footnote :foreground ,dracula-pro-pro-alt-blue)
-               (org-formula :foreground ,dracula-pro-pro-pink)
-               (org-headline-done :foreground ,dracula-pro-pro-comment
-                                  :weight normal :strike-through t)
-               (org-hide :foreground ,dracula-pro-pro-bg :background ,dracula-pro-pro-bg)
-               (org-level-1 :inherit bold :foreground ,dracula-pro-pro-pink
-                            ,@(when dracula-pro-pro-enlarge-headings
-                                (list :height dracula-pro-pro-height-title-1)))
-               (org-level-2 :inherit bold :foreground ,dracula-pro-pro-purple
-                            ,@(when dracula-pro-pro-enlarge-headings
-                                (list :height dracula-pro-pro-height-title-2)))
-               (org-level-3 :weight normal :foreground ,dracula-pro-pro-green
-                            ,@(when dracula-pro-pro-enlarge-headings
-                                (list :height dracula-pro-pro-height-title-3)))
-               (org-level-4 :weight normal :foreground ,dracula-pro-pro-yellow)
-               (org-level-5 :weight normal :foreground ,dracula-pro-pro-cyan)
-               (org-level-6 :weight normal :foreground ,dracula-pro-pro-orange)
-               (org-level-7 :weight normal :foreground ,dracula-pro-pro-alt-blue)
-               (org-level-8 :weight normal :foreground ,dracula-pro-pro-fg)
-               (org-link :foreground ,dracula-pro-pro-cyan :underline t)
-               (org-priority :foreground ,dracula-pro-pro-cyan)
-               (org-scheduled :foreground ,dracula-pro-pro-green)
-               (org-scheduled-previously :foreground ,dracula-pro-pro-yellow)
-               (org-scheduled-today :foreground ,dracula-pro-pro-green)
-               (org-sexp-date :foreground ,dracula-pro-pro-fg4)
-               (org-special-keyword :foreground ,dracula-pro-pro-yellow)
-               (org-table :foreground ,dracula-pro-pro-purple)
-               (org-tag :foreground ,dracula-pro-pro-pink :weight bold :background ,dracula-pro-pro-bg2)
-               (org-todo :foreground ,dracula-pro-pro-orange :weight bold :background ,dracula-pro-pro-bg2)
-               (org-upcoming-deadline :foreground ,dracula-pro-pro-yellow)
-               (org-warning :weight bold :foreground ,dracula-pro-pro-pink)
-               ;; outline
-               (outline-1 :foreground ,dracula-pro-pro-pink)
-               (outline-2 :foreground ,dracula-pro-pro-purple)
-               (outline-3 :foreground ,dracula-pro-pro-green)
-               (outline-4 :foreground ,dracula-pro-pro-yellow)
-               (outline-5 :foreground ,dracula-pro-pro-cyan)
-               (outline-6 :foreground ,dracula-pro-pro-orange)
-               ;; show-paren
-               (show-paren-match :background unspecified
-                                 :foreground ,dracula-pro-pro-cyan
-                                 :weight bold)
-               (show-paren-match-expression :inherit match)
-               (show-paren-mismatch :inherit font-lock-warning-face)
-               ;; term (eshell visual commands, ghostel fallbacks)
-               (term :foreground ,dracula-pro-pro-fg :background ,dracula-pro-pro-bg)
-               (term-color-black :foreground ,dracula-pro-pro-bg :background ,dracula-pro-pro-bg)
-               (term-color-blue :foreground ,dracula-pro-pro-purple :background ,dracula-pro-pro-purple)
-               (term-color-cyan :foreground ,dracula-pro-pro-cyan :background ,dracula-pro-pro-cyan)
-               (term-color-green :foreground ,dracula-pro-pro-green :background ,dracula-pro-pro-green)
-               (term-color-magenta :foreground ,dracula-pro-pro-pink :background ,dracula-pro-pro-pink)
-               (term-color-red :foreground ,dracula-pro-pro-red :background ,dracula-pro-pro-red)
-               (term-color-white :foreground ,dracula-pro-pro-fg :background ,dracula-pro-pro-fg)
-               (term-color-yellow :foreground ,dracula-pro-pro-yellow :background ,dracula-pro-pro-yellow))))
-
-  (apply #'custom-theme-set-faces
-         'dracula-pro-pro
-         (let ((color-names (mapcar #'car colors))
-               (graphic-colors (mapcar #'cadr colors))
-               (term-colors (mapcar #'car (mapcar #'cddr colors)))
-               (tty-colors (mapcar #'car (mapcar #'last colors)))
-               ;; nil colors (tty column) are fine inside nested plists
-               ;; like :box, but deprecated as top-level attribute values
-               ;; (Emacs warns per face per frame) - emit `unspecified'.
-               (expand-for-kind (lambda (kind spec)
-                                  (let ((attrs (cl-progv color-names kind
-                                                 (eval `(backquote ,spec)))))
-                                    (cl-loop for (key val) on attrs by #'cddr
-                                             append (list key
-                                                          (if (and (memq key '(:foreground :background))
-                                                                   (null val))
-                                                              'unspecified
-                                                            val)))))))
-           (cl-loop for (face . spec) in faces
-                    collect `(,face
-                              ((((min-colors 16777216)) ; fully graphical envs
-                                ,(funcall expand-for-kind graphic-colors spec))
-                               (((min-colors 256))      ; terminal withs 256 colors
-                                ,(funcall expand-for-kind term-colors spec))
-                               (t                       ; should be only tty-like envs
-                                ,(funcall expand-for-kind tty-colors spec))))))))
-
-
-;;;###autoload
-(when load-file-name
-  (add-to-list 'custom-theme-load-path
-               (file-name-as-directory (file-name-directory load-file-name))))
+(let ((bg        "#22212C")
+      (fg        "#F8F8F2")
+      (current   "#454158")
+      (comment   "#7970A9")
+      (cyan      "#80FFEA")
+      (green     "#8AFF80")
+      (orange    "#FFCA80")
+      (pink      "#FF80BF")
+      (purple    "#9580FF")
+      (red       "#FF9580")
+      (yellow    "#FFFF80")
+      (bg2       "#201F2E")
+      (bg3       "#2B293D")
+      (bg4       "#36334C")
+      (fg2       "#EDEDDE")
+      (fg3       "#D6D6C2")
+      (fg4       "#BABAAB")
+      (alt-blue  "#8A75F0"))
+  (apply
+   #'custom-theme-set-faces
+   'dracula-pro-pro
+   `(;; default
+     (cursor ((t :background ,fg3)))
+     (completions-first-difference ((t :foreground ,pink :weight bold)))
+     (default ((t :background ,bg :foreground ,fg)))
+     (fringe ((t :background ,bg :foreground ,fg4)))
+     (highlight ((t :foreground ,fg3 :background ,bg3)))
+     (hl-line ((t :background ,current :extend t)))
+     (lazy-highlight ((t :foreground ,fg2 :background ,bg2)))
+     (link ((t :foreground ,cyan :underline t)))
+     (line-number ((t :slant italic :foreground ,bg4 :background ,bg)))
+     (match ((t :background ,yellow :foreground ,bg)))
+     (minibuffer-prompt ((t :weight bold :foreground ,pink)))
+     (read-multiple-choice-face ((t :inherit completions-first-difference)))
+     (region ((t :inherit match :extend t)))
+     (trailing-whitespace ((t :foreground unspecified :background ,orange)))
+     (vertical-border ((t :foreground ,bg2)))
+     (success ((t :foreground ,green)))
+     (warning ((t :foreground ,orange)))
+     (error ((t :foreground ,red)))
+     (header-line ((t :background ,bg)))
+     ;; ansi terminal palette (ghostel, eshell, compilation)
+     (ansi-color-black ((t :foreground ,bg :background ,bg)))
+     (ansi-color-red ((t :foreground ,red :background ,red)))
+     (ansi-color-green ((t :foreground ,green :background ,green)))
+     (ansi-color-yellow ((t :foreground ,yellow :background ,yellow)))
+     (ansi-color-blue ((t :foreground ,purple :background ,purple)))
+     (ansi-color-magenta ((t :foreground ,pink :background ,pink)))
+     (ansi-color-cyan ((t :foreground ,cyan :background ,cyan)))
+     (ansi-color-white ((t :foreground ,fg :background ,fg)))
+     (ansi-color-bright-black ((t :foreground ,comment :background ,comment)))
+     (ansi-color-bright-red ((t :foreground "#FFAA99" :background "#FFAA99")))
+     (ansi-color-bright-green ((t :foreground "#A2FF99" :background "#A2FF99")))
+     (ansi-color-bright-yellow ((t :foreground "#FFFF99" :background "#FFFF99")))
+     (ansi-color-bright-blue ((t :foreground "#AA99FF" :background "#AA99FF")))
+     (ansi-color-bright-magenta ((t :foreground "#FF99CC" :background "#FF99CC")))
+     (ansi-color-bright-cyan ((t :foreground "#99FFEE" :background "#99FFEE")))
+     (ansi-color-bright-white ((t :foreground "#FFFFFF" :background "#FFFFFF")))
+     ;; syntax
+     (font-lock-builtin-face ((t :foreground ,orange)))
+     (font-lock-comment-face ((t :foreground ,comment)))
+     (font-lock-constant-face ((t :foreground ,cyan)))
+     (font-lock-doc-face ((t :foreground ,comment)))
+     (font-lock-function-name-face ((t :foreground ,green :weight bold)))
+     (font-lock-keyword-face ((t :weight bold :foreground ,pink)))
+     (font-lock-negation-char-face ((t :foreground ,cyan)))
+     (font-lock-preprocessor-face ((t :foreground ,orange)))
+     (font-lock-regexp-grouping-backslash ((t :foreground ,cyan)))
+     (font-lock-regexp-grouping-construct ((t :foreground ,purple)))
+     (font-lock-string-face ((t :foreground ,yellow)))
+     (font-lock-type-face ((t :foreground ,purple)))
+     (font-lock-variable-name-face ((t :foreground ,fg
+                                       :weight bold)))
+     (font-lock-warning-face ((t :foreground ,orange :background ,bg2)))
+     ;; dired
+     (dired-directory ((t :foreground ,green :weight normal)))
+     (dired-flagged ((t :foreground ,pink)))
+     (dired-header ((t :foreground ,fg3 :background ,bg)))
+     (dired-mark ((t :foreground ,fg :weight bold)))
+     (dired-marked ((t :foreground ,orange :weight bold)))
+     (dired-perm-write ((t :foreground ,fg3 :underline t)))
+     (dired-symlink ((t :foreground ,yellow :weight normal :slant italic)))
+     (dired-warning ((t :foreground ,orange :underline t)))
+     ;; isearch
+     (isearch ((t :inherit match :weight bold)))
+     (isearch-fail ((t :foreground ,bg :background ,orange)))
+     ;; magit
+     (magit-branch-local ((t :foreground ,cyan)))
+     (magit-branch-remote ((t :foreground ,green)))
+     (magit-tag ((t :foreground ,orange)))
+     (magit-section-heading ((t :foreground ,pink :weight bold)))
+     (magit-section-highlight ((t :background ,bg3 :extend t)))
+     (magit-diff-context-highlight ((t :background ,bg3
+                                       :foreground ,fg3
+                                       :extend t)))
+     (magit-diff-revision-summary ((t :foreground ,orange
+                                      :background ,bg
+                                      :weight bold)))
+     (magit-diff-revision-summary-highlight ((t :foreground ,orange
+                                                :background ,bg3
+                                                :weight bold
+                                                :extend t)))
+     ;; the four following lines are just a patch of the
+     ;; upstream color to add the extend keyword.
+     (magit-diff-added ((t :background "#335533"
+                           :foreground "#ddffdd"
+                           :extend t)))
+     (magit-diff-added-highlight ((t :background "#336633"
+                                     :foreground "#cceecc"
+                                     :extend t)))
+     (magit-diff-removed ((t :background "#553333"
+                             :foreground "#ffdddd"
+                             :extend t)))
+     (magit-diff-removed-highlight ((t :background "#663333"
+                                       :foreground "#eecccc"
+                                       :extend t)))
+     (magit-diff-file-heading ((t :foreground ,fg)))
+     (magit-diff-file-heading-highlight ((t :inherit magit-section-highlight)))
+     (magit-diffstat-added ((t :foreground ,green)))
+     (magit-diffstat-removed ((t :foreground ,red)))
+     (magit-hash ((t :foreground ,fg2)))
+     (magit-hunk-heading ((t :background ,bg3)))
+     (magit-hunk-heading-highlight ((t :background ,bg3)))
+     (magit-log-author ((t :foreground ,fg3)))
+     (magit-process-ng ((t :foreground ,orange :weight bold)))
+     (magit-process-ok ((t :foreground ,green :weight bold)))
+     ;; markdown
+     (markdown-blockquote-face ((t :foreground ,orange)))
+     (markdown-code-face ((t :foreground ,orange)))
+     (markdown-footnote-face ((t :foreground ,alt-blue)))
+     (markdown-header-face ((t :weight normal)))
+     (markdown-header-face-1 ((t :inherit bold :foreground ,pink)))
+     (markdown-header-face-2 ((t :inherit bold :foreground ,purple)))
+     (markdown-header-face-3 ((t :foreground ,green)))
+     (markdown-header-face-4 ((t :foreground ,yellow)))
+     (markdown-header-face-5 ((t :foreground ,cyan)))
+     (markdown-header-face-6 ((t :foreground ,orange)))
+     (markdown-header-face-7 ((t :foreground ,alt-blue)))
+     (markdown-header-face-8 ((t :foreground ,fg)))
+     (markdown-inline-code-face ((t :foreground ,yellow)))
+     (markdown-plain-url-face ((t :inherit link)))
+     (markdown-pre-face ((t :foreground ,orange)))
+     (markdown-table-face ((t :foreground ,purple)))
+     ;; mode-line
+     ;; Flat: the box pads the text, both blend into the buffer.
+     (mode-line ((t :background ,bg :inverse-video nil
+                    :box (:line-width 6 :color ,bg))))
+     (mode-line-inactive ((t :background ,bg :inverse-video nil
+                             :foreground ,fg
+                             :box (:line-width 6 :color ,bg))))
+     ;; org
+     (org-agenda-date ((t :foreground ,cyan :underline nil)))
+     (org-agenda-dimmed-todo-face ((t :foreground ,comment)))
+     (org-agenda-done ((t :foreground ,green)))
+     (org-agenda-structure ((t :foreground ,purple)))
+     (org-block ((t :foreground ,orange)))
+     (org-code ((t :foreground ,yellow)))
+     (org-column ((t :background ,bg4)))
+     (org-column-title ((t :inherit org-column :weight bold :underline t)))
+     (org-date ((t :foreground ,cyan :underline t)))
+     (org-document-info ((t :foreground ,alt-blue)))
+     (org-document-info-keyword ((t :foreground ,comment)))
+     (org-document-title ((t :weight bold :foreground ,orange)))
+     (org-done ((t :foreground ,green)))
+     (org-ellipsis ((t :foreground ,comment)))
+     (org-footnote ((t :foreground ,alt-blue)))
+     (org-formula ((t :foreground ,pink)))
+     (org-headline-done ((t :foreground ,comment
+                            :weight normal :strike-through t)))
+     (org-hide ((t :foreground ,bg :background ,bg)))
+     (org-level-1 ((t :inherit bold :foreground ,pink)))
+     (org-level-2 ((t :inherit bold :foreground ,purple)))
+     (org-level-3 ((t :weight normal :foreground ,green)))
+     (org-level-4 ((t :weight normal :foreground ,yellow)))
+     (org-level-5 ((t :weight normal :foreground ,cyan)))
+     (org-level-6 ((t :weight normal :foreground ,orange)))
+     (org-level-7 ((t :weight normal :foreground ,alt-blue)))
+     (org-level-8 ((t :weight normal :foreground ,fg)))
+     (org-link ((t :foreground ,cyan :underline t)))
+     (org-priority ((t :foreground ,cyan)))
+     (org-scheduled ((t :foreground ,green)))
+     (org-scheduled-previously ((t :foreground ,yellow)))
+     (org-scheduled-today ((t :foreground ,green)))
+     (org-sexp-date ((t :foreground ,fg4)))
+     (org-special-keyword ((t :foreground ,yellow)))
+     (org-table ((t :foreground ,purple)))
+     (org-tag ((t :foreground ,pink :weight bold :background ,bg2)))
+     (org-todo ((t :foreground ,orange :weight bold :background ,bg2)))
+     (org-upcoming-deadline ((t :foreground ,yellow)))
+     (org-warning ((t :weight bold :foreground ,pink)))
+     ;; outline
+     (outline-1 ((t :foreground ,pink)))
+     (outline-2 ((t :foreground ,purple)))
+     (outline-3 ((t :foreground ,green)))
+     (outline-4 ((t :foreground ,yellow)))
+     (outline-5 ((t :foreground ,cyan)))
+     (outline-6 ((t :foreground ,orange)))
+     ;; show-paren
+     (show-paren-match ((t :background unspecified
+                           :foreground ,cyan
+                           :weight bold)))
+     (show-paren-match-expression ((t :inherit match)))
+     (show-paren-mismatch ((t :inherit font-lock-warning-face))))))
 
 (provide-theme 'dracula-pro-pro)
 
 ;; Local Variables:
-;; no-byte-compile: t
 ;; indent-tabs-mode: nil
 ;; End:
 

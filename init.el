@@ -35,13 +35,20 @@
 ;;; Packages -----
 ;; Startup activates packages before init.el (package-quickstart makes it
 ;; fast). `emacs --batch -l init.el' skips that and needs the call.
-(require 'package)
-(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+;; package.el itself loads only to install: it costs ~200 ms per start.
+(with-eval-after-load 'package
+  (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t))
 (unless (bound-and-true-p package--activated)
   (package-initialize))
 
 (require 'use-package)
 (setopt use-package-always-ensure t)   ; built-ins opt out with :ensure nil
+;; The stock ensure loads package.el to see that a package is installed.
+(setopt use-package-ensure-function
+        (lambda (name args state &rest _)
+          (unless (and (eq (car args) t)
+                       (memq (use-package-as-symbol name) package-activated-list))
+            (use-package-ensure-elpa name args state))))
 
 
 ;;; Mode line (hand-rolled, zero dependencies) -----
@@ -64,13 +71,11 @@
 (defun vp/ml--vc ()
   "Version-control branch, if any."
   (when (and vc-mode buffer-file-name)
-    ;; vc-mode is " Backend-branch" or " Backend:branch"; strip by
-    ;; backend name length instead of a hardcoded offset.
-    (let ((branch (substring-no-properties
-                   vc-mode
-                   (+ 2 (length (symbol-name (vc-backend buffer-file-name)))))))
+    ;; " -branch" or " :branch" (see `vc-display-status' below).
+    (let ((branch (substring-no-properties vc-mode 2)))
       (concat (propertize "  ⎇ " 'face 'vp/ml-dim)
               (propertize branch 'face 'font-lock-keyword-face)))))
+(setopt vc-display-status 'no-backend)
 
 (defun vp/ml--position ()
   "Line:column position."
@@ -243,8 +248,6 @@
 ;; Vendored Dracula Pro, stripped to the faces this config uses.
 (add-to-list 'custom-theme-load-path (expand-file-name "themes" user-emacs-directory))
 (setopt frame-background-mode 'dark)
-;; Set before load: the theme reads it when it builds face specs.
-(setopt dracula-pro-pro-enlarge-headings nil)
 (load-theme 'dracula-pro-pro t)
 
 (set-face-attribute 'default nil
@@ -303,6 +306,7 @@ Tracked dired/eshell visits plus parents of recent files."
   (recentf-max-saved-items 300)
   ;; The daemon runs for weeks; do not lose the list on a crash.
   (recentf-autosave-interval 300)
+  (recentf-show-messages nil)   ; no "Wrote recentf" every 5 minutes
   ;; Temp dirs (pass decrypts entries there) and git internals are
   ;; never places to go back to.
   (recentf-exclude '("\\`/\\(private/\\)?\\(tmp\\|var/folders\\)/" "/\\.git/")))
@@ -569,7 +573,6 @@ Tracked dired/eshell visits plus parents of recent files."
   (dired-isearch-filenames 'dwim)   ; C-s matches filenames only
   (dired-auto-revert-buffer 'dired-directory-changed-p)
   (dired-recursive-copies 'always)
-  (dired-recursive-deletes 'top)
   (dired-mouse-drag-files t)   ; drag files from dired into other apps
   (dired-vc-rename-file t)     ; R in a repo does git mv
   (dired-create-destination-dirs 'ask)
@@ -770,8 +773,6 @@ searchable (C-c n f, C-c n g)."
   (org-return-follows-link t)
   (org-insert-heading-respects-content t)
   (org-clock-persist 'history)
-  (org-clock-out-when-done t)
-  (org-clock-into-drawer t)
   ;; Skip org startup options in files the agenda visits.
   (org-agenda-inhibit-startup t)
   ;; No splits: agenda and src-block editing use the current window.
@@ -883,7 +884,6 @@ searchable (C-c n f, C-c n g)."
 (use-package org-appear
   :hook (org-mode . org-appear-mode)
   :custom
-  (org-appear-autoemphasis t)
   (org-appear-autolinks t)
   (org-appear-autosubmarkers t))
 
@@ -929,9 +929,6 @@ searchable (C-c n f, C-c n g)."
 ;; block with C-c C-, m; RET/TAB add siblings/children, M-RET edits,
 ;; M-arrows move nodes. The rest lives on the C-c n m prefix.
 (use-package org-mindmap
-  ;; :ensure nil is required next to :vc, else both handlers install.
-  :ensure nil
-  :vc (:url "https://github.com/krvkir/org-mindmap" :rev :newest)
   :hook (org-mode . org-mindmap-mode))
 
 (defun vp/daily-today ()
@@ -1029,8 +1026,6 @@ Open the hub if it already exists."
   (add-hook 'ghostel-notification-functions #'vp/sidebar-attention-mark))
 
 (use-package claude-code-ide
-  ;; :ensure nil is required next to :vc, else both handlers install.
-  :ensure nil
   :vc (:url "https://github.com/manzaltu/claude-code-ide.el" :rev :newest)
   :commands claude-code-ide-menu
   :custom

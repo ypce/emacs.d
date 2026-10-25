@@ -1,9 +1,9 @@
 ;;; vp-tts.el --- Text to speech via kokoro-tts -*- lexical-binding: t; -*-
 ;;; Commentary:
 ;; Streams region text to the kokoro-tts CLI. Entry points:
-;; `vp/tts-speak-dwim', `vp/tts-speed-up', `vp/tts-speed-down',
-;; `vp/tts-stop'. init.el autoloads them, so this file loads on
-;; first use.
+;; `vp/tts-speak-dwim', `vp/tts-speed-up', `vp/tts-speed-down'.
+;; init.el autoloads them and binds them on `vp/tts-map', so this
+;; file loads on first use.
 ;;; Code:
 
 (defvar vp/tts-speed 1.0
@@ -22,8 +22,7 @@
 The `kokoro' wrapper (kokoro-tts-config repo) points the CLI at the
 model weights in ~/.local/share/kokoro-tts."
   (vp/tts-stop)
-  (setq vp/tts--text text
-        vp/tts--status 'processing)
+  (setq vp/tts--text text)
   (with-current-buffer (get-buffer-create " *kokoro-tts*")
     (erase-buffer))
   (setq vp/tts--process
@@ -35,7 +34,9 @@ model weights in ~/.local/share/kokoro-tts."
                         "--speed" (number-to-string vp/tts-speed))
          :connection-type 'pipe
          :filter #'vp/tts--filter
-         :sentinel #'vp/tts--sentinel))
+         :sentinel #'vp/tts--sentinel)
+        ;; After make-process: if it signals, no indicator stays on.
+        vp/tts--status 'processing)
   (process-send-string vp/tts--process text)
   (process-send-eof vp/tts--process)
   (force-mode-line-update t)
@@ -43,17 +44,22 @@ model weights in ~/.local/share/kokoro-tts."
 
 (defun vp/tts--filter (proc out)
   "Flip the state to `speaking' when kokoro-tts starts the audio stream."
-  (when (and (eq vp/tts--status 'processing)
-             (string-match-p "Starting audio stream" out))
-    (setq vp/tts--status 'speaking)
-    (force-mode-line-update t))
   (when (buffer-live-p (process-buffer proc))
     (with-current-buffer (process-buffer proc)
       (goto-char (point-max))
-      (insert out))))
+      (insert out)
+      ;; Search the buffer: the line can arrive split over two chunks.
+      (when (and (eq vp/tts--status 'processing)
+                 (save-excursion
+                   (search-backward "Starting audio stream" nil t)))
+        (setq vp/tts--status 'speaking)
+        (force-mode-line-update t)))))
 
-(defun vp/tts--sentinel (_proc _event)
+(defun vp/tts--sentinel (proc _event)
   "Clear the mode-line indicator when kokoro-tts exits."
+  (when (and (eq (process-status proc) 'exit)
+             (/= 0 (process-exit-status proc)))
+    (message "kokoro-tts failed; see buffer %s" (process-buffer proc)))
   (setq vp/tts--status nil)
   (force-mode-line-update t))
 
@@ -64,7 +70,6 @@ model weights in ~/.local/share/kokoro-tts."
     ('speaking (format " TTS▶ %.1fx" vp/tts-speed))))
 
 ;; Renders via mode-line-misc-info in the hand-rolled mode line.
-(unless global-mode-string (setq global-mode-string '("")))
 (add-to-list 'global-mode-string '(:eval (vp/tts--mode-line)) t)
 
 (defun vp/tts-stop ()
@@ -104,6 +109,7 @@ model weights in ~/.local/share/kokoro-tts."
   (vp/tts--adjust-speed -0.1))
 
 ;; After C-c t = or C-c t -, a bare = or - repeats the speed change.
+;; Not :repeat on vp/tts-map: it fails on labeled bindings.
 (defvar-keymap vp/tts-repeat-map
   :repeat t
   "=" #'vp/tts-speed-up
