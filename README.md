@@ -69,12 +69,12 @@ in the buffer sidebar (`C-c e`) when it needs input off screen.
 - Notes/agenda live in `~/Notes` (created automatically; `inbox.org` and
   `agenda.org` are the agenda anchors, other files opt in with
   `#+filetags: :agenda:`).
-- Eshell (`C-x p e`): two-line prompt (dir and git branch, then `❯`, red
-  after a failed command), live syntax colors, grey history suggestions as you type (TAB takes
-  all, `M-f` one word), `C-r` fuzzy history, `cd =regexp` jumps to a
-  recent dir (`cd =` lists them). History (10k) is
-  written after each command. Aliases (`ll`, `,` for `cd ..`, `gg msg`
-  to commit, ...) live in `etc/eshell-aliases`.
+- Eshell (`C-x p e`): stock prompt (`[N]` after a failed command), live
+  syntax colors, grey history suggestions as you type (TAB takes all,
+  `M-f` one word), `C-r` fuzzy history, `cd =regexp` jumps to a recent
+  dir (`cd =` lists them). History (10k) is written after each command.
+  In a remote dir, a leading `/` means the remote root. Aliases (`ll`,
+  `,` for `cd ..`, ...) live in `etc/eshell-aliases`.
 - Shells: `C-x p t` / `C-x p e` show the project's terminal or eshell;
   `C-u` starts one more.
 - Scratchpad: `*scratch*` is persistent (`remember-notes`, file `notes`

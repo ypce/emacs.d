@@ -742,40 +742,9 @@ Open the hub if it already exists."
 
 (setopt eshell-banner-message "")
 
-(defun vp/git-branch ()
-  "The git branch of `default-directory', or the short commit if detached.
-Reads HEAD directly: no git process per prompt."
-  (when-let* ((root (locate-dominating-file default-directory ".git"))
-              (git (expand-file-name ".git" root))
-              (dir (if (file-directory-p git)
-                       git
-                     ;; A worktree: .git is a file that points to the git dir.
-                     (with-temp-buffer
-                       (insert-file-contents git)
-                       (and (re-search-forward "^gitdir: \\(.+\\)" nil t)
-                            (expand-file-name (match-string 1) root)))))
-              (head (expand-file-name "HEAD" dir))
-              ((file-readable-p head)))
-    (with-temp-buffer
-      (insert-file-contents head)
-      (if (looking-at "ref: refs/heads/\\(.+\\)")
-          (match-string 1)
-        (buffer-substring 1 (min 8 (point-max)))))))
-
-(defun vp/eshell-prompt ()
-  "Dir name and git branch, then ❯ on its own line (red after a failure).
-Remote dirs keep their TRAMP prefix and skip the branch."
-  (let ((base (file-name-nondirectory
-               (directory-file-name (abbreviate-file-name default-directory))))
-        (remote (file-remote-p default-directory)))
-    (concat (propertize (concat (or remote "") (if (string-empty-p base) "/" base))
-                        'face 'eshell-prompt)
-            (when-let* (((not remote)) (branch (vp/git-branch)))
-              (propertize (concat "  " branch) 'face 'shadow))
-            "\n"
-            (propertize "❯" 'face (if (eq eshell-last-command-status 0) 'success 'error))
-            " ")))
-(setopt eshell-prompt-function #'vp/eshell-prompt)
+;; In a remote dir, a leading / means the remote root.
+(with-eval-after-load 'esh-module
+  (add-to-list 'eshell-modules-list 'eshell-elecslash))
 
 (defun vp/eshell-wrap-lines ()
   (setq-local truncate-lines nil))
