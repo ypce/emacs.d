@@ -17,13 +17,8 @@ transient/
 recentf
 history
 notes
-places
-bookmarks
 bookmarks.eld
-projects
 org-clock-save.el
-org-roam.db*
-.mc-lists.el
 tramp
 .cache/
 *.elc
