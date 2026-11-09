@@ -53,27 +53,14 @@ pipx install python-lsp-server   # pylsp
 ### Claude Code (optional)
 
 The `claude` CLI must be on PATH for claude-code-ide (`C-c a`).
-The ghostel terminal (`C-c o t`) downloads its module into `ghostel/` on first use.
+The ghostel terminal (`C-x p t`) downloads its module into `ghostel/` on first use.
 In a Claude session, `C-g` opens the prompt in an Emacs buffer;
-`C-c C-c` or `C-x #` sends it back. For long pastes,
+`C-x #` sends it back. For long pastes,
 paste inside that buffer: Claude's `[Pasted text]` placeholder cannot
 be expanded. `PgUp`/`PgDn` and `Ctrl+O` scroll the conversation.
 Set `"preferredNotifChannel": "iterm2"` in `~/.claude.json` so Claude
 Code emits OSC 9 notifications; these turn a session's name red
 in the buffer sidebar (`C-c e`) when it needs input off screen.
-The sidebar also lists the five newest dormant sessions from
-`~/.claude/projects/`; `RET` on one resumes it in its directory.
-
-### Text to speech (optional)
-
-`C-c t t` (or `s-r`) speaks the region with
-[kokoro-tts](https://github.com/nazdridoy/kokoro-tts);
-`C-c t =` / `C-c t -` adjust the speed (repeatable with bare `=` / `-`). The
-code lives in `lisp/vp-tts.el` and loads on first use. It calls the
-`kokoro` wrapper from the kokoro-tts-config repo
-(`~/Git/public/kokoro-tts-config`, symlinked to `~/.local/bin/kokoro`),
-which points the CLI at the model weights in `~/.local/share/kokoro-tts`;
-see that repo's README for setup on a new machine.
 
 ## Notes
 
@@ -82,15 +69,15 @@ see that repo's README for setup on a new machine.
 - Notes/agenda live in `~/Notes` (created automatically; `inbox.org` and
   `agenda.org` are the agenda anchors, other files opt in with
   `#+filetags: :agenda:`).
-- Eshell (`C-c o e`): two-line prompt (dir and git branch, then `❯`, red
+- Eshell (`C-x p e`): two-line prompt (dir and git branch, then `❯`, red
   after a failed command), live syntax colors, grey history suggestions as you type (TAB takes
-  all, `M-f` one word), `C-r` fuzzy history, `z <words>` jumps to a
-  recent dir (`z` alone picks one, `z TAB` completes). History (10k) is
+  all, `M-f` one word), `C-r` fuzzy history, `cd =regexp` jumps to a
+  recent dir (`cd =` lists them). History (10k) is
   written after each command. Aliases (`ll`, `,` for `cd ..`, `gg msg`
   to commit, ...) live in `etc/eshell-aliases`.
-- Shells: `C-c o t` / `C-c o e` show the terminal or eshell for this
-  directory; pressed inside one, they start one more.
-- Scratchpad: `M-x remember-notes` (`*notes*`, first row of the sidebar)
-  visits `notes` here and saves on idle; killing it only buries it.
+- Shells: `C-x p t` / `C-x p e` show the project's terminal or eshell;
+  `C-u` starts one more.
+- Scratchpad: `*scratch*` is persistent (`remember-notes`, file `notes`
+  here); killing it only buries it.
 - `C-c n a` opens the overview agenda; `C-u C-c n a` the dispatcher.
 - Nix machines: `/etc/profiles/per-user/vp/bin` joins PATH when present.

@@ -16,17 +16,6 @@
 ;; Child processes (Claude Code's C-g, git) edit in this Emacs.
 (setenv "EDITOR" "emacsclient")
 
-;; Temp files only: org and markdown files keep their own C-c C-c.
-(declare-function server-edit "server")
-(define-minor-mode vp/temp-edit-mode
-  "C-c C-c finishes an emacsclient edit of a temp file."
-  :keymap (define-keymap "C-c C-c" #'server-edit))
-
-(defun vp/temp-edit-maybe ()
-  (when (file-in-directory-p buffer-file-name temporary-file-directory)
-    (vp/temp-edit-mode 1)))
-(add-hook 'server-visit-hook #'vp/temp-edit-maybe)
-
 
 ;;; Packages -----
 ;; `emacs --batch -l init.el' skips startup's package activation.
@@ -47,51 +36,23 @@
 
 
 ;;; Mode line -----
-(defface vp/ml-buffer
-  '((t :inherit font-lock-constant-face :weight bold))
-  "Face for the buffer name."
-  :group 'mode-line-faces)
-
-(defface vp/ml-dim
-  '((t :inherit shadow))
-  "Face for secondary mode-line info."
-  :group 'mode-line-faces)
-
-(defun vp/ml--status ()
-  "Modified / read-only indicator."
-  (cond (buffer-read-only    (propertize " ⊘" 'face 'vp/ml-dim))
-        ((buffer-modified-p) (propertize " ●" 'face 'error))
-        (t                   (propertize " ○" 'face 'vp/ml-dim))))
-
-(defun vp/ml--vc ()
-  "Version-control branch, if any."
-  (when (and vc-mode buffer-file-name)
-    ;; " -branch" or " :branch" (see `vc-display-status' below).
-    (let ((branch (substring-no-properties vc-mode 2)))
-      (concat (propertize "  ⎇ " 'face 'vp/ml-dim)
-              (propertize branch 'face 'font-lock-keyword-face)))))
+;; " -branch" or " :branch": the branch starts at index 2.
 (setopt vc-display-status 'no-backend)
 
-(defun vp/ml--position ()
-  "Line:column position."
-  (propertize " %l:%c " 'face 'vp/ml-dim))
-
-(defun vp/ml--major-mode ()
-  "Pretty major-mode name."
-  (propertize (concat " " (format-mode-line mode-name) " ")
-              'face 'font-lock-function-name-face))
-
-(defun vp/mode-line ()
-  "Custom mode-line format."
-  '((:eval (vp/ml--status))
+(defconst vp/mode-line
+  '((:eval (cond (buffer-read-only    (propertize " ⊘" 'face 'shadow))
+                 ((buffer-modified-p) (propertize " ●" 'face 'error))
+                 (t                   (propertize " ○" 'face 'shadow))))
     "  "
-    (:eval (propertize (buffer-name) 'face 'vp/ml-buffer))
+    (:propertize "%b" face (font-lock-constant-face bold))
     "  "
-    (:eval (vp/ml--position))
-    (:propertize "%p" face vp/ml-dim)
-    (:eval (vp/ml--vc))
+    (:propertize " %l:%c %p" face shadow)
+    (:eval (when (and vc-mode buffer-file-name)
+             (concat (propertize "  ⎇ " 'face 'shadow)
+                     (propertize (substring-no-properties vc-mode 2)
+                                 'face 'font-lock-keyword-face))))
     mode-line-format-right-align
-    (:eval (vp/ml--major-mode))
+    (:propertize (" " mode-name " ") face font-lock-function-name-face)
     " "
     mode-line-misc-info
     " "))
@@ -120,9 +81,10 @@
   (backup-directory-alist `(("." . ,(file-name-concat user-emacs-directory "backup/"))))
   (create-lockfiles nil)
   (delete-by-moving-to-trash t)
-  (initial-scratch-message "")
   (initial-major-mode 'text-mode)
   (initial-buffer-choice t)
+  ;; *scratch* is the persistent scratchpad (file: notes).
+  (remember-notes-buffer-name "*scratch*")
   (kill-region-dwim 'emacs-word)
   (ring-bell-function 'ignore)
   (uniquify-buffer-name-style 'forward)
@@ -148,9 +110,7 @@
   (quit-window-kill-buffer '(help-mode))
   :hook ((prog-mode . display-line-numbers-mode)
          ((prog-mode text-mode) . electric-pair-local-mode)
-         (prog-mode . hs-minor-mode)
-         (org-mode . visual-wrap-prefix-mode)
-         ((prog-mode text-mode) . completion-preview-mode))
+         (prog-mode . hs-minor-mode))
   :config
   (setq-default bidi-paragraph-direction 'left-to-right
                 bidi-inhibit-bpa t)
@@ -159,9 +119,10 @@
                 indent-tabs-mode nil
                 fill-column 100
                 tab-width 4
-                mode-line-format (vp/mode-line))
+                mode-line-format vp/mode-line)
 
   (auto-save-visited-mode 1)
+  (remember-notes)
   (menu-bar-mode -1)
   (winner-mode 1)
   (undelete-frame-mode 1)
@@ -184,13 +145,6 @@
          ("<remap> <list-buffers>" . ibuffer)))
 
 (keymap-global-unset "C-x C-z")   ; suspend-frame, too easy to fat-finger
-
-(setq frame-title-format
-      '((:eval (when (and (buffer-modified-p) (buffer-file-name)) "* "))
-        (:eval (if (buffer-file-name)
-                   (abbreviate-file-name (buffer-file-name))
-                 "%b"))
-        " - Emacs"))
 
 
 ;;; File ops -----
@@ -220,14 +174,6 @@
     (message "%s" p)))
 
 
-;;; Text to speech (kokoro-tts) -----
-(use-package vp-tts
-  :ensure nil
-  :load-path "lisp/"
-  :commands (vp/tts-speak-dwim vp/tts-speed-up vp/tts-speed-down)
-  :bind ("s-r" . vp/tts-speak-dwim))
-
-
 ;;; Theme + Font -----
 ;; Vendored Dracula Pro, stripped to the faces this config uses.
 (add-to-list 'custom-theme-load-path (expand-file-name "themes" user-emacs-directory))
@@ -249,34 +195,13 @@
 
 
 ;;; Saving + Recent -----
-;; Recent dirs are real visits, not only parents of recent files.
+;; So C-x C-r lists the dirs visited in dired and eshell.
 (defun vp/recentf-track-dir ()
   "Add the current directory to `recentf-list'."
   (recentf-add-file default-directory))
 
 (add-hook 'dired-mode-hook #'vp/recentf-track-dir)
 (add-hook 'eshell-directory-change-hook #'vp/recentf-track-dir)
-
-(defun vp/recent-dirs ()
-  "Recent directories, most recent first.
-Tracked dired/eshell visits plus parents of recent files."
-  (delete-dups
-   (mapcar (lambda (f) (abbreviate-file-name (file-name-directory f)))
-           recentf-list)))
-
-(defun vp/recent-dirs-table ()
-  "A completion table over `vp/recent-dirs' that keeps its order."
-  (completion-table-with-metadata
-   (vp/recent-dirs) '((display-sort-function . identity)
-                      (cycle-sort-function . identity))))
-
-(defun vp/read-recent-dir ()
-  (completing-read "Recent dir: " (vp/recent-dirs-table) nil t))
-
-(defun vp/dired-recent-dir ()
-  "Open dired in a recent directory."
-  (interactive)
-  (dired (vp/read-recent-dir)))
 
 (use-package recentf
   :ensure nil
@@ -343,6 +268,12 @@ Tracked dired/eshell visits plus parents of recent files."
   (completion-category-overrides '((file (styles basic partial-completion))))
   (orderless-expand-substring nil))
 
+(use-package completion-preview
+  :ensure nil
+  :hook ((prog-mode text-mode) . completion-preview-mode)
+  :bind (:map completion-preview-active-mode-map
+         ("M-f" . completion-preview-insert-word)))
+
 (when (executable-find "rg")
   (setopt xref-search-program 'ripgrep))
 
@@ -361,7 +292,6 @@ Tracked dired/eshell visits plus parents of recent files."
 
 (defvar-keymap vp/file-map
   :doc "File commands on C-c f."
-  "f" '("find file"          . find-file)
   "r" '("rename/move file"   . rename-visited-file)
   "o" '("reveal in Finder"   . vp/file-reveal)
   "e" '("open (default app)" . vp/file-open-default)
@@ -389,33 +319,17 @@ Tracked dired/eshell visits plus parents of recent files."
   "s" '("browse dailies"     . org-node-seq-dispatch)
   "m" (cons "mindmap" vp/mindmap-map))
 
-(defvar-keymap vp/open-map
-  :doc "Shells on C-c o."
-  "t" '("terminal (ghostel)" . vp/ghostel-here)
-  "e" '("eshell"             . vp/eshell-here))
-
-(defvar-keymap vp/tts-map
-  :doc "Text to speech commands on C-c t."
-  "t" '("speak (dwim)" . vp/tts-speak-dwim)
-  "=" '("faster"       . vp/tts-speed-up)
-  "-" '("slower"       . vp/tts-speed-down))
+;; Shells open at the project root: C-x p e eshell, C-x p t ghostel.
+(keymap-set project-prefix-map "t" #'ghostel-project)
 
 (define-keymap :keymap mode-specific-map
   "a" '("claude"      . claude-code-ide-menu)
-  "b" '("buffer"      . switch-to-buffer)   ; consult-buffer via remap
-  "d" '("recent dir"  . vp/dired-recent-dir)
   "e" '("sidebar"     . vp/sidebar-toggle)
   "f" (cons "file" vp/file-map)
-  "j" '("dired here"  . dired-jump)
-  "k" '("kill buffer" . kill-current-buffer)
   "l" (cons "code" vp/code-map)       ; l for LSP
   "n" (cons "notes" vp/notes-map)
-  "o" (cons "open" vp/open-map)
-  "p" (cons "project" project-prefix-map)
   "s" '("search (rg)" . consult-ripgrep)
-  "t" (cons "tts" vp/tts-map)
-  "v" '("git"         . magit-status)   ; v for VC
-  "w" '("save"        . save-buffer))
+  "v" '("git"         . magit-status))  ; v for VC
 
 
 ;;; Dired -----
@@ -565,6 +479,7 @@ Tracked dired/eshell visits plus parents of recent files."
 (keymap-global-set "s-T" #'make-frame-command)
 (keymap-global-set "s-W" #'delete-frame)
 (keymap-global-set "s-O" #'other-frame)
+(keymap-global-set "s-t" #'project-dired)
 
 ;;; Buffer sidebar -----
 ;; Super keys pass through ghostel, so they work in Claude sessions.
@@ -578,11 +493,12 @@ Tracked dired/eshell visits plus parents of recent files."
   :bind (("s-l" . vp/sidebar-next-buffer)
          ("s-u" . vp/sidebar-previous-buffer)
          ("s-w" . vp/sidebar-kill-buffer)
-         ("s-t" . vp/sidebar-dired)
          ("s-f" . vp/sidebar-fold)))
 
 
 ;;; Org -----
+(setopt org-directory (file-truename "~/Notes"))
+
 (defun vp/all-org-files ()
   "All org files under `org-directory' except archive/ (refile targets)."
   (directory-files-recursively
@@ -607,7 +523,8 @@ searchable (C-c n f, C-c n g)."
 
 (use-package org
   :ensure nil
-  :hook (org-mode . visual-line-mode)
+  :hook ((org-mode . visual-line-mode)
+         (org-mode . visual-wrap-prefix-mode))
   :custom
   (org-ellipsis " ⤵")
   (org-startup-indented t)
@@ -623,6 +540,8 @@ searchable (C-c n f, C-c n g)."
   (org-insert-heading-respects-content t)
   (org-clock-persist 'history)
   (org-agenda-inhibit-startup t)
+  ;; inbox.org and agenda.org appear on first capture.
+  (org-agenda-skip-unavailable-files t)
   (org-agenda-window-setup 'current-window)
   (org-src-window-setup 'current-window)
   (org-agenda-prefix-format '((agenda . "  %-12:c%?-12t% s")
@@ -639,15 +558,9 @@ searchable (C-c n f, C-c n g)."
   (org-agenda-skip-scheduled-if-done t)
   (org-agenda-skip-deadline-if-done t)
   :config
-  (setopt org-directory (file-truename "~/Notes"))
   (make-directory org-directory t)
   ;; Not <file>.org_archive: only *.org is indexed and greppable.
   (setopt org-archive-location (concat org-directory "/archive/%s::"))
-  ;; The agenda errors on missing files; create the two anchors.
-  (dolist (f '("inbox.org" "agenda.org"))
-    (let ((path (expand-file-name f org-directory)))
-      (unless (file-exists-p path)
-        (with-temp-file path (insert "#+title: " (file-name-base f) "\n")))))
   (vp/refresh-agenda-files)
 
   ;; `n' is this variable's default value, not a dispatcher built-in;
@@ -716,7 +629,7 @@ searchable (C-c n f, C-c n g)."
   (org-modern-replace-stars "❯")
   (org-modern-list '((?* . "•") (?+ . "›") (?- . "–")))
   (org-modern-checkbox '((?X . "✓") (?\s . "☐") (?- . "–")))
-  ;; No pill labels; TODO keywords render as glyphs (vp/org-prettify-todos).
+  ;; No pill labels: plain keywords in `org-todo-keyword-faces'.
   (org-modern-todo nil)
   (org-modern-tag nil)
   (org-modern-timestamp nil))
@@ -741,7 +654,7 @@ searchable (C-c n f, C-c n g)."
   :init
   ;; Watch dirs are re-walked on the main thread; big trees stutter.
   (setopt org-mem-do-sync-with-org-id t
-          org-mem-watch-dirs (list (file-truename "~/Notes")))
+          org-mem-watch-dirs (list org-directory))
   :config
   (setopt org-node-file-directory-ask
           (file-name-concat org-directory "topics"))
@@ -763,21 +676,15 @@ searchable (C-c n f, C-c n g)."
 (defun vp/daily-today ()
   "Open today's daily note; create it as a node in the \"d\" sequence if missing."
   (interactive)
-  (require 'org)   ; sets org-directory, loads org-node
-  (let* ((dir (file-name-concat org-directory "daily"))
-         (file (file-name-concat dir (format-time-string "%Y-%m-%d.org"))))
-    (make-directory dir t)
-    (if (file-exists-p file)
-        (find-file file)
-      (let ((org-node-creation-fn #'org-node-new-file)
-            (org-node-file-directory-ask dir))
-        (org-node-create (format-time-string "%Y-%m-%d") (org-id-new) "d")))))
+  (require 'org)   ; loads org-node
+  (make-directory (file-name-concat org-directory "daily") t)
+  (org-node-seq-goto "d" (format-time-string "%Y-%m-%d")))
 
 (defun vp/new-project (title)
   "Create the project hub projects/TITLE.org from the policy skeleton.
 Open the hub if it already exists."
   (interactive "sProject title: ")
-  (require 'org)   ; sets org-directory, loads org-node
+  (require 'org)   ; loads org-node
   (let* ((dir (file-name-concat org-directory "projects"))
          (file (file-name-concat
                 dir (concat (funcall org-node-file-slug-fn title) ".org"))))
@@ -800,37 +707,7 @@ Open the hub if it already exists."
 (defun vp/notes-grep ()
   "Live ripgrep over all notes."
   (interactive)
-  (require 'org)
   (consult-ripgrep org-directory))
-
-(defvar vp/org-todo-glyphs
-  '(("TODO"      . ?☐)
-    ("NEXT"      . ?▸)
-    ("WAIT"      . ?◷)
-    ("DONE"      . ?✓)
-    ("CANCELLED" . ?✗))
-  "Glyph shown for each org todo keyword.")
-
-(defun vp/org-prettify-todos ()
-  (setq-local prettify-symbols-alist vp/org-todo-glyphs
-              prettify-symbols-unprettify-at-point 'right-edge)
-  (prettify-symbols-mode 1))
-(add-hook 'org-mode-hook #'vp/org-prettify-todos)
-
-;; The agenda has no font-lock, so compose glyphs after it is built.
-;; The todo-state check skips the same words inside titles.
-(defun vp/org-agenda-prettify-todos ()
-  (with-silent-modifications
-    (save-excursion
-      (goto-char (point-min))
-      (let ((re (regexp-opt (mapcar #'car vp/org-todo-glyphs) 'words)))
-        (while (re-search-forward re nil t)
-          (when (equal (get-text-property (match-beginning 0) 'todo-state)
-                       (match-string 0))
-            (compose-region (match-beginning 0) (match-end 0)
-                            (cdr (assoc (match-string 0) vp/org-todo-glyphs)))
-            (end-of-line)))))))
-(add-hook 'org-agenda-finalize-hook #'vp/org-agenda-prettify-todos)
 
 
 ;;; Claude Code -----
@@ -855,27 +732,9 @@ Open the hub if it already exists."
   (claude-code-ide-terminal-backend 'ghostel)
   (claude-code-ide-use-side-window nil)
   :config
-  (defun vp/claude-buffer-name (dir &optional instance)
-    (format "*cc %s%s*"
-            (file-name-nondirectory (directory-file-name dir))
-            (if instance (concat ":" instance) "")))
-  (setopt claude-code-ide-buffer-name-function #'vp/claude-buffer-name)
   (claude-code-ide-emacs-tools-setup)
   (add-to-list 'display-buffer-alist
-               '("\\`\\*cc " (display-buffer-full-frame))))
-
-
-(defun vp/ghostel-here (&optional arg)
-  "Show the ghostel terminal for this buffer's directory, or start one.
-From a terminal, or with a prefix ARG, start one more there.
-A numeric ARG selects or starts terminal number ARG."
-  (interactive "P")
-  ;; A defcustom loaded inside the let gets no global value.
-  (require 'ghostel)
-  (let ((ghostel-buffer-name
-         (format "*ghostel %s*" (abbreviate-file-name default-directory))))
-    ;; Not in Claude sessions: they are ghostel-mode too.
-    (ghostel (or arg (string-prefix-p "*ghostel " (buffer-name))))))
+               '("\\`\\*claude-code\\[" (display-buffer-full-frame))))
 
 
 ;;; Eshell -----
@@ -953,31 +812,6 @@ Remote dirs keep their TRAMP prefix and skip the branch."
   (setq-local completion-preview-minimum-symbol-length 1)
   (completion-preview-mode 1))
 
-(defun eshell/z (&rest words)
-  "cd to the most recent directory whose path contains all WORDS.
-A WORDS that names a recent dir exactly (as `pcomplete/z' inserts
-it) goes there. With no WORDS, pick one."
-  (let* ((words (mapcar (lambda (w) (format "%s" w)) words))
-         (dirs (vp/recent-dirs))
-         (case-fold-search t))
-    (eshell/cd
-     (cond ((null words) (vp/read-recent-dir))
-           ((and (length= words 1)
-                 (car (member (concat "~/" (car words)) dirs))))
-           ((seq-find (lambda (dir)
-                        (seq-every-p (lambda (w) (string-match-p (regexp-quote w) dir))
-                                     words))
-                      dirs))
-           (t (error "z: no recent dir matches %s" (string-join words " ")))))))
-
-;; Home-relative: pcomplete escapes a leading ~.
-(defun pcomplete/z ()
-  "Complete z from the recent dirs."
-  (pcomplete-here
-   (completion-table-with-metadata
-    (mapcar (lambda (dir) (string-remove-prefix "~/" dir)) (vp/recent-dirs))
-    '((display-sort-function . identity)))))
-
 ;; esh-mode, not eshell: eshell-mode-map lives there.
 (use-package esh-mode
   :ensure nil
@@ -998,23 +832,6 @@ it) goes there. With no WORDS, pick one."
 
 (use-package eshell-syntax-highlighting
   :hook (eshell-mode . eshell-syntax-highlighting-mode))
-
-(with-eval-after-load 'completion-preview
-  (keymap-set completion-preview-active-mode-map "M-f" #'completion-preview-insert-word))
-
-(defun vp/eshell-here ()
-  "Open the shared eshell, cd'd to this buffer's directory.
-From an eshell, start one more. The cd runs as a real command so
-eshell history records it."
-  (interactive)
-  ;; file-truename normalizes macOS firmlinks.
-  (let ((dir (file-truename default-directory)))
-    (eshell (derived-mode-p 'eshell-mode))
-    (goto-char (point-max))
-    (unless (string= (file-truename default-directory) dir)
-      (eshell-kill-input)
-      (insert (format "cd \"%s\"" dir))
-      (eshell-send-input))))
 
 
 ;;; Remote (TRAMP, built-in) -----
@@ -1054,8 +871,7 @@ eshell history records it."
   (which-key-max-description-length 40)
   (which-key-add-column-padding 2)
   :config
-  ;; Hide the vp/ prefix and ghostel's C-c chords.
-  (add-to-list 'which-key-replacement-alist '((nil . "\\`vp/") . (nil . "")))
+  ;; Hide ghostel's C-c chords.
   (add-to-list 'which-key-replacement-alist '((nil . "\\`ghostel-") . t))
   ;; An empty stock prefix.
   (keymap-unset mode-specific-map "^" t)
