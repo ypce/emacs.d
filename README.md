@@ -28,7 +28,7 @@ plain no-fallback client. After `brew upgrade emacs-plus@31`, run
 
 | Font | Use | Install |
 |---|---|---|
-| AeonikMono Nerd Font Mono (Light) | default / fixed-pitch / icons | in `fonts/` (untracked; commercial, do not distribute). Register once: open the `.otf` files in Font Book. To rebuild from Aeonik Mono: Nerd Fonts FontPatcher, `fontforge -script font-patcher --complete --mono AeonikMono-<Weight>.otf`, then `fontforge -script fonts/fix-symbols.py` (copies uniform symbol glyphs from Iosevka NFM, see the script) |
+| AeonikMono Nerd Font Mono (Light) | default / fixed-pitch / icons | in `fonts/` (untracked; commercial, do not distribute). Register once: open the `.otf` files in Font Book. To rebuild from Aeonik Mono: Nerd Fonts FontPatcher, `fontforge -script font-patcher --complete --mono AeonikMono-<Weight>.otf`, then `fontforge -script fonts/fix-symbols.py` (Iosevka NFM symbols) |
 | Vollkorn | eww + markdown preview serif | `brew install --cask font-vollkorn` |
 
 ### CLI tools
@@ -54,8 +54,8 @@ pipx install python-lsp-server   # pylsp
 
 The `claude` CLI must be on PATH for claude-code-ide (`C-c a`).
 The ghostel terminal (`C-c o t`) downloads its module into `ghostel/` on first use.
-In a Claude session, `C-g` opens the prompt in an Emacs buffer (meow
-works there); `C-c C-c` or `C-x #` sends it back. For long pastes,
+In a Claude session, `C-g` opens the prompt in an Emacs buffer;
+`C-c C-c` or `C-x #` sends it back. For long pastes,
 paste inside that buffer: Claude's `[Pasted text]` placeholder cannot
 be expanded. `PgUp`/`PgDn` and `Ctrl+O` scroll the conversation.
 Set `"preferredNotifChannel": "iterm2"` in `~/.claude.json` so Claude
@@ -79,11 +79,6 @@ see that repo's README for setup on a new machine.
 
 - Keys: all user commands are on `C-c <letter>` (the map is in the Keys
   section of `init.el`).
-- Modal editing: meow with the official Colemak layout. `SPC` is the
-  stock meow keypad: `SPC <letter>` is `C-c <letter>`, and `SPC x`,
-  `SPC c`, `SPC h`, `SPC m`, `SPC g` type `C-x C-`, `C-c C-`, `C-h`,
-  `M-`, `C-M-` chords (`SPC x f` find file, `SPC m x` M-x). `U` is
-  undo-redo. Shells open in insert state.
 - Notes/agenda live in `~/Notes` (created automatically; `inbox.org` and
   `agenda.org` are the agenda anchors, other files opt in with
   `#+filetags: :agenda:`).

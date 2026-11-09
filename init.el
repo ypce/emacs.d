@@ -4,8 +4,7 @@
 ;;; Code:
 
 ;;; PATH -----
-;; The launchd daemon gets no shell PATH; add tool dirs when present.
-;; Each dir goes to the front, so reverse: the first dir listed wins.
+;; The launchd daemon gets no shell PATH. Reversed: the first dir wins.
 (dolist (dir (reverse '("/etc/profiles/per-user/vp/bin" "/opt/homebrew/bin"
                         "/Users/vp/.local/bin")))
   (when (file-directory-p dir)
@@ -14,14 +13,11 @@
 
 
 ;;; Server -----
-;; Child processes (Claude Code's C-g, git in ghostel) edit in a buffer
-;; of this Emacs. C-x # finishes the edit. Without this they use vi.
+;; Child processes (Claude Code's C-g, git) edit in this Emacs.
 (setenv "EDITOR" "emacsclient")
 
-;; C-c C-c also finishes, like magit's commit buffer. Temp files only
-;; (Claude's prompt, pass): an org or markdown file opened with
-;; emacsclient keeps its own C-c C-c.
-(declare-function server-edit "server")   ; loaded before server-visit-hook runs
+;; Temp files only: org and markdown files keep their own C-c C-c.
+(declare-function server-edit "server")
 (define-minor-mode vp/temp-edit-mode
   "C-c C-c finishes an emacsclient edit of a temp file."
   :keymap (define-keymap "C-c C-c" #'server-edit))
@@ -33,17 +29,16 @@
 
 
 ;;; Packages -----
-;; Startup activates packages before init.el (package-quickstart makes it
-;; fast). `emacs --batch -l init.el' skips that and needs the call.
-;; package.el itself loads only to install: it costs ~200 ms per start.
+;; `emacs --batch -l init.el' skips startup's package activation.
+;; package.el loads only to install: it costs ~200 ms per start.
 (with-eval-after-load 'package
   (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t))
 (unless (bound-and-true-p package--activated)
   (package-initialize))
 
 (require 'use-package)
-(setopt use-package-always-ensure t)   ; built-ins opt out with :ensure nil
-;; The stock ensure loads package.el to see that a package is installed.
+(setopt use-package-always-ensure t)
+;; The stock ensure loads package.el to check what is installed.
 (setopt use-package-ensure-function
         (lambda (name args state &rest _)
           (unless (and (eq (car args) t)
@@ -51,7 +46,7 @@
             (use-package-ensure-elpa name args state))))
 
 
-;;; Mode line (hand-rolled, zero dependencies) -----
+;;; Mode line -----
 (defface vp/ml-buffer
   '((t :inherit font-lock-constant-face :weight bold))
   "Face for the buffer name."
@@ -102,8 +97,7 @@
     " "))
 
 ;;; GC -----
-;; Collect when no frame has focus, so a pause rarely lands while
-;; typing. The threshold still forces a collection when it must.
+;; Collect while no frame has focus, so pauses rarely land while typing.
 (defun vp/gc-when-unfocused ()
   (unless (seq-some #'frame-focus-state (frame-list))
     (garbage-collect)))
@@ -114,13 +108,12 @@
 (use-package emacs
   :ensure nil
   :init
-  ;; Send Customize writes to a throwaway file, not this file. Not
-  ;; null-device: custom-save-all reads the file back and aborts on it.
+  ;; Not null-device: custom-save-all reads the file back and aborts.
   (setq custom-file (file-name-concat temporary-file-directory "emacs-custom.el"))
   :custom
   (use-short-answers t)
   (scroll-conservatively 101)
-  (scroll-error-top-bottom t)   ; move point to the boundary before erroring
+  (scroll-error-top-bottom t)
   (help-window-select t)
   (help-window-keep-selected t)
   (backup-by-copying t)
@@ -130,15 +123,14 @@
   (initial-scratch-message "")
   (initial-major-mode 'text-mode)
   (initial-buffer-choice t)
-  (kill-region-dwim 'emacs-word)   ; C-w with no region kills a word
+  (kill-region-dwim 'emacs-word)
   (ring-bell-function 'ignore)
   (uniquify-buffer-name-style 'forward)
   (isearch-lazy-count t)
   (lazy-count-prefix-format "(%s/%s) ")
-  (isearch-allow-motion t)     ; M-< / M-> jump to first/last match
+  (isearch-allow-motion t)
   (isearch-repeat-on-direction-change t)
-  ;; A space in C-s matches any text on the line: "def foo" finds
-  ;; "def very_long_foo". M-s SPC toggles it back to literal spaces.
+  ;; "def foo" finds "def very_long_foo"; M-s SPC toggles it off.
   (search-whitespace-regexp ".*?")
   (sentence-end-double-space nil)
   (save-interprogram-paste-before-kill t)
@@ -146,23 +138,20 @@
   (tab-always-indent 'complete)
   (switch-to-buffer-obey-display-actions t)
   (ffap-machine-p-known 'reject)   ; never ping hostnames at point
-  (ns-click-through nil)   ; the focus click does not also act in the buffer
-  ;; :custom, not setq: the option's setter restarts show-paren-mode,
-  ;; a plain set does nothing while the mode is on.
+  (ns-click-through nil)   ; the focus click does not also act
+  ;; :custom, not setq: only the setter restarts show-paren-mode.
   (show-paren-delay 0.05)
   (show-paren-context-when-offscreen 'overlay)
   (view-read-only t)
-  ;; TAB on a block-start line cycles folding (hs-minor-mode);
-  ;; elsewhere TAB keeps indent/complete.
+  ;; TAB folds only on a block-start line.
   (hs-cycle-filter 'hs-hideable-block-p)
   (quit-window-kill-buffer '(help-mode))
   :hook ((prog-mode . display-line-numbers-mode)
          ((prog-mode text-mode) . electric-pair-local-mode)
-         (prog-mode . hs-minor-mode)   ; code folding
+         (prog-mode . hs-minor-mode)
          (org-mode . visual-wrap-prefix-mode)
          ((prog-mode text-mode) . completion-preview-mode))
   :config
-  ;; Assume left-to-right text; skip the bidi scans on long lines.
   (setq-default bidi-paragraph-direction 'left-to-right
                 bidi-inhibit-bpa t)
   (setq-default truncate-lines t
@@ -174,32 +163,28 @@
 
   (auto-save-visited-mode 1)
   (menu-bar-mode -1)
-  (winner-mode 1)                     ; C-c <left> undoes window layout changes
-  (undelete-frame-mode 1)             ; M-x undelete-frame recovers a closed client frame
+  (winner-mode 1)
+  (undelete-frame-mode 1)
   (repeat-mode 1)
   (pixel-scroll-precision-mode 1)
-  ;; Dim glyphs instead of $ and \ on the right, which has no fringe
-  ;; (early-init.el). Keep … for cut lines;
-  ;; the mode default is →.
+  ;; No right fringe (early-init.el): mark cut lines with a dim ….
   (prettify-special-glyphs-mode 1)
   (set-display-table-slot standard-display-table 'truncation
                           (make-glyph-code ?… 'special-glyphs))
 
   :bind (("M-o" . other-window)
-         ;; dwim case commands: act on the region when active, else the word
          ("<remap> <capitalize-word>" . capitalize-dwim)
          ("<remap> <upcase-word>" . upcase-dwim)
          ("<remap> <downcase-word>" . downcase-dwim)
          ("M-S-<down>" . duplicate-dwim)
          ("M-=" . count-words)
-         ("C-s-f" . toggle-frame-fullscreen)   ; macOS-native ⌃⌘F
+         ("C-s-f" . toggle-frame-fullscreen)
          ("<escape>" . keyboard-escape-quit)
          ("<remap> <kill-buffer>" . kill-current-buffer)
          ("<remap> <list-buffers>" . ibuffer)))
 
 (keymap-global-unset "C-x C-z")   ; suspend-frame, too easy to fat-finger
 
-;; File path and modification status in the frame title.
 (setq frame-title-format
       '((:eval (when (and (buffer-modified-p) (buffer-file-name)) "* "))
         (:eval (if (buffer-file-name)
@@ -236,12 +221,11 @@
 
 
 ;;; Text to speech (kokoro-tts) -----
-;; Self-contained module; the autoloads load it on first use.
 (use-package vp-tts
   :ensure nil
   :load-path "lisp/"
   :commands (vp/tts-speak-dwim vp/tts-speed-up vp/tts-speed-down)
-  :bind ("s-r" . vp/tts-speak-dwim))     ; r for read; C-c t t everywhere
+  :bind ("s-r" . vp/tts-speak-dwim))
 
 
 ;;; Theme + Font -----
@@ -253,23 +237,19 @@
 (set-face-attribute 'default nil
                     :family "AeonikMono Nerd Font Mono" :weight 'light :height 200)
 
-;; "Monospace" does not resolve on macOS and falls back to a
-;; proportional font; inherit default so fixed-pitch stays monospace.
+;; "Monospace" resolves to a proportional font on macOS.
 (set-face-attribute 'fixed-pitch nil :family 'unspecified :inherit 'default)
 
-;; Ignore document colors in eww/HTML; they clash with a dark theme.
 (setopt shr-use-colors nil)
 
-;; Serif reading font in eww; matches the markdown preview CSS.
+;; Matches the markdown preview CSS.
 (defun vp/eww-serif-font ()
   (face-remap-add-relative 'variable-pitch :family "Vollkorn"))
 (add-hook 'eww-mode-hook #'vp/eww-serif-font)
 
 
 ;;; Saving + Recent -----
-;; Dired and eshell visits land in recentf as directory entries
-;; (trailing slash), so recent DIRS are real visits, not just parents
-;; of recent files. In consult-buffer they open dired.
+;; Recent dirs are real visits, not only parents of recent files.
 (defun vp/recentf-track-dir ()
   "Add the current directory to `recentf-list'."
   (recentf-add-file default-directory))
@@ -301,14 +281,11 @@ Tracked dired/eshell visits plus parents of recent files."
 (use-package recentf
   :ensure nil
   :hook (after-init . recentf-mode)
-  ;; Dirs share the list with files (vp/recentf-track-dir); keep room.
   :custom
   (recentf-max-saved-items 300)
-  ;; The daemon runs for weeks; do not lose the list on a crash.
-  (recentf-autosave-interval 300)
-  (recentf-show-messages nil)   ; no "Wrote recentf" every 5 minutes
-  ;; Temp dirs (pass decrypts entries there) and git internals are
-  ;; never places to go back to.
+  (recentf-autosave-interval 300)   ; the daemon runs for weeks
+  (recentf-show-messages nil)
+  ;; pass decrypts entries into temp dirs.
   (recentf-exclude '("\\`/\\(private/\\)?\\(tmp\\|var/folders\\)/" "/\\.git/")))
 
 (use-package savehist
@@ -319,7 +296,6 @@ Tracked dired/eshell visits plus parents of recent files."
 (use-package saveplace
   :ensure nil
   :hook (after-init . save-place-mode)
-  ;; The daemon runs for weeks; do not lose places on a crash.
   :custom (save-place-autosave-interval 300))
 
 
@@ -328,19 +304,17 @@ Tracked dired/eshell visits plus parents of recent files."
   :ensure nil
   :custom
   (completion-ignore-case t)
-  (completions-detailed t)   ; annotations in describe-* prompts
+  (completions-detailed t)
   (enable-recursive-minibuffers t)
   (read-buffer-completion-ignore-case t)
   :config
   (minibuffer-depth-indicate-mode 1)
   (minibuffer-electric-default-mode 1))
 
-;; Vertical candidate list; RET takes the highlighted candidate, M-RET
-;; the literal input (a new file name that prefixes an existing one).
 (use-package vertico
   :config (vertico-mode 1))
 
-;; Bundled with vertico. DEL in a file prompt deletes a path component.
+;; Bundled with vertico.
 (use-package vertico-directory
   :ensure nil
   :after vertico
@@ -349,19 +323,16 @@ Tracked dired/eshell visits plus parents of recent files."
          ("M-DEL" . vertico-directory-delete-word))
   :hook (rfn-eshadow-update-overlay . vertico-directory-tidy))
 
-;; Remaps upgrade the stock keys; new commands live on M-s and M-g.
 (use-package consult
-  :bind (("<remap> <switch-to-buffer>" . consult-buffer)   ; + recent and project files
-         ("s-b" . consult-buffer)   ; super keys reach ghostel, C-x b does not
+  :bind (("<remap> <switch-to-buffer>" . consult-buffer)
+         ("s-b" . consult-buffer)   ; ghostel sends C-x to the TUI
          ("<remap> <yank-pop>" . consult-yank-pop)
          ("<remap> <goto-line>" . consult-goto-line)
          ("<remap> <imenu>" . consult-imenu)
          ("C-x C-r" . consult-recent-file)   ; shadows find-file-read-only
          ("M-s l" . consult-line)
-         ("M-s r" . consult-ripgrep)
          ("M-g o" . consult-outline))
   :custom
-  ;; TAB completion lists candidates in vertico, not a *Completions* window.
   (completion-in-region-function #'consult-completion-in-region)
   (xref-show-xrefs-function #'consult-xref)
   (xref-show-definitions-function #'consult-xref))
@@ -376,14 +347,9 @@ Tracked dired/eshell visits plus parents of recent files."
   (setopt xref-search-program 'ripgrep))
 
 
-;;; Keys (C-c, and SPC in meow) -----
-;; All user commands are on C-c <letter>, the keys that the Emacs
-;; conventions keep for users: a direct command, or a noun prefix with
-;; letters after it. Major modes own C-c with punctuation or a control
-;; key (org's C-c . and C-c C-c), so no user key uses them. meow's
-;; keypad reaches this map as SPC <letter>, except for c h x m g, which
-;; the keypad keeps for C-c C-, C-h, C-x, M- and C-M- (see Modal
-;; editing). No user key uses those letters.
+;;; Keys (C-c) -----
+;; User commands live on C-c <letter>, which the conventions reserve
+;; for users. Modes own C-c with punctuation or control keys.
 (defvar-keymap vp/code-map
   :doc "Code commands on C-c l (eglot, eldoc, flymake)."
   "a" '("code actions"     . eglot-code-actions)
@@ -428,7 +394,6 @@ Tracked dired/eshell visits plus parents of recent files."
   "t" '("terminal (ghostel)" . vp/ghostel-here)
   "e" '("eshell"             . vp/eshell-here))
 
-;; = and -, unshifted, like text-scale-adjust (C-x C-= / C-x C--).
 (defvar-keymap vp/tts-map
   :doc "Text to speech commands on C-c t."
   "t" '("speak (dwim)" . vp/tts-speak-dwim)
@@ -453,112 +418,19 @@ Tracked dired/eshell visits plus parents of recent files."
   "w" '("save"        . save-buffer))
 
 
-;;; Modal editing (meow) -----
-;; Official Colemak layout. SPC is the stock meow keypad: SPC x f is
-;; C-x C-f, SPC c c is C-c C-c, SPC h f is C-h f, SPC m x is M-x, and
-;; other letters are C-c <letter>. Real chords stay real chords.
-
-(use-package meow
-  :config
-  (setq meow-cheatsheet-layout meow-cheatsheet-layout-colemak)
-  (meow-motion-define-key
-   ;; e moves up. Special modes keep n for their own movement.
-   '("e" . meow-prev)
-   '("<escape>" . ignore))
-  (meow-normal-define-key
-   '("0" . meow-expand-0)
-   '("1" . meow-expand-1)
-   '("2" . meow-expand-2)
-   '("3" . meow-expand-3)
-   '("4" . meow-expand-4)
-   '("5" . meow-expand-5)
-   '("6" . meow-expand-6)
-   '("7" . meow-expand-7)
-   '("8" . meow-expand-8)
-   '("9" . meow-expand-9)
-   '("-" . negative-argument)
-   '(";" . meow-reverse)
-   '("," . meow-inner-of-thing)
-   '("." . meow-bounds-of-thing)
-   '("[" . meow-beginning-of-thing)
-   '("]" . meow-end-of-thing)
-   '("/" . meow-visit)
-   '("a" . meow-append)
-   '("A" . meow-open-below)
-   '("b" . meow-back-word)
-   '("B" . meow-back-symbol)
-   '("c" . meow-change)
-   '("e" . meow-prev)
-   '("E" . meow-prev-expand)
-   '("f" . meow-find)
-   '("g" . meow-cancel-selection)
-   '("G" . meow-grab)
-   '("h" . meow-left)
-   '("H" . meow-left-expand)
-   '("i" . meow-right)
-   '("I" . meow-right-expand)
-   '("j" . meow-join)
-   '("k" . meow-kill)
-   '("l" . meow-line)
-   '("L" . meow-goto-line)
-   '("m" . meow-mark-word)
-   '("M" . meow-mark-symbol)
-   '("n" . meow-next)
-   '("N" . meow-next-expand)
-   '("o" . meow-block)
-   '("O" . meow-to-block)
-   '("p" . meow-yank)
-   '("q" . meow-quit)
-   '("r" . meow-replace)
-   '("s" . meow-insert)
-   '("S" . meow-open-above)
-   '("t" . meow-till)
-   '("u" . meow-undo)
-   ;; Stock U is meow-undo-in-selection; undo-redo gives kak parity.
-   '("U" . undo-redo)
-   '("v" . meow-search)
-   '("w" . meow-next-word)
-   '("W" . meow-next-symbol)
-   '("x" . meow-delete)
-   '("X" . meow-backward-delete)
-   '("y" . meow-save)
-   '("z" . meow-pop-selection)
-   '("'" . repeat)
-   '("<escape>" . ignore))
-  ;; eshell input is buffer text, so modal edits work there.
-  (add-to-list 'meow-mode-state-list '(eshell-mode . insert))
-  ;; No meow in terminals: the TUI owns every key, ESC included
-  ;; (Claude's interrupt). Scroll and copy in ghostel copy mode
-  ;; (C-c C-t). The sidebar binds its own keys and has no cursor.
-  ;; Depth 90: meow-global-mode turns on from this hook too.
-  (defun vp/meow-off ()
-    (when (derived-mode-p 'ghostel-mode 'vp/sidebar-mode)
-      (meow-mode -1)))
-  (add-hook 'after-change-major-mode-hook #'vp/meow-off 90)
-  ;; Buffers without meow keep their own cursor (ghostel sets it from
-  ;; the terminal); meow resets it on each window change otherwise.
-  (add-to-list 'meow-update-cursor-functions-alist
-               (cons (lambda () (not meow-mode)) #'ignore))
-  (meow-global-mode 1))
-
-
 ;;; Dired -----
 (use-package dired
   :ensure nil
   :hook ((dired-mode . dired-hide-details-mode)
          (dired-mode . hl-line-mode))
   :init
-  ;; ls-lisp instead of ls: BSD ls lacks -v and directory grouping,
-  ;; and this drops the coreutils dependency. Remote dired still uses
-  ;; the remote ls.
+  ;; BSD ls lacks -v and dirs-first; ls-lisp avoids coreutils.
   (setopt ls-lisp-use-insert-directory-program nil
           ls-lisp-dirs-first t
-          ;; One date format for new and old files: always 2 columns.
+          ;; Two date columns for old and new files (see vp/dired-show-mtime).
           ls-lisp-use-localized-time-format t
           ls-lisp-format-time-list '("%Y-%m-%d %H:%M" "%Y-%m-%d %H:%M"))
-  ;; While s sorts by date (newest first), the date stays visible in
-  ;; dired-hide-details-mode (columns 6-7, 8 for the 3-word date of a
-  ;; remote ls).
+  ;; Keep the date visible while sorted by date. Column 8: remote ls.
   (defun vp/dired-show-mtime ()
     (setq-local dired-hide-details-preserved-columns
                 (and (string-match-p dired-sort-by-date-regexp dired-actual-switches)
@@ -566,24 +438,19 @@ Tracked dired/eshell visits plus parents of recent files."
   (add-hook 'dired-before-readin-hook #'vp/dired-show-mtime)
   :custom
   (dired-listing-switches "-alhv")
-  ;; Header shows the basename only, not the absolute path.
   (dired-hide-details-hide-absolute-location t)
   (dired-kill-when-opening-new-dired-buffer t)
-  (dired-dwim-target t)   ; two dired windows: copy/move targets the other one
-  (dired-isearch-filenames 'dwim)   ; C-s matches filenames only
+  (dired-dwim-target t)
+  (dired-isearch-filenames 'dwim)
   (dired-auto-revert-buffer 'dired-directory-changed-p)
   (dired-recursive-copies 'always)
-  (dired-mouse-drag-files t)   ; drag files from dired into other apps
-  (dired-vc-rename-file t)     ; R in a repo does git mv
+  (dired-mouse-drag-files t)
+  (dired-vc-rename-file t)
   (dired-create-destination-dirs 'ask)
-  ;; h = up a directory (shadows describe-mode; C-h m remains).
-  ;; Mouse clicks open in the same window, like RET does.
   :bind (:map dired-mode-map
          ("h" . dired-up-directory)
          ("<mouse-2>" . dired-mouse-find-file)))
 
-;; File-type icons where files are picked: dired and the minibuffer
-;; (C-x C-f, C-x b, recent files). The default font carries the glyphs.
 (use-package nerd-icons
   :custom (nerd-icons-font-family "AeonikMono Nerd Font Mono"))
 
@@ -595,13 +462,12 @@ Tracked dired/eshell visits plus parents of recent files."
   :config (nerd-icons-completion-mode 1))
 
 
-;;; Programming: treesit + eglot + flymake (all built-in) -----
+;;; Programming -----
 (use-package treesit
   :ensure nil
   :when (treesit-available-p)
   :config
-  ;; Build missing grammars on first use (needs git + a C compiler).
-  ;; Each mode registers its grammar source at a tested commit.
+  ;; Needs git and a C compiler. Each mode pins its grammar source.
   (setopt treesit-auto-install-grammar 'always
           treesit-enabled-modes
           '(python-ts-mode bash-ts-mode go-ts-mode go-mod-ts-mode)))
@@ -615,13 +481,12 @@ Tracked dired/eshell visits plus parents of recent files."
   :custom
   (eglot-autoshutdown t)
   (eglot-extend-to-xref t)
-  (eglot-events-buffer-config '(:size 0)))   ; perf: no event logs
+  (eglot-events-buffer-config '(:size 0)))
 
 (use-package eldoc
   :ensure nil
   :custom
   (eldoc-echo-area-use-multiline-p nil)
-  ;; Flymake diagnostics at point show in the echo area without C-c l x.
   (eldoc-help-at-pt t))
 
 (use-package flymake
@@ -631,11 +496,10 @@ Tracked dired/eshell visits plus parents of recent files."
          ("M-n" . flymake-goto-next-error)
          ("M-p" . flymake-goto-prev-error)))
 
-;; One tab per level: the offset must equal tab-width (4, global).
+;; Must equal tab-width.
 (setopt go-ts-indent-offset 4)
 
-;; Format Go on user saves only: auto-save-visited-mode saves from an
-;; idle timer, where this-command is nil.
+;; User saves only: auto-save-visited-mode saves with this-command nil.
 (declare-function eglot-format-buffer "eglot")
 (defun vp/eglot-format-on-save ()
   "Format the buffer with eglot before a user save, when a server is attached."
@@ -652,14 +516,12 @@ Tracked dired/eshell visits plus parents of recent files."
          (markdown-mode . visual-wrap-prefix-mode))
   :custom
   (markdown-fontify-code-blocks-natively t)
-  ;; The Lua filter renders ```mermaid fences to inline SVG via mmdc,
-  ;; cached by content hash in ~/.cache/mermaid-pandoc/.
+  ;; Renders ```mermaid fences to inline SVG with mmdc.
   (markdown-command (concat "pandoc --lua-filter="
                             (expand-file-name "pandoc/mermaid-inline.lua"
                                               user-emacs-directory)))
-  (markdown-split-window-direction 'right)   ; preview side by side
-  ;; Preview styling, vendored in assets/ so it works without network.
-  ;; foghorn-overrides.css loads second: full-width body, base font 80%.
+  (markdown-split-window-direction 'right)
+  ;; Vendored, so the preview works offline.
   (markdown-css-paths
    (mapcar (lambda (f) (concat "file://" (expand-file-name f user-emacs-directory)))
            '("assets/foghorn.css" "assets/foghorn-overrides.css"))))
@@ -670,26 +532,20 @@ Tracked dired/eshell visits plus parents of recent files."
 
 
 ;;; Version Control -----
-;; Notification-based revert instead of magit-auto-revert, whose
-;; per-buffer git probe slowed every file open.
+;; Not magit-auto-revert: its per-buffer git probe slows every file open.
 (setopt auto-revert-avoid-polling t)
 (global-auto-revert-mode 1)
 
 (use-package magit
-  :bind ("C-x g" . magit-status)
   :custom
-  (magit-auto-revert-mode nil)   ; covered by global-auto-revert above
-  (magit-define-global-key-bindings nil)   ; C-x g above is enough
-  ;; Reuse the current window; only diffs split.
+  (magit-auto-revert-mode nil)
+  (magit-define-global-key-bindings nil)   ; C-c v
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
 
 
 ;;; Windows, frames (super tier) -----
-;; i3-style management on super. Windows (splits) navigate on Colemak
-;; hnei, buffers live on lowercase letters (see Buffer sidebar), frames
-;; on uppercase. Shift is the heavier variant: move a window instead of
-;; focusing it, close a frame instead of a buffer. Overwritten NS
-;; defaults keep their chords: quit C-x C-c, hide via menu.
+;; i3-style on super: Colemak hnei moves between windows, shift moves
+;; the window itself. Lowercase is buffers (sidebar), uppercase frames.
 (use-package windmove
   :ensure nil
   :bind (("s-h" . windmove-left)
@@ -701,7 +557,7 @@ Tracked dired/eshell visits plus parents of recent files."
          ("s-E" . windmove-swap-states-up)
          ("s-I" . windmove-swap-states-right)))
 
-;; Splits follow the iTerm convention: d right, shift-D below.
+;; iTerm convention.
 (keymap-global-set "s-d" #'split-window-right)
 (keymap-global-set "s-D" #'split-window-below)
 (keymap-global-set "s-q" #'delete-window)
@@ -711,23 +567,16 @@ Tracked dired/eshell visits plus parents of recent files."
 (keymap-global-set "s-O" #'other-frame)
 
 ;;; Buffer sidebar -----
-;; C-c e: a left side window that lists buffers by remote host, org,
-;; or project, with Claude Code sessions last (RET on a dormant one
-;; resumes it). The super keys follow its order: s-l / s-u step (wrap
-;; at the ends; a folded group is one stop), s-w kills and shows the
-;; next row, s-t opens dired at the project root, s-f folds the group
-;; (or click its name). Super keys pass through ghostel, so they also
-;; work in Claude sessions. With no sidebar on screen, s-l / s-u are
-;; plain previous-buffer / next-buffer.
-;; In lisp/, not user-lisp/: user-lisp auto-scrape loads loaddefs-gen
-;; on every start (+150 ms daemon init).
+;; Super keys pass through ghostel, so they work in Claude sessions.
+;; In lisp/, not user-lisp/: the user-lisp scrape costs 150 ms per start.
 (use-package vp-sidebar
   :ensure nil
   :load-path "lisp/"
   :commands (vp/sidebar-toggle
-             vp/sidebar-attention-mark)   ; see the ghostel block
-  :bind (("s-l" . vp/sidebar-previous-buffer)
-         ("s-u" . vp/sidebar-next-buffer)
+             vp/sidebar-attention-mark
+             vp/sidebar-retitle)
+  :bind (("s-l" . vp/sidebar-next-buffer)
+         ("s-u" . vp/sidebar-previous-buffer)
          ("s-w" . vp/sidebar-kill-buffer)
          ("s-t" . vp/sidebar-dired)
          ("s-f" . vp/sidebar-fold)))
@@ -773,13 +622,9 @@ searchable (C-c n f, C-c n g)."
   (org-return-follows-link t)
   (org-insert-heading-respects-content t)
   (org-clock-persist 'history)
-  ;; Skip org startup options in files the agenda visits.
   (org-agenda-inhibit-startup t)
-  ;; No splits: agenda and src-block editing use the current window.
   (org-agenda-window-setup 'current-window)
   (org-src-window-setup 'current-window)
-  ;; Show the category (file name or #+category:) and keep the items
-  ;; of one category together. Hide the :agenda: tag.
   (org-agenda-prefix-format '((agenda . "  %-12:c%?-12t% s")
                               (todo   . "  %-12:c")
                               (tags   . "  %-12:c")
@@ -796,9 +641,7 @@ searchable (C-c n f, C-c n g)."
   :config
   (setopt org-directory (file-truename "~/Notes"))
   (make-directory org-directory t)
-  ;; Archive subtrees into archive/<file>.org, not <file>.org_archive
-  ;; next to the hub: the policy forbids per-project archive files, and
-  ;; only *.org stays indexed and greppable.
+  ;; Not <file>.org_archive: only *.org is indexed and greppable.
   (setopt org-archive-location (concat org-directory "/archive/%s::"))
   ;; The agenda errors on missing files; create the two anchors.
   (dolist (f '("inbox.org" "agenda.org"))
@@ -824,7 +667,6 @@ searchable (C-c n f, C-c n g)."
   (setopt org-todo-keywords
           '((sequence "TODO(t)" "NEXT(n)" "WAIT(w)" "|" "DONE(d)" "CANCELLED(c)")))
 
-  ;; Inherit stock faces so any theme recolors them.
   (setopt org-todo-keyword-faces
         '(("NEXT"      . (:inherit success :weight bold))
           ("WAIT"      . (:inherit warning))
@@ -847,7 +689,6 @@ searchable (C-c n f, C-c n g)."
            (file+headline ,(expand-file-name "agenda.org" org-directory) "Events")
            "* %?\n<%<%Y-%m-%d %a %H:00>>")))
 
-  ;; Refile across ALL notes, not just the agenda set.
   (setopt org-refile-targets '((vp/all-org-files :maxlevel . 3))
           org-refile-use-outline-path 'file
           org-outline-path-complete-in-steps nil)
@@ -880,15 +721,13 @@ searchable (C-c n f, C-c n g)."
   (org-modern-tag nil)
   (org-modern-timestamp nil))
 
-;; Show emphasis markers at point; org hides them otherwise.
 (use-package org-appear
   :hook (org-mode . org-appear-mode)
   :custom
   (org-appear-autolinks t)
   (org-appear-autosubmarkers t))
 
-;; Render mermaid src blocks with C-c C-c (needs mmdc from mermaid-cli).
-;; Mermaid only draws a diagram, so it runs without the y/n prompt.
+;; Needs mmdc (mermaid-cli). Mermaid only draws, so no y/n prompt.
 (use-package ob-mermaid
   :after org
   :config
@@ -897,37 +736,27 @@ searchable (C-c n f, C-c n g)."
 
 
 ;;; Org Node (notes) -----
-;; org-mem indexes watched org files in a subprocess: instant
-;; find/backlinks, no database.
 (use-package org-node
   :after org   ; load with org so the indexing modes start
   :init
-  ;; Watch ONLY ~/Notes: watch dirs are re-walked in the main thread on
-  ;; an idle timer, and big trees cause stutter. Org files elsewhere
-  ;; still get indexed once visited.
+  ;; Watch dirs are re-walked on the main thread; big trees stutter.
   (setopt org-mem-do-sync-with-org-id t
           org-mem-watch-dirs (list (file-truename "~/Notes")))
   :config
-  ;; New notes from org-node-find are reference notes per the policy;
-  ;; create them in topics/ without a prompt. Hubs use vp/new-project.
   (setopt org-node-file-directory-ask
           (file-name-concat org-directory "topics"))
   (make-directory org-node-file-directory-ask t)
   (org-mem-updater-mode)
   (org-node-cache-mode)
-  ;; Keep the agenda list current as org-mem rescans notes.
   (add-hook 'org-mem-post-full-scan-functions #'vp/refresh-agenda-files)
   (add-hook 'org-mem-post-targeted-scan-functions #'vp/refresh-agenda-files)
-  ;; Dailies: YYYY-MM-DD.org under <notes>/daily as a node sequence.
   (require 'org-node-seq)
   (setopt org-node-seq-defs
           (list (org-node-seq-def-on-filepath-sort-by-basename
                  "d" "Daily" (file-name-concat org-directory "daily") nil t)))
   (org-node-seq-mode))
 
-;; Editable Unicode mind maps inside org "mindmap" blocks. Insert a
-;; block with C-c C-, m; RET/TAB add siblings/children, M-RET edits,
-;; M-arrows move nodes. The rest lives on the C-c n m prefix.
+;; Insert a block with C-c C-, m.
 (use-package org-mindmap
   :hook (org-mode . org-mindmap-mode))
 
@@ -966,7 +795,6 @@ Open the hub if it already exists."
       ;; Save so org-mem indexes the hub and the agenda picks it up.
       (save-buffer))))
 
-;; Group grep results under one heading per file.
 (setopt grep-use-headings t)
 
 (defun vp/notes-grep ()
@@ -975,8 +803,6 @@ Open the hub if it already exists."
   (require 'org)
   (consult-ripgrep org-directory))
 
-;; TODO keywords as glyphs via prettify-symbols; the text stays
-;; underneath, and point on a glyph expands it for editing.
 (defvar vp/org-todo-glyphs
   '(("TODO"      . ?☐)
     ("NEXT"      . ?▸)
@@ -1008,21 +834,18 @@ Open the hub if it already exists."
 
 
 ;;; Claude Code -----
-;; claude-code-ide bridges the Claude Code CLI into Emacs over MCP.
-;; ghostel (libghostty as an Emacs module) hosts its TUI.
 (use-package ghostel
   :defer t
   :custom
   ;; Outside elpa/ so package upgrades can't clobber a loaded module.
   (ghostel-module-directory (expand-file-name "ghostel/" user-emacs-directory))
   (ghostel-module-auto-install 'download)
-  ;; Fallback glyphs shrink to fit the cell grid; the 0.0 default
-  ;; crushes tall symbols (⏵ ⏸). 1.0 = natural size, taller rows.
+  ;; The 0.0 default crushes tall symbols (⏵ ⏸).
   (ghostel-glyph-scale-floor 0.8)
+  ;; Not a rename: the sidebar shows Claude Code's session title.
+  (ghostel-buffer-name-function #'vp/sidebar-retitle)
   :config
-  ;; Claude Code and other TUIs send an OSC 9 notification when they
-  ;; need input.  Mark the buffer in the sidebar; the default hook
-  ;; entry still sends the desktop notification.
+  ;; OSC 9 from a TUI that needs input. Desktop notifications still fire.
   (add-hook 'ghostel-notification-functions #'vp/sidebar-attention-mark))
 
 (use-package claude-code-ide
@@ -1030,10 +853,8 @@ Open the hub if it already exists."
   :commands claude-code-ide-menu
   :custom
   (claude-code-ide-terminal-backend 'ghostel)
-  ;; A plain buffer, not a side window: sessions take the whole frame.
   (claude-code-ide-use-side-window nil)
   :config
-  ;; *cc proj* and *cc proj:instance*, short for tab names.
   (defun vp/claude-buffer-name (dir &optional instance)
     (format "*cc %s%s*"
             (file-name-nondirectory (directory-file-name dir))
@@ -1044,14 +865,12 @@ Open the hub if it already exists."
                '("\\`\\*cc " (display-buffer-full-frame))))
 
 
-;; One terminal per directory; from a terminal, one more.
 (defun vp/ghostel-here (&optional arg)
   "Show the ghostel terminal for this buffer's directory, or start one.
 From a terminal, or with a prefix ARG, start one more there.
 A numeric ARG selects or starts terminal number ARG."
   (interactive "P")
-  ;; Load first: a defcustom that loads inside the let gets no
-  ;; global value.
+  ;; A defcustom loaded inside the let gets no global value.
   (require 'ghostel)
   (let ((ghostel-buffer-name
          (format "*ghostel %s*" (abbreviate-file-name default-directory))))
@@ -1060,8 +879,6 @@ A numeric ARG selects or starts terminal number ARG."
 
 
 ;;; Eshell -----
-;; Full-screen TUIs (eshell-visual-commands) open in ghostel; the rest
-;; stays in eshell.
 (add-hook 'eshell-load-hook #'ghostel-eshell-visual-command-mode)
 
 (setopt eshell-banner-message "")
@@ -1101,30 +918,23 @@ Remote dirs keep their TRAMP prefix and skip the branch."
             " ")))
 (setopt eshell-prompt-function #'vp/eshell-prompt)
 
-;; Wrap long lines; with global truncate-lines they hscroll the window.
 (defun vp/eshell-wrap-lines ()
   (setq-local truncate-lines nil))
 
-;; Commands that read $EDITOR open a buffer in this Emacs (C-x # to
-;; finish). Locally, do not use the with-editor sleeping editor: it is
-;; a quoted sh -c string, and pass expands $EDITOR without quotes, so
-;; the string breaks into wrong words. On a remote host, emacsclient
-;; cannot reach this Emacs, so use the sleeping editor there.
+;; Not with-editor locally: pass splits its quoted sh -c string.
+;; Remote emacsclient cannot reach this Emacs, so use it there.
 (defun vp/eshell-export-editor ()
   "Set $EDITOR in this eshell for the local or remote directory."
   (if (file-remote-p default-directory)
       (with-editor-export-editor)
     (setenv "EDITOR" "emacsclient")))
 
-;; Write each command to the history file at once, like zsh
-;; inc_append_history; the default writes only when the buffer dies.
+;; Like zsh inc_append_history; the default writes on buffer kill.
 (defun vp/eshell-save-history (&rest _)
   "Append new history entries to the history file."
   (eshell-write-history nil t))
 
-;; fish-style autosuggestion: completion-preview shows the newest
-;; history line that starts with the input. Preview commands only: on
-;; TAB with no preview, pcomplete completes files and commands.
+;; Fish-style suggestions. Preview commands only, so TAB still pcompletes.
 (defun vp/eshell-history-capf ()
   "Complete the whole input line from eshell history, newest first."
   (when (and (memq this-command completion-preview-commands)
@@ -1143,7 +953,6 @@ Remote dirs keep their TRAMP prefix and skip the branch."
   (setq-local completion-preview-minimum-symbol-length 1)
   (completion-preview-mode 1))
 
-;; Recent dirs, zoxide-style: the list that C-c d and dired use.
 (defun eshell/z (&rest words)
   "cd to the most recent directory whose path contains all WORDS.
 A WORDS that names a recent dir exactly (as `pcomplete/z' inserts
@@ -1161,7 +970,7 @@ it) goes there. With no WORDS, pick one."
                       dirs))
            (t (error "z: no recent dir matches %s" (string-join words " ")))))))
 
-;; Home-relative candidates: pcomplete would escape a leading ~.
+;; Home-relative: pcomplete escapes a leading ~.
 (defun pcomplete/z ()
   "Complete z from the recent dirs."
   (pcomplete-here
@@ -1169,8 +978,7 @@ it) goes there. With no WORDS, pick one."
     (mapcar (lambda (dir) (string-remove-prefix "~/" dir)) (vp/recent-dirs))
     '((display-sort-function . identity)))))
 
-;; esh-mode, not eshell: eshell-mode-map lives in esh-mode.el, so a
-;; binding hung on the eshell feature fires before the map exists.
+;; esh-mode, not eshell: eshell-mode-map lives there.
 (use-package esh-mode
   :ensure nil
   :hook (((eshell-mode eshell-directory-change) . vp/eshell-export-editor)
@@ -1180,21 +988,17 @@ it) goes there. With no WORDS, pick one."
          ("C-r" . consult-history))
   :custom
   (eshell-history-size 10000)
-  (eshell-hist-ignoredups 'erase)   ; a rerun moves to the top
-  (eshell-history-append t)         ; vp/eshell-save-history appends
+  (eshell-hist-ignoredups 'erase)
+  (eshell-history-append t)
   (eshell-scroll-to-bottom-on-input 'this)
   (eshell-cmpl-ignore-case t)
-  ;; Tracked, unlike eshell/ (history and other state).
   (eshell-aliases-file (expand-file-name "etc/eshell-aliases" user-emacs-directory))
-  ;; Like zsh cp -i / mv -i; rm already moves to the trash.
   (eshell-cp-interactive-query t)
   (eshell-mv-interactive-query t))
 
-;; Colors the command line as you type; unknown commands show red.
 (use-package eshell-syntax-highlighting
   :hook (eshell-mode . eshell-syntax-highlighting-mode))
 
-;; M-f takes one word of the grey suggestion; TAB takes all of it.
 (with-eval-after-load 'completion-preview
   (keymap-set completion-preview-active-mode-map "M-f" #'completion-preview-insert-word))
 
@@ -1203,10 +1007,10 @@ it) goes there. With no WORDS, pick one."
 From an eshell, start one more. The cd runs as a real command so
 eshell history records it."
   (interactive)
-  ;; file-truename also normalizes macOS firmlink paths.
+  ;; file-truename normalizes macOS firmlinks.
   (let ((dir (file-truename default-directory)))
     (eshell (derived-mode-p 'eshell-mode))
-    (goto-char (point-max))   ; point can be mid-buffer in a reused session
+    (goto-char (point-max))
     (unless (string= (file-truename default-directory) dir)
       (eshell-kill-input)
       (insert (format "cd \"%s\"" dir))
@@ -1214,35 +1018,29 @@ eshell history records it."
 
 
 ;;; Remote (TRAMP, built-in) -----
-;; Remote is path syntax: /ssh:host:path, /docker:name:…, /sudo:: for root.
 (use-package tramp
   :ensure nil
   :defer t
   :custom
-  ;; Do not re-save remote buffers over the network on idle.
   (remote-file-name-inhibit-auto-save-visited t)
-  ;; Trust cached remote file attributes for 60s instead of 10.
   (remote-file-name-inhibit-cache 60)
-  ;; Do not create or check lockfiles on remote saves.
   (remote-file-name-inhibit-locks t)
   :config
-  ;; Run remote async processes (eshell commands, compile, grep) as a
-  ;; plain `ssh host cmd', skipping TRAMP's login-shell handshake.
-  ;; Limits: no interrupt-process (C-c C-c), no multi-hop.
+  ;; Plain `ssh host cmd', no login-shell handshake. Costs: no
+  ;; interrupt-process, no multi-hop.
   (connection-local-set-profile-variables
    'vp/tramp-direct-async
    '((tramp-direct-async-process . t)))
   (connection-local-set-profiles
    '(:application tramp :protocol "ssh") 'vp/tramp-direct-async)
-  ;; dzdo (Centrify sudo) as a hop, root by default:
-  ;; /ssh:host|dzdo:host:/path. Same login as the stock sudo method.
+  ;; Centrify sudo: /ssh:host|dzdo:host:/path.
   (add-to-list 'tramp-methods
                `("dzdo"
                  (tramp-login-program "dzdo")
                  (tramp-login-args (("-u" "%u") ("-s") ("-H") ("%l")))
                  ,@(nthcdr 3 (assoc "sudo" tramp-methods))))
   (add-to-list 'tramp-default-user-alist '("dzdo" nil "root"))
-  ;; Do not probe VC over the connection on every remote find-file.
+  ;; No VC probes over the connection.
   (setopt vc-ignore-dir-regexp
           (format "%s\\|%s" vc-ignore-dir-regexp tramp-file-name-regexp)))
 
@@ -1256,11 +1054,10 @@ eshell history records it."
   (which-key-max-description-length 40)
   (which-key-add-column-padding 2)
   :config
-  ;; Show own commands without the vp/ namespace prefix. Hide the
-  ;; ghostel-mode C-c chords; the keys still work.
+  ;; Hide the vp/ prefix and ghostel's C-c chords.
   (add-to-list 'which-key-replacement-alist '((nil . "\\`vp/") . (nil . "")))
   (add-to-list 'which-key-replacement-alist '((nil . "\\`ghostel-") . t))
-  ;; Stock Emacs leaves an empty C-c ^ prefix in the popup.
+  ;; An empty stock prefix.
   (keymap-unset mode-specific-map "^" t)
   (which-key-mode))
 
