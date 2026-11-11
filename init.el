@@ -251,6 +251,7 @@
 (use-package consult
   :bind (("<remap> <switch-to-buffer>" . consult-buffer)
          ("s-b" . consult-buffer)   ; ghostel sends C-x to the TUI
+         ("s-r" . consult-recent-file)
          ("<remap> <yank-pop>" . consult-yank-pop)
          ("<remap> <goto-line>" . consult-goto-line)
          ("<remap> <imenu>" . consult-imenu)
