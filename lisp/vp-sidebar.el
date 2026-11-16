@@ -50,11 +50,12 @@ Keyed on the directory, so Dired and Eshell regroup when they move.")
 
 (defun vp/sidebar--listed-p (buf)
   "Non-nil if BUF gets a row.
-Internal buffers stay out; terminals (Claude Code too) and eshells
-stay in."
+Internal buffers stay out; terminals (Claude Code too), eshells and
+file buffers with a starred name (the *scratch* notes) stay in."
   (let ((name (buffer-name buf)))
     (not (or (string-prefix-p " " name)
              (and (string-prefix-p "*" name)
+                  (not (buffer-file-name buf))
                   (not (provided-mode-derived-p
                         (buffer-local-value 'major-mode buf)
                         '(ghostel-mode eshell-mode))))))))

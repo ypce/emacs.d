@@ -218,6 +218,12 @@
   :hook (after-init . savehist-mode)
   :custom (savehist-additional-variables '(search-ring regexp-search-ring)))
 
+;; Ships with Homebrew pass. Works inside a password prompt (recursive
+;; minibuffers), then C-y.
+(use-package password-store
+  :ensure nil
+  :commands password-store-copy)
+
 (use-package saveplace
   :ensure nil
   :hook (after-init . save-place-mode)
