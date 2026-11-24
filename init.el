@@ -331,6 +331,7 @@
 
 (define-keymap :keymap mode-specific-map
   "a" '("claude"      . claude-code-ide-menu)
+  "A" '("resume claude" . vp/claude-resume)
   "e" '("sidebar"     . vp/sidebar-toggle)
   "f" (cons "file" vp/file-map)
   "l" (cons "code" vp/code-map)       ; l for LSP
@@ -536,7 +537,6 @@ searchable (C-c n f, C-c n g)."
   (org-ellipsis " ⤵")
   (org-startup-indented t)
   (org-startup-folded 'content)
-  (org-cycle-separator-lines 1)
   (org-hide-emphasis-markers t)
   (org-log-done 'time)
   (org-log-into-drawer t)
@@ -741,7 +741,69 @@ Open the hub if it already exists."
   :config
   (claude-code-ide-emacs-tools-setup)
   (add-to-list 'display-buffer-alist
-               '("\\`\\*claude-code\\[" (display-buffer-full-frame))))
+               '("\\`\\*claude-code\\[" (display-buffer-full-frame)))
+  ;; claude is the terminal's own process, so the default `auto' never
+  ;; sees a running command and kills a live session without asking.
+  (add-hook 'ghostel-mode-hook #'vp/claude-query-before-killing))
+
+(defun vp/claude-query-before-killing ()
+  (when (string-prefix-p "*claude-code[" (buffer-name))
+    (setq-local ghostel-query-before-killing t)))
+
+(defun vp/claude--sessions ()
+  "Saved Claude Code sessions, newest first, as (LABEL ID . DIR).
+The transcript head has the cwd; the newest title is near its end.
+A session whose cwd is gone is struck through."
+  (let (rows)
+    (dolist (f (sort (file-expand-wildcards "~/.claude/projects/*/*.jsonl")
+                     :key (lambda (f) (file-attribute-modification-time
+                                       (file-attributes f)))
+                     :reverse t))
+      (with-temp-buffer
+        (insert-file-contents f nil 0 65536)
+        (when (re-search-forward "\"cwd\":\"\\([^\"]+\\)\"" nil t)
+          (let* ((dir (match-string 1))
+                 (attrs (file-attributes f))
+                 (size (file-attribute-size attrs))
+                 (dead (not (file-directory-p dir))))
+            (erase-buffer)
+            (insert-file-contents f nil (max 0 (- size 262144)) size)
+            (goto-char (point-max))
+            (push (cons (format "%s  %s  %s"
+                                (format-time-string
+                                 "%m-%d %H:%M" (file-attribute-modification-time attrs))
+                                (propertize
+                                 (if (re-search-backward "\"aiTitle\":\"\\([^\"]+\\)\"" nil t)
+                                     (match-string 1)
+                                   "untitled")
+                                 'face (and dead '(:strike-through t)))
+                                (propertize (abbreviate-file-name dir) 'face 'shadow))
+                        (cons (file-name-base f) dir))
+                  rows)))))
+    (nreverse rows)))
+
+(defun vp/claude-resume ()
+  "Resume a saved Claude Code session from any directory.
+Claude Code resumes a session only from its own cwd, so start there,
+not at the project root."
+  (interactive)
+  (require 'claude-code-ide)
+  (let* ((rows (vp/claude--sessions))
+         (pick (cdr (assoc (completing-read
+                            "Resume: "
+                            (lambda (s p a)
+                              (if (eq a 'metadata)
+                                  '(metadata (display-sort-function . identity))
+                                (complete-with-action a rows s p)))
+                            nil t)
+                           rows)))
+         (_ (unless (file-directory-p (cdr pick))
+              (user-error "Directory is gone: %s" (cdr pick))))
+         (default-directory (file-name-as-directory (cdr pick)))
+         (project-find-functions nil)
+         (claude-code-ide-cli-extra-flags
+          (string-join (list claude-code-ide-cli-extra-flags "--resume" (car pick)) " ")))
+    (claude-code-ide)))
 
 
 ;;; Eshell -----

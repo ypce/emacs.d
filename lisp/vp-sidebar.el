@@ -1,8 +1,9 @@
 ;;; vp-sidebar.el --- Buffer sidebar -*- lexical-binding: t; -*-
 ;;; Commentary:
-;; A left side window that lists buffers by remote host, org, or
-;; project. Claude Code sessions go in the group of their directory,
-;; named by the terminal title that Claude Code sets. The super keys
+;; A left side window that lists buffers by remote host, org,
+;; project, or else directory. Claude Code sessions go in the group
+;; of their directory, named by the terminal title that Claude Code
+;; sets. The super keys
 ;; follow its order (see `vp/sidebar-next-buffer'). Each line carries
 ;; one `vp/sidebar' text property: a buffer or a group name.
 ;;; Code:
@@ -65,14 +66,14 @@ file buffers with a starred name (the *scratch* notes) stay in."
   (string-prefix-p "*claude-code[" (buffer-name buf)))
 
 (defun vp/sidebar--dir-group (dir)
-  "Group of directory DIR: remote host, org, project, or other."
+  "Group of directory DIR: remote host, org, project, or DIR itself."
   (cond ((file-remote-p dir) (concat "@" (file-remote-p dir 'host)))
         ((and (bound-and-true-p org-directory)
               (file-in-directory-p dir org-directory))
          "org")
         ((when-let* ((pr (project-current nil dir)))
            (file-name-nondirectory (directory-file-name (project-root pr)))))
-        (t "other")))
+        (t (abbreviate-file-name (directory-file-name dir)))))
 
 (defun vp/sidebar--group (buf)
   "Group of BUF: the group of its directory."
@@ -360,7 +361,7 @@ With no sidebar on screen, step N buffers in the window's history."
   "<mouse-2>" #'vp/sidebar-mouse-visit)
 
 (define-derived-mode vp/sidebar-mode special-mode "Sidebar"
-  "Buffers by remote host, org, or project."
+  "Buffers by remote host, org, project, or directory."
   (setq-local mode-line-format nil
               truncate-lines t
               cursor-type nil           ; the highlight shows the row
