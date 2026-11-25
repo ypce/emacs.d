@@ -5,7 +5,7 @@
 ;; of their directory, named by the terminal title that Claude Code
 ;; sets. The super keys follow its order (see
 ;; `vp/sidebar-next-buffer'). Each line carries one `vp/sidebar' text
-;; property: a buffer or a group name.
+;; property: a buffer or a group key.
 ;;; Code:
 
 (require 'hl-line)
@@ -14,6 +14,7 @@
 (require 'text-property-search)
 
 (defvar ghostel-title)
+(defvar desktop-globals-to-save)
 
 (defconst vp/sidebar-name "*Sidebar*")
 
@@ -22,6 +23,10 @@
 
 (defface vp/sidebar-attention '((t :foreground "#ff2d55"))
   "Face for a buffer that waits for user action."
+  :group 'convenience)
+
+(defface vp/sidebar-group-parent '((t :inherit shadow :height 0.85))
+  "Face for the parent folder after a group name."
   :group 'convenience)
 
 (defface vp/sidebar-claude '((t :foreground "#d97757"))
@@ -62,14 +67,32 @@ file buffers with a starred name (the *scratch* notes) stay in."
   (string-prefix-p "*claude-code[" (buffer-name buf)))
 
 (defun vp/sidebar--dir-group (dir)
-  "Group of directory DIR: remote host, org, project, or DIR itself."
+  "Group key of directory DIR: @host, org, the project root, or DIR.
+A path keys the group, so folders that share a name stay apart;
+`vp/sidebar--group-label' shows only its last part."
   (cond ((file-remote-p dir) (concat "@" (file-remote-p dir 'host)))
         ((and (bound-and-true-p org-directory)
               (file-in-directory-p dir org-directory))
          "org")
-        ((when-let* ((pr (project-current nil dir)))
-           (file-name-nondirectory (directory-file-name (project-root pr)))))
-        (t (abbreviate-file-name (directory-file-name dir)))))
+        (t (abbreviate-file-name
+            (directory-file-name
+             (if-let* ((pr (project-current nil dir))) (project-root pr) dir))))))
+
+(defun vp/sidebar--group-label (group)
+  "GROUP as shown: the last part of a path, else GROUP itself."
+  (let ((base (file-name-nondirectory group)))
+    (if (or (string-empty-p base) (not (file-name-absolute-p group)))
+        group
+      base)))
+
+(defun vp/sidebar--group-parent (group)
+  "Name of the folder above GROUP if GROUP is a path, else nil.
+It shows after the group name: B4-4 alone says little."
+  (when-let* (((file-name-absolute-p group))
+              (dir (file-name-directory group))
+              (dir (directory-file-name dir))
+              ((not (equal dir group))))   ; / is its own parent
+    (vp/sidebar--group-label dir)))
 
 (defun vp/sidebar--group (buf)
   "Group of BUF: the group of its directory."
@@ -92,8 +115,8 @@ Claude Code sets the title from the first request."
 
 (defun vp/sidebar--collect ()
   "Listed buffers as ((GROUP (LABEL . BUFFER)...)...).
-Groups and rows sort by name, so positions stay stable. A title
-change changes the label, so `vp/sidebar--update' redraws."
+Groups sort by label, rows by buffer name, so positions stay stable.
+A title change changes the label, so `vp/sidebar--update' redraws."
   (let (groups)
     (dolist (buf (buffer-list))
       (when (vp/sidebar--listed-p buf)
@@ -102,7 +125,8 @@ change changes the label, so `vp/sidebar--update' redraws."
     (sort (mapcar (lambda (g)
                     (cons (car g) (sort (cdr g) :key (lambda (r) (buffer-name (cdr r))))))
                   groups)
-          :key #'car :in-place t)))
+          :key (lambda (g) (list (vp/sidebar--group-label (car g)) (car g)))
+          :in-place t)))
 
 ;;; Drawing
 
@@ -133,16 +157,18 @@ change changes the label, so `vp/sidebar--update' redraws."
       'help-echo (buffer-name buf)))))
 
 (defun vp/sidebar--insert-group (name rows)
-  "Insert group NAME with ROWS, (LABEL . BUFFER) pairs.
+  "Insert group NAME, a key, with ROWS, (LABEL . BUFFER) pairs.
 Thin gaps go around groups. A folded group shows its buffer count
-and turns red when a buffer in it waits for user action."
+and turns red when a buffer in it waits for user action. The parent
+folder comes last, so a narrow sidebar cuts only that; hovering
+shows the full key."
   (let ((folded (member name vp/sidebar--folded))
         (bufs (mapcar #'cdr rows)))
     (vp/sidebar--spacer)
     (insert (propertize
                (concat " " (propertize (if folded "▸" "▾") 'face 'shadow)
                        " " (propertize
-                            name 'face
+                            (vp/sidebar--group-label name) 'face
                             (if (and folded
                                      (seq-some (lambda (r) (memq r vp/sidebar--attention))
                                                bufs))
@@ -150,8 +176,10 @@ and turns red when a buffer in it waits for user action."
                               'shadow))
                        (when folded
                          (propertize (format "  %d" (length bufs)) 'face 'shadow))
+                       (when-let* ((parent (vp/sidebar--group-parent name)))
+                         (propertize (concat "  " parent) 'face 'vp/sidebar-group-parent))
                        " \n")
-               'vp/sidebar name))
+               'vp/sidebar name 'help-echo name))
     (unless folded
       (dolist (row rows)
         ;; Aligns the icon under the group name, past the triangle.
@@ -366,29 +394,53 @@ With no sidebar on screen, step N buffers in the window's history."
               revert-buffer-function (lambda (&rest _) (vp/sidebar--update t)))
   (hl-line-mode 1))
 
+(defun vp/sidebar--show ()
+  "Show the sidebar without selecting it; return its window.
+It is not in the `other-window' cycle."
+  (with-current-buffer (get-buffer-create vp/sidebar-name)
+    (unless (derived-mode-p 'vp/sidebar-mode)
+      (vp/sidebar-mode)))
+  (prog1 (display-buffer
+          vp/sidebar-name
+          `(display-buffer-in-side-window
+            (side . left) (slot . 0)
+            (window-width . ,vp/sidebar-width)
+            ;; Else a frame resize changes the width.
+            (preserve-size . (t . nil))
+            ;; Else other-window displays reuse it.
+            (dedicated . t)
+            (window-parameters (no-delete-other-windows . t)
+                               (no-other-window . t))))
+    (vp/sidebar--update t)))
+
 (defun vp/sidebar-toggle ()
-  "Open and focus the sidebar; focus it if open; close it if focused.
-The sidebar is not in the `other-window' cycle."
+  "Open and focus the sidebar; focus it if open; close it if focused."
   (interactive)
   (let ((win (get-buffer-window vp/sidebar-name)))
     (cond ((eq win (selected-window)) (delete-window win))
           (win (select-window win))
-          (t (with-current-buffer (get-buffer-create vp/sidebar-name)
-               (unless (derived-mode-p 'vp/sidebar-mode)
-                 (vp/sidebar-mode)))
-             (setq win (display-buffer
-                        vp/sidebar-name
-                        `(display-buffer-in-side-window
-                          (side . left) (slot . 0)
-                          (window-width . ,vp/sidebar-width)
-                          ;; Else a frame resize changes the width.
-                          (preserve-size . (t . nil))
-                          ;; Else other-window displays reuse it.
-                          (dedicated . t)
-                          (window-parameters (no-delete-other-windows . t)
-                                             (no-other-window . t)))))
-             (vp/sidebar--update t)
-             (select-window win)))))
+          (t (select-window (vp/sidebar--show))))))
+
+;;; Desktop
+;; A flag, not the buffer: the frameset restore drops the window
+;; parameters and preserved width that `vp/sidebar--show' sets.
+
+(defvar vp/sidebar-open nil
+  "Non-nil if the sidebar was on screen at the last desktop save.")
+
+(defun vp/sidebar-desktop-save ()
+  "Record whether the sidebar is on screen. Fits `desktop-save-hook'."
+  (setq vp/sidebar-open (and (get-buffer-window vp/sidebar-name t) t)))
+
+(defun vp/sidebar-desktop-restore ()
+  "Show the sidebar again if it was on screen at the last save.
+Fits `desktop-after-read-hook'."
+  (when vp/sidebar-open
+    (vp/sidebar--show)))
+
+(with-eval-after-load 'desktop
+  (add-to-list 'desktop-globals-to-save 'vp/sidebar-open)
+  (add-hook 'desktop-save-hook #'vp/sidebar-desktop-save))
 
 (provide 'vp-sidebar)
 ;;; vp-sidebar.el ends here

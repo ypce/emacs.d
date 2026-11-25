@@ -505,7 +505,8 @@
   :load-path "lisp/"
   :commands (vp/sidebar-toggle
              vp/sidebar-attention-mark
-             vp/sidebar-retitle)
+             vp/sidebar-retitle
+             vp/sidebar-desktop-restore)
   :bind (("s-l" . vp/sidebar-next-buffer)
          ("s-u" . vp/sidebar-previous-buffer)
          ("s-w" . vp/sidebar-kill-buffer)
@@ -768,8 +769,7 @@ Open the hub if it already exists."
              vp/claude-desktop-restore))
 
 ;;; Desktop -----
-;; Restart restores files, windows, and Claude sessions, resumed by
-;; `vp/claude-desktop-restore'.
+;; Restart restores files, windows, Claude sessions, and the sidebar.
 (use-package desktop
   :ensure nil
   :custom
@@ -778,6 +778,7 @@ Open the hub if it already exists."
   :config
   (add-to-list 'desktop-buffer-mode-handlers
                '(ghostel-mode . vp/claude-desktop-restore))
+  (add-hook 'desktop-after-read-hook #'vp/sidebar-desktop-restore)
   (desktop-save-mode 1))
 
 
