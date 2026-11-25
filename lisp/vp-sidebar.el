@@ -17,12 +17,8 @@
 
 (defconst vp/sidebar-name "*Sidebar*")
 
-(defvar vp/sidebar-label-max 30
-  "Longest row label; longer names end in an ellipsis.
-With the indent and icon, the sidebar is at most about 38 columns.")
-
-(defvar vp/sidebar-min-width 22
-  "Narrowest sidebar, in columns, so a few short names do not shrink it.")
+(defvar vp/sidebar-width 22
+  "Sidebar width in columns. It stays fixed; the display cuts long rows.")
 
 (defface vp/sidebar-attention '((t :foreground "#ff2d55"))
   "Face for a buffer that waits for user action."
@@ -116,9 +112,8 @@ change changes the label, so `vp/sidebar--update' redraws."
     (insert (propertize "\n" 'face '(:height 0.2) 'vp/sidebar-spacer t))))
 
 (defun vp/sidebar--label (text face)
-  "TEXT elided to fit, with one column of padding, in FACE."
-  (propertize (concat (truncate-string-to-width text vp/sidebar-label-max nil nil t) " ")
-              'face face))
+  "TEXT with one column of padding, in FACE."
+  (propertize (concat text " ") 'face face))
 
 (defun vp/sidebar--insert-row (row indent)
   "Insert a line for ROW, a (LABEL . BUFFER) pair, after INDENT."
@@ -164,23 +159,14 @@ and turns red when a buffer in it waits for user action."
     (vp/sidebar--spacer)))
 
 (defun vp/sidebar--draw ()
-  "Redraw the sidebar from `vp/sidebar--groups' and fit its width."
+  "Redraw the sidebar from `vp/sidebar--groups'."
   (with-current-buffer vp/sidebar-name
     (let ((at (get-text-property (point) 'vp/sidebar))
           (inhibit-read-only t))
       (erase-buffer)
       (pcase-dolist (`(,name . ,rows) vp/sidebar--groups)
         (vp/sidebar--insert-group name rows))
-      (goto-char (or (vp/sidebar--pos at) (point-min))))
-    ;; Not `fit-window-to-buffer': it measures only the rows on screen.
-    (when-let* ((win (get-buffer-window)))
-      (let ((cols (max vp/sidebar-min-width
-                       (ceiling (car (window-text-pixel-size win nil nil t))
-                                (frame-char-width (window-frame win))))))
-        ;; IGNORE: preserve-size would block the resize. Then preserve
-        ;; the new width, else a frame resize restores the old one.
-        (window-resize-no-error win (- cols (window-body-width win)) t t)
-        (window-preserve-size win t t)))))
+      (goto-char (or (vp/sidebar--pos at) (point-min))))))
 
 (defun vp/sidebar--pos (value)
   "Position of the line whose `vp/sidebar' property is VALUE, or nil."
@@ -392,8 +378,11 @@ The sidebar is not in the `other-window' cycle."
                  (vp/sidebar-mode)))
              (setq win (display-buffer
                         vp/sidebar-name
-                        '(display-buffer-in-side-window
+                        `(display-buffer-in-side-window
                           (side . left) (slot . 0)
+                          (window-width . ,vp/sidebar-width)
+                          ;; Else a frame resize changes the width.
+                          (preserve-size . (t . nil))
                           ;; Else other-window displays reuse it.
                           (dedicated . t)
                           (window-parameters (no-delete-other-windows . t)

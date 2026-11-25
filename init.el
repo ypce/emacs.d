@@ -537,10 +537,18 @@ searchable (C-c n f, C-c n g)."
                      (lambda (e) (member "agenda" (org-mem-entry-tags e)))
                      (org-mem-all-entries))))))))
 
+(defun vp/org-no-bar-fill-prefix ()
+  "Stop `visual-wrap-prefix-mode' taking a table row's | as a prefix.
+Its min-width pads the first cell of text rows only, so their
+separators miss those of rules and empty rows."
+  (setq-local adaptive-fill-regexp
+              (string-replace "|" "" (default-value 'adaptive-fill-regexp))))
+
 (use-package org
   :ensure nil
   :hook ((org-mode . visual-line-mode)
-         (org-mode . visual-wrap-prefix-mode))
+         (org-mode . visual-wrap-prefix-mode)
+         (org-mode . vp/org-no-bar-fill-prefix))
   :custom
   (org-ellipsis " ⤵")
   (org-startup-indented t)
