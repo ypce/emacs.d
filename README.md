@@ -10,19 +10,11 @@ start.
 
 ```sh
 brew install emacs-plus@31
-brew services start emacs-plus@31   # daemon via launchd: starts at login, respawns
-ditto /opt/homebrew/opt/emacs-plus@31/"Emacs Client.app" /Applications/"Emacs Client.app"
-osacompile -o "/Applications/Emacs Client.app/Contents/Resources/Scripts/main.scpt" etc/emacs-client.applescript
-codesign --force --sign - "/Applications/Emacs Client.app"
 ```
 
-The daemon is the only Emacs. Connect with `Emacs Client.app`
-(Dock/Spotlight); GUI frames only. Never launch `Emacs.app` directly and never use `emacsclient
--a ''`: both spawn a second Emacs outside launchd's control. The
-shipped `Emacs Client.app` applet hardcodes a Cellar version path and
-an `-a ''` fallback; `etc/emacs-client.applescript` replaces it with a
-plain no-fallback client. After `brew upgrade emacs-plus@31`, run
-`brew services restart emacs-plus@31`.
+Run `Emacs.app`; no daemon. It starts a server, so `emacsclient` and
+`$EDITOR` reach it. Quit and reopen to apply changes: the desktop
+restores files, windows, and Claude sessions.
 
 ### Fonts
 

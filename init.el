@@ -4,7 +4,7 @@
 ;;; Code:
 
 ;;; PATH -----
-;; The launchd daemon gets no shell PATH. Reversed: the first dir wins.
+;; A GUI app gets no shell PATH. Reversed: the first dir wins.
 (dolist (dir (reverse '("/etc/profiles/per-user/vp/bin" "/opt/homebrew/bin"
                         "/Users/vp/.local/bin")))
   (when (file-directory-p dir)
@@ -13,8 +13,13 @@
 
 
 ;;; Server -----
-;; Child processes (Claude Code's C-g, git) edit in this Emacs.
+;; Child processes (Claude Code's C-g, git) edit in this Emacs, and
+;; emacsclient --eval hot-patches it.
 (setenv "EDITOR" "emacsclient")
+(use-package server
+  :ensure nil
+  :config
+  (unless (server-running-p) (server-start)))
 
 
 ;;; Packages -----
@@ -23,7 +28,7 @@
 (with-eval-after-load 'package
   (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t))
 (unless (bound-and-true-p package--activated)
-  (package-initialize))
+  (package-activate-all))
 
 (require 'use-package)
 (setopt use-package-always-ensure t)
@@ -208,7 +213,7 @@
   :hook (after-init . recentf-mode)
   :custom
   (recentf-max-saved-items 300)
-  (recentf-autosave-interval 300)   ; the daemon runs for weeks
+  (recentf-autosave-interval 300)   ; a session runs for weeks
   (recentf-show-messages nil)
   ;; pass decrypts entries into temp dirs.
   (recentf-exclude '("\\`/\\(private/\\)?\\(tmp\\|var/folders\\)/" "/\\.git/")))
@@ -270,6 +275,7 @@
   (xref-show-definitions-function #'consult-xref))
 
 (use-package orderless
+  :defer t   ; the style and its functions are autoloaded
   :custom
   (completion-styles '(orderless basic))
   (completion-category-overrides '((file (styles basic partial-completion))))
@@ -398,7 +404,7 @@
   :ensure nil
   :hook ((python-ts-mode
           go-ts-mode
-          bash-ts-mode sh-mode
+          bash-ts-mode
           markdown-mode) . eglot-ensure)
   :custom
   (eglot-autoshutdown t)
@@ -459,8 +465,10 @@
 (global-auto-revert-mode 1)
 
 (use-package magit
+  ;; Idle, not on demand: git-commit-mode for an outside `git commit'
+  ;; (eshell, ghostel) needs the find-file hook that loading installs.
+  :defer 1
   :custom
-  (magit-auto-revert-mode nil)
   (magit-define-global-key-bindings nil)   ; C-c v
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
 
@@ -660,8 +668,7 @@ searchable (C-c n f, C-c n g)."
   :after org   ; load with org so the indexing modes start
   :init
   ;; Watch dirs are re-walked on the main thread; big trees stutter.
-  (setopt org-mem-do-sync-with-org-id t
-          org-mem-watch-dirs (list org-directory))
+  (setopt org-mem-watch-dirs (list org-directory))
   :config
   (setopt org-node-file-directory-ask
           (file-name-concat org-directory "topics"))
@@ -742,68 +749,28 @@ Open the hub if it already exists."
   (claude-code-ide-emacs-tools-setup)
   (add-to-list 'display-buffer-alist
                '("\\`\\*claude-code\\[" (display-buffer-full-frame)))
-  ;; claude is the terminal's own process, so the default `auto' never
-  ;; sees a running command and kills a live session without asking.
-  (add-hook 'ghostel-mode-hook #'vp/claude-query-before-killing))
+  (add-hook 'ghostel-mode-hook #'vp/claude-buffer-setup))
 
-(defun vp/claude-query-before-killing ()
-  (when (string-prefix-p "*claude-code[" (buffer-name))
-    (setq-local ghostel-query-before-killing t)))
+;; In lisp/ for the same reason as vp-sidebar.
+(use-package vp-claude
+  :ensure nil
+  :load-path "lisp/"
+  :commands (vp/claude-resume
+             vp/claude-buffer-setup
+             vp/claude-desktop-restore))
 
-(defun vp/claude--sessions ()
-  "Saved Claude Code sessions, newest first, as (LABEL ID . DIR).
-The transcript head has the cwd; the newest title is near its end.
-A session whose cwd is gone is struck through."
-  (let (rows)
-    (dolist (f (sort (file-expand-wildcards "~/.claude/projects/*/*.jsonl")
-                     :key (lambda (f) (file-attribute-modification-time
-                                       (file-attributes f)))
-                     :reverse t))
-      (with-temp-buffer
-        (insert-file-contents f nil 0 65536)
-        (when (re-search-forward "\"cwd\":\"\\([^\"]+\\)\"" nil t)
-          (let* ((dir (match-string 1))
-                 (attrs (file-attributes f))
-                 (size (file-attribute-size attrs))
-                 (dead (not (file-directory-p dir))))
-            (erase-buffer)
-            (insert-file-contents f nil (max 0 (- size 262144)) size)
-            (goto-char (point-max))
-            (push (cons (format "%s  %s  %s"
-                                (format-time-string
-                                 "%m-%d %H:%M" (file-attribute-modification-time attrs))
-                                (propertize
-                                 (if (re-search-backward "\"aiTitle\":\"\\([^\"]+\\)\"" nil t)
-                                     (match-string 1)
-                                   "untitled")
-                                 'face (and dead '(:strike-through t)))
-                                (propertize (abbreviate-file-name dir) 'face 'shadow))
-                        (cons (file-name-base f) dir))
-                  rows)))))
-    (nreverse rows)))
-
-(defun vp/claude-resume ()
-  "Resume a saved Claude Code session from any directory.
-Claude Code resumes a session only from its own cwd, so start there,
-not at the project root."
-  (interactive)
-  (require 'claude-code-ide)
-  (let* ((rows (vp/claude--sessions))
-         (pick (cdr (assoc (completing-read
-                            "Resume: "
-                            (lambda (s p a)
-                              (if (eq a 'metadata)
-                                  '(metadata (display-sort-function . identity))
-                                (complete-with-action a rows s p)))
-                            nil t)
-                           rows)))
-         (_ (unless (file-directory-p (cdr pick))
-              (user-error "Directory is gone: %s" (cdr pick))))
-         (default-directory (file-name-as-directory (cdr pick)))
-         (project-find-functions nil)
-         (claude-code-ide-cli-extra-flags
-          (string-join (list claude-code-ide-cli-extra-flags "--resume" (car pick)) " ")))
-    (claude-code-ide)))
+;;; Desktop -----
+;; Restart restores files, windows, and Claude sessions, resumed by
+;; `vp/claude-desktop-restore'.
+(use-package desktop
+  :ensure nil
+  :custom
+  (desktop-save t)
+  (desktop-load-locked-desktop 'check-pid)  ; a crash leaves its lock
+  :config
+  (add-to-list 'desktop-buffer-mode-handlers
+               '(ghostel-mode . vp/claude-desktop-restore))
+  (desktop-save-mode 1))
 
 
 ;;; Eshell -----

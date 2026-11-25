@@ -18,6 +18,7 @@ recentf
 history
 notes
 bookmarks.eld
+.emacs.desktop*
 org-clock-save.el
 tramp
 .cache/

@@ -3,9 +3,9 @@
 ;; A left side window that lists buffers by remote host, org,
 ;; project, or else directory. Claude Code sessions go in the group
 ;; of their directory, named by the terminal title that Claude Code
-;; sets. The super keys
-;; follow its order (see `vp/sidebar-next-buffer'). Each line carries
-;; one `vp/sidebar' text property: a buffer or a group name.
+;; sets. The super keys follow its order (see
+;; `vp/sidebar-next-buffer'). Each line carries one `vp/sidebar' text
+;; property: a buffer or a group name.
 ;;; Code:
 
 (require 'hl-line)
@@ -194,7 +194,9 @@ and turns red when a buffer in it waits for user action."
   "Move the highlight to the buffer of the selected window.
 A buffer in a folded group highlights the group name."
   (when-let* ((win (get-buffer-window vp/sidebar-name))
-              ((not (eq win (selected-window)))))
+              ((not (eq win (selected-window))))
+              ;; Else every minibuffer entry drops the highlight.
+              ((not (minibufferp (window-buffer)))))
     (let ((buf (window-buffer)))
       (with-current-buffer vp/sidebar-name
         (if-let* ((pos (or (vp/sidebar--pos buf)
@@ -232,6 +234,9 @@ nil keeps the buffer name, which claude-code-ide looks sessions up by."
   (ignore (vp/sidebar--schedule)))
 
 (add-hook 'buffer-list-update-hook #'vp/sidebar--schedule)
+;; claude-code-ide clears `ghostel-buffer-name-function' in its
+;; buffers, so `vp/sidebar-retitle' misses session titles.
+(add-variable-watcher 'ghostel-title #'vp/sidebar--schedule)
 (add-hook 'eshell-directory-change-hook #'vp/sidebar--schedule)
 (add-hook 'window-buffer-change-functions #'vp/sidebar--follow)
 (add-hook 'window-selection-change-functions #'vp/sidebar--follow)
@@ -248,12 +253,13 @@ Fits `ghostel-notification-functions'."
 
 (defun vp/sidebar--attention-clear (_frame)
   "Drop the marks of buffers that are on screen or dead."
-  (when-let* ((gone (seq-filter (lambda (buf)
-                                  (or (not (buffer-live-p buf))
-                                      (get-buffer-window buf t)))
-                                vp/sidebar--attention)))
-    (setq vp/sidebar--attention (seq-difference vp/sidebar--attention gone))
-    (vp/sidebar--update t)))
+  (let ((kept (seq-remove (lambda (buf)
+                            (or (not (buffer-live-p buf))
+                                (get-buffer-window buf t)))
+                          vp/sidebar--attention)))
+    (unless (length= kept (length vp/sidebar--attention))
+      (setq vp/sidebar--attention kept)
+      (vp/sidebar--update t))))
 (add-hook 'window-buffer-change-functions #'vp/sidebar--attention-clear)
 
 ;;; Commands
@@ -388,7 +394,6 @@ The sidebar is not in the `other-window' cycle."
                         vp/sidebar-name
                         '(display-buffer-in-side-window
                           (side . left) (slot . 0)
-                          (preserve-size . (t . nil))
                           ;; Else other-window displays reuse it.
                           (dedicated . t)
                           (window-parameters (no-delete-other-windows . t)
