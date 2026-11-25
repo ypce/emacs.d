@@ -27,6 +27,7 @@ restores files, windows, and Claude sessions.
 
 ```sh
 brew install ripgrep     # consult-ripgrep, xref, project search
+brew install fd          # consult-fd (C-c f)
 brew install pandoc      # markdown preview rendering
 brew install git         # magit, package-vc, treesit grammar builds
 brew install mermaid-cli # mmdc: ob-mermaid renders org mermaid blocks

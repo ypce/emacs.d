@@ -153,30 +153,13 @@
 
 
 ;;; File ops -----
-(defun vp/file--target ()
-  "The current file; in dired the file at point; else the directory."
+;; File actions live in embark: C-. on a file name at point, a dired line,
+;; or a file candidate. For the visited file, C-x C-j to dired first.
+(defun vp/file-reveal (file)
+  "Reveal FILE in Finder."
+  (interactive "fReveal: ")
   ;; expand-file-name: `open' gets the path verbatim, nothing expands ~
-  (expand-file-name (or buffer-file-name
-                        (and (derived-mode-p 'dired-mode)
-                             (dired-get-filename nil t))
-                        default-directory)))
-
-(defun vp/file-reveal ()
-  "Reveal the current file in Finder. In dired, reveal the file at point."
-  (interactive)
-  (call-process "open" nil 0 nil "-R" (vp/file--target)))
-
-(defun vp/file-open-default ()
-  "Open the current file (in dired: the file at point) with the default app."
-  (interactive)
-  (call-process "open" nil 0 nil (vp/file--target)))
-
-(defun vp/file-copy-path ()
-  "Copy the absolute path of the current file (in dired: the file at point)."
-  (interactive)
-  (let ((p (vp/file--target)))
-    (kill-new p)
-    (message "%s" p)))
+  (call-process "open" nil 0 nil "-R" (expand-file-name file)))
 
 
 ;;; Theme + Font -----
@@ -248,6 +231,7 @@
   (minibuffer-electric-default-mode 1))
 
 (use-package vertico
+  :custom (vertico-count 20)
   :config (vertico-mode 1))
 
 ;; Bundled with vertico.
@@ -258,6 +242,27 @@
          ("DEL" . vertico-directory-delete-char)
          ("M-DEL" . vertico-directory-delete-word))
   :hook (rfn-eshadow-update-overlay . vertico-directory-tidy))
+
+;; Descriptions in vertico lists, and so in the embark action list.
+(use-package marginalia
+  :config (marginalia-mode 1))
+
+;; Actions on the thing at point or the minibuffer candidate.
+;; C-. lists the actions as a vertico prompt: type to narrow, RET to act.
+;; @ then a key acts at once.
+(use-package embark
+  :bind ("C-." . embark-act)
+  :custom
+  (embark-prompter #'embark-completing-read-prompter)
+  ;; Not the mixed indicator: its key list window is redundant here.
+  (embark-indicators '(embark-minimal-indicator embark-highlight-indicator
+                       embark-isearch-highlight-indicator))
+  :config (keymap-set embark-file-map "O" #'vp/file-reveal))
+
+;; E (export) on consult results gives a grep or dired buffer; embark
+;; warns without it.
+(use-package embark-consult
+  :after (embark consult))
 
 (use-package consult
   :bind (("<remap> <switch-to-buffer>" . consult-buffer)
@@ -303,13 +308,6 @@
   "r" '("rename symbol"    . eglot-rename)
   "x" '("diagnostics"      . flymake-show-buffer-diagnostics))
 
-(defvar-keymap vp/file-map
-  :doc "File commands on C-c f."
-  "r" '("rename/move file"   . rename-visited-file)
-  "o" '("reveal in Finder"   . vp/file-reveal)
-  "e" '("open (default app)" . vp/file-open-default)
-  "y" '("copy file path"     . vp/file-copy-path))
-
 (defvar-keymap vp/mindmap-map
   :doc "Mindmap commands on C-c n m, in org mindmap blocks."
   "d" '("delete node"       . org-mindmap-delete-node)
@@ -326,10 +324,8 @@
   "i" '("insert link"        . org-node-insert-link)
   "g" '("grep notes"         . vp/notes-grep)
   "b" '("backlinks/context"  . org-node-context-toggle)
-  "n" '("capture to inbox"   . vp/capture-inbox)
   "d" '("daily note (today)" . vp/daily-today)
   "p" '("new project hub"    . vp/new-project)
-  "s" '("browse dailies"     . org-node-seq-dispatch)
   "m" (cons "mindmap" vp/mindmap-map))
 
 ;; Shells open at the project root: C-x p e eshell, C-x p t ghostel.
@@ -339,7 +335,7 @@
   "a" '("claude"      . claude-code-ide-menu)
   "A" '("resume claude" . vp/claude-resume)
   "e" '("sidebar"     . vp/sidebar-toggle)
-  "f" (cons "file" vp/file-map)
+  "f" '("find file (fd)" . consult-fd)
   "l" (cons "code" vp/code-map)       ; l for LSP
   "n" (cons "notes" vp/notes-map)
   "s" '("search (rg)" . consult-ripgrep)
@@ -633,11 +629,6 @@ separators miss those of rules and empty rows."
   (org-clock-persistence-insinuate)
   (add-hook 'org-capture-mode-hook #'delete-other-windows))
 
-(defun vp/capture-inbox ()
-  "Capture a TODO to inbox.org without the template menu."
-  (interactive)
-  (org-capture nil "i"))
-
 (defun vp/agenda (&optional arg)
   "Open the overview agenda. With a prefix ARG, show the dispatcher."
   (interactive "P")
@@ -673,6 +664,22 @@ separators miss those of rules and empty rows."
 
 
 ;;; Org Node (notes) -----
+(defun vp/org-node-affix (node title)
+  "Affix TITLE of NODE: outline path, then tags and file date at the right.
+The date is the file's last change; org-mem updates it on save."
+  (let ((info (string-join
+               (delq nil (list (and (org-mem-entry-tags node)
+                                    (string-join (org-mem-entry-tags node) ","))
+                               (format-time-string
+                                "%Y-%m-%d" (org-mem-file-mtime node))))
+               " ")))
+    (list title
+          (cadr (org-node-prepend-olp node title))
+          (concat " "   ; a gap when the title reaches the right edge
+                  (propertize " " 'display
+                              `(space :align-to (- right ,(1+ (string-width info)))))
+                  (propertize info 'face 'completions-annotations)))))
+
 (use-package org-node
   :after org   ; load with org so the indexing modes start
   :init
@@ -684,6 +691,9 @@ separators miss those of rules and empty rows."
   (make-directory org-node-file-directory-ask t)
   (org-mem-updater-mode)
   (org-node-cache-mode)
+  (setopt org-node-display-sort-fn #'org-node-sort-by-file-mtime
+          org-node-affixation-fn #'vp/org-node-affix
+          org-node-alter-candidates t)   ; search matches tags and date too
   (add-hook 'org-mem-post-full-scan-functions #'vp/refresh-agenda-files)
   (add-hook 'org-mem-post-targeted-scan-functions #'vp/refresh-agenda-files)
   (require 'org-node-seq)
@@ -881,7 +891,7 @@ Open the hub if it already exists."
   :ensure nil
   :custom
   (which-key-idle-delay 0.4)
-  (which-key-sort-order 'which-key-key-order-alpha)
+  (which-key-sort-order 'which-key-description-order)   ; by action, not key
   (which-key-max-description-length 40)
   (which-key-add-column-padding 2)
   :config
