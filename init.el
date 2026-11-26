@@ -750,6 +750,7 @@ Open the hub if it already exists."
   ;; Outside elpa/ so package upgrades can't clobber a loaded module.
   (ghostel-module-directory (expand-file-name "ghostel/" user-emacs-directory))
   (ghostel-module-auto-install 'download)
+  (ghostel-timer-delay 0.016)   ; 60 fps while output streams; 30 by default
   ;; The 0.0 default crushes tall symbols (⏵ ⏸).
   (ghostel-glyph-scale-floor 0.8)
   ;; Not a rename: the sidebar shows Claude Code's session title.
