@@ -72,5 +72,5 @@ in the buffer sidebar (`C-c e`) when it needs input off screen.
   `C-u` starts one more.
 - Scratchpad: `*scratch*` is persistent (`remember-notes`, file `notes`
   here); killing it only buries it.
-- `C-c n a` opens the overview agenda; `C-u C-c n a` the dispatcher.
+- `C-c n a` opens the agenda dispatcher; `o` is the overview.
 - Nix machines: `/etc/profiles/per-user/vp/bin` joins PATH when present.

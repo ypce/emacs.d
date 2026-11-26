@@ -143,7 +143,6 @@
          ("<remap> <upcase-word>" . upcase-dwim)
          ("<remap> <downcase-word>" . downcase-dwim)
          ("M-S-<down>" . duplicate-dwim)
-         ("M-=" . count-words)
          ("C-s-f" . toggle-frame-fullscreen)
          ("<escape>" . keyboard-escape-quit)
          ("<remap> <kill-buffer>" . kill-current-buffer)
@@ -183,7 +182,7 @@
 
 
 ;;; Saving + Recent -----
-;; So C-x C-r lists the dirs visited in dired and eshell.
+;; So C-x b lists the dirs visited in dired and eshell.
 (defun vp/recentf-track-dir ()
   "Add the current directory to `recentf-list'."
   (recentf-add-file default-directory))
@@ -222,10 +221,7 @@
 (use-package minibuffer
   :ensure nil
   :custom
-  (completion-ignore-case t)
-  (completions-detailed t)
   (enable-recursive-minibuffers t)
-  (read-buffer-completion-ignore-case t)
   :config
   (minibuffer-depth-indicate-mode 1)
   (minibuffer-electric-default-mode 1))
@@ -267,11 +263,9 @@
 (use-package consult
   :bind (("<remap> <switch-to-buffer>" . consult-buffer)
          ("s-b" . consult-buffer)   ; ghostel sends C-x to the TUI
-         ("s-r" . consult-recent-file)
          ("<remap> <yank-pop>" . consult-yank-pop)
          ("<remap> <goto-line>" . consult-goto-line)
          ("<remap> <imenu>" . consult-imenu)
-         ("C-x C-r" . consult-recent-file)   ; shadows find-file-read-only
          ("M-s l" . consult-line)
          ("M-g o" . consult-outline))
   :custom
@@ -308,25 +302,15 @@
   "r" '("rename symbol"    . eglot-rename)
   "x" '("diagnostics"      . flymake-show-buffer-diagnostics))
 
-(defvar-keymap vp/mindmap-map
-  :doc "Mindmap commands on C-c n m, in org mindmap blocks."
-  "d" '("delete node"       . org-mindmap-delete-node)
-  "v" '("switch layout"     . org-mindmap-switch-layout)
-  "p" '("switch compaction" . org-mindmap-switch-compaction)
-  "m" '("list to mindmap"   . org-mindmap-list-to-mindmap)
-  "l" '("mindmap to list"   . org-mindmap-to-list))
-
 (defvar-keymap vp/notes-map
   :doc "Notes and org commands on C-c n."
-  "a" '("agenda"             . vp/agenda)
+  "a" '("agenda"             . org-agenda)
   "c" '("capture (menu)"     . org-capture)
   "f" '("find/create note"   . org-node-find)
   "i" '("insert link"        . org-node-insert-link)
   "g" '("grep notes"         . vp/notes-grep)
   "b" '("backlinks/context"  . org-node-context-toggle)
-  "d" '("daily note (today)" . vp/daily-today)
-  "p" '("new project hub"    . vp/new-project)
-  "m" (cons "mindmap" vp/mindmap-map))
+  "p" '("new project hub"    . vp/new-project))
 
 ;; Shells open at the project root: C-x p e eshell, C-x p t ghostel.
 (keymap-set project-prefix-map "t" #'ghostel-project)
@@ -338,8 +322,7 @@
   "f" '("find file (fd)" . consult-fd)
   "l" (cons "code" vp/code-map)       ; l for LSP
   "n" (cons "notes" vp/notes-map)
-  "s" '("search (rg)" . consult-ripgrep)
-  "v" '("git"         . magit-status))  ; v for VC
+  "s" '("search (rg)" . consult-ripgrep))
 
 
 ;;; Dired -----
@@ -465,7 +448,6 @@
   ;; (eshell, ghostel) needs the find-file hook that loading installs.
   :defer 1
   :custom
-  (magit-define-global-key-bindings nil)   ; C-c v
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
 
 
@@ -558,7 +540,6 @@ separators miss those of rules and empty rows."
   (org-special-ctrl-a/e t)
   (org-return-follows-link t)
   (org-insert-heading-respects-content t)
-  (org-clock-persist 'history)
   (org-agenda-inhibit-startup t)
   ;; inbox.org and agenda.org appear on first capture.
   (org-agenda-skip-unavailable-files t)
@@ -626,14 +607,7 @@ separators miss those of rules and empty rows."
           org-refile-use-outline-path 'file
           org-outline-path-complete-in-steps nil)
 
-  (org-clock-persistence-insinuate)
   (add-hook 'org-capture-mode-hook #'delete-other-windows))
-
-(defun vp/agenda (&optional arg)
-  "Open the overview agenda. With a prefix ARG, show the dispatcher."
-  (interactive "P")
-  (if arg (org-agenda) (org-agenda nil "o")))
-
 
 ;;; Org visuals -----
 (use-package org-modern
@@ -695,23 +669,11 @@ The date is the file's last change; org-mem updates it on save."
           org-node-affixation-fn #'vp/org-node-affix
           org-node-alter-candidates t)   ; search matches tags and date too
   (add-hook 'org-mem-post-full-scan-functions #'vp/refresh-agenda-files)
-  (add-hook 'org-mem-post-targeted-scan-functions #'vp/refresh-agenda-files)
-  (require 'org-node-seq)
-  (setopt org-node-seq-defs
-          (list (org-node-seq-def-on-filepath-sort-by-basename
-                 "d" "Daily" (file-name-concat org-directory "daily") nil t)))
-  (org-node-seq-mode))
+  (add-hook 'org-mem-post-targeted-scan-functions #'vp/refresh-agenda-files))
 
 ;; Insert a block with C-c C-, m.
 (use-package org-mindmap
   :hook (org-mode . org-mindmap-mode))
-
-(defun vp/daily-today ()
-  "Open today's daily note; create it as a node in the \"d\" sequence if missing."
-  (interactive)
-  (require 'org)   ; loads org-node
-  (make-directory (file-name-concat org-directory "daily") t)
-  (org-node-seq-goto "d" (format-time-string "%Y-%m-%d")))
 
 (defun vp/new-project (title)
   "Create the project hub projects/TITLE.org from the policy skeleton.
@@ -734,8 +696,6 @@ Open the hub if it already exists."
               "* Log\n")
       ;; Save so org-mem indexes the hub and the agenda picks it up.
       (save-buffer))))
-
-(setopt grep-use-headings t)
 
 (defun vp/notes-grep ()
   "Live ripgrep over all notes."
@@ -764,11 +724,13 @@ Open the hub if it already exists."
   ;; - over the mode line or fringe always: ghostel intercepts only
   ;;   bare wheel events.
   ;; The local nil stops the global mode's map shadowing these.
-  (add-hook 'ghostel-mode-hook
-            (lambda () (setq-local pixel-scroll-precision-mode nil)))
+  (add-hook 'ghostel-mode-hook #'vp/ghostel-no-precision-scroll)
   (dolist (area '("" "<mode-line> " "<left-fringe> "))
     (dolist (wheel '("<wheel-up>" "<wheel-down>"))
       (keymap-set ghostel-mode-map (concat area wheel) #'vp/ghostel-wheel))))
+
+(defun vp/ghostel-no-precision-scroll ()
+  (setq-local pixel-scroll-precision-mode nil))
 
 (defun vp/ghostel-wheel (event)
   "Scroll the scrollback smoothly; ignore EVENT on the alternate screen."
