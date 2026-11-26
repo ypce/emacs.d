@@ -756,7 +756,24 @@ Open the hub if it already exists."
   (ghostel-buffer-name-function #'vp/sidebar-retitle)
   :config
   ;; OSC 9 from a TUI that needs input. Desktop notifications still fire.
-  (add-hook 'ghostel-notification-functions #'vp/sidebar-attention-mark))
+  (add-hook 'ghostel-notification-functions #'vp/sidebar-attention-mark)
+  ;; On the alternate screen a wheel event can reach Emacs scrolling,
+  ;; which moves the grid off the window until the TUI next redraws:
+  ;; - in the text area, when the TUI does not track the mouse;
+  ;; - over the mode line or fringe always: ghostel intercepts only
+  ;;   bare wheel events.
+  ;; The local nil stops the global mode's map shadowing these.
+  (add-hook 'ghostel-mode-hook
+            (lambda () (setq-local pixel-scroll-precision-mode nil)))
+  (dolist (area '("" "<mode-line> " "<left-fringe> "))
+    (dolist (wheel '("<wheel-up>" "<wheel-down>"))
+      (keymap-set ghostel-mode-map (concat area wheel) #'vp/ghostel-wheel))))
+
+(defun vp/ghostel-wheel (event)
+  "Scroll the scrollback smoothly; ignore EVENT on the alternate screen."
+  (interactive "e")
+  (unless (ghostel-alt-screen-p)
+    (pixel-scroll-precision event)))
 
 (use-package claude-code-ide
   :vc (:url "https://github.com/manzaltu/claude-code-ide.el" :rev :newest)
