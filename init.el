@@ -153,12 +153,16 @@
 
 ;;; File ops -----
 ;; File actions live in embark: C-. on a file name at point, a dired line,
-;; or a file candidate. For the visited file, C-x C-j to dired first.
+;; or a file candidate. The visited file is a target too (see embark).
 (defun vp/file-reveal (file)
   "Reveal FILE in Finder."
   (interactive "fReveal: ")
   ;; expand-file-name: `open' gets the path verbatim, nothing expands ~
   (call-process "open" nil 0 nil "-R" (expand-file-name file)))
+
+(defun vp/embark-target-visited-file ()
+  "The visited file as an embark target."
+  (and buffer-file-name (cons 'file buffer-file-name)))
 
 
 ;;; Theme + Font -----
@@ -253,7 +257,15 @@
   ;; Not the mixed indicator: its key list window is redundant here.
   (embark-indicators '(embark-minimal-indicator embark-highlight-indicator
                        embark-isearch-highlight-indicator))
-  :config (keymap-set embark-file-map "O" #'vp/file-reveal))
+  :config
+  (keymap-set embark-file-map "O" #'vp/file-reveal)
+  ;; After the symbol, not last: sentence and defun finders match almost
+  ;; anywhere. On a symbol, C-. C-. cycles to the file.
+  (setq embark-target-finders
+        (mapcan (lambda (f) (if (eq f 'embark-target-identifier-at-point)
+                                (list f #'vp/embark-target-visited-file)
+                              (list f)))
+                embark-target-finders)))
 
 ;; E (export) on consult results gives a grep or dired buffer; embark
 ;; warns without it.
