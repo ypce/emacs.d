@@ -151,16 +151,6 @@
 (keymap-global-unset "C-x C-z")   ; suspend-frame, too easy to fat-finger
 
 
-;;; File ops -----
-;; File actions live in embark: C-. on a file name at point, a dired line,
-;; or a file candidate. For the visited file, C-x C-j to dired first.
-(defun vp/file-reveal (file)
-  "Reveal FILE in Finder."
-  (interactive "fReveal: ")
-  ;; expand-file-name: `open' gets the path verbatim, nothing expands ~
-  (call-process "open" nil 0 nil "-R" (expand-file-name file)))
-
-
 ;;; Theme + Font -----
 ;; Vendored Dracula Pro, stripped to the faces this config uses.
 (add-to-list 'custom-theme-load-path (expand-file-name "themes" user-emacs-directory))
@@ -252,8 +242,7 @@
   (embark-prompter #'embark-completing-read-prompter)
   ;; Not the mixed indicator: its key list window is redundant here.
   (embark-indicators '(embark-minimal-indicator embark-highlight-indicator
-                       embark-isearch-highlight-indicator))
-  :config (keymap-set embark-file-map "O" #'vp/file-reveal))
+                       embark-isearch-highlight-indicator)))
 
 ;; E (export) on consult results gives a grep or dired buffer; embark
 ;; warns without it.
