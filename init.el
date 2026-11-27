@@ -93,6 +93,7 @@
   (view-read-only t)
   ;; TAB folds only on a block-start line.
   (hs-cycle-filter 'hs-hideable-block-p)
+  (hs-show-indicators t)
   (quit-window-kill-buffer '(help-mode))
   :hook ((prog-mode . display-line-numbers-mode)
          ((prog-mode text-mode) . electric-pair-local-mode)
@@ -426,6 +427,9 @@
 (keymap-global-set "s-t" #'project-dired)
 
 ;;; Buffer sidebar -----
+;; The Dock badge counts the buffers that wait for input.
+(system-taskbar-mode 1)
+
 ;; Super keys pass through ghostel, so they work in Claude sessions.
 ;; In lisp/, not user-lisp/: the user-lisp scrape costs 150 ms per start.
 (use-package vp-sidebar

@@ -14,6 +14,8 @@
 (require 'text-property-search)
 
 (defvar ghostel-title)
+(defvar system-taskbar-mode)
+(declare-function system-taskbar-badge "system-taskbar")
 (defvar desktop-globals-to-save)
 
 (defconst vp/sidebar-name "*Sidebar*")
@@ -257,12 +259,19 @@ nil keeps the buffer name, which claude-code-ide looks sessions up by."
 
 ;;; Attention
 
+(defun vp/sidebar--badge ()
+  "Show the number of waiting buffers on the Dock icon."
+  (when (bound-and-true-p system-taskbar-mode)
+    (system-taskbar-badge (and vp/sidebar--attention
+                               (length vp/sidebar--attention)))))
+
 (defun vp/sidebar-attention-mark (&rest _)
   "Mark the current buffer as waiting for user action, unless visible.
 Fits `ghostel-notification-functions'."
   (unless (or (get-buffer-window nil t)
               (memq (current-buffer) vp/sidebar--attention))
     (push (current-buffer) vp/sidebar--attention)
+    (vp/sidebar--badge)
     (vp/sidebar--update t)))
 
 (defun vp/sidebar--attention-clear (_frame)
@@ -273,6 +282,7 @@ Fits `ghostel-notification-functions'."
                           vp/sidebar--attention)))
     (unless (length= kept (length vp/sidebar--attention))
       (setq vp/sidebar--attention kept)
+      (vp/sidebar--badge)
       (vp/sidebar--update t))))
 (add-hook 'window-buffer-change-functions #'vp/sidebar--attention-clear)
 
