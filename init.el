@@ -3,15 +3,6 @@
 ;; Built-in-first config.
 ;;; Code:
 
-;;; PATH -----
-;; A GUI app gets no shell PATH. Reversed: the first dir wins.
-(dolist (dir (reverse '("/etc/profiles/per-user/vp/bin" "/opt/homebrew/bin"
-                        "/Users/vp/.local/bin")))
-  (when (file-directory-p dir)
-    (add-to-list 'exec-path dir)
-    (setenv "PATH" (concat dir ":" (getenv "PATH")))))
-
-
 ;;; Server -----
 ;; Child processes (Claude Code's C-g, git) edit in this Emacs, and
 ;; emacsclient --eval hot-patches it.
@@ -23,12 +14,9 @@
 
 
 ;;; Packages -----
-;; `emacs --batch -l init.el' skips startup's package activation.
 ;; package.el loads only to install: it costs ~200 ms per start.
 (with-eval-after-load 'package
   (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t))
-(unless (bound-and-true-p package--activated)
-  (package-activate-all))
 
 (require 'use-package)
 (setopt use-package-always-ensure t)
@@ -61,13 +49,6 @@
     " "
     mode-line-misc-info
     " "))
-
-;;; GC -----
-;; Collect while no frame has focus, so pauses rarely land while typing.
-(defun vp/gc-when-unfocused ()
-  (unless (seq-some #'frame-focus-state (frame-list))
-    (garbage-collect)))
-(add-function :after after-focus-change-function #'vp/gc-when-unfocused)
 
 
 ;;; Basic Emacs options -----
@@ -117,8 +98,6 @@
          ((prog-mode text-mode) . electric-pair-local-mode)
          (prog-mode . hs-minor-mode))
   :config
-  (setq-default bidi-paragraph-direction 'left-to-right
-                bidi-inhibit-bpa t)
   (setq-default truncate-lines t
                 display-line-numbers-width 3
                 indent-tabs-mode nil
@@ -154,7 +133,6 @@
 ;;; Theme + Font -----
 ;; Vendored Dracula Pro, stripped to the faces this config uses.
 (add-to-list 'custom-theme-load-path (expand-file-name "themes" user-emacs-directory))
-(setopt frame-background-mode 'dark)
 (load-theme 'dracula-pro-pro t)
 
 (set-face-attribute 'default nil
@@ -162,13 +140,6 @@
 
 ;; "Monospace" resolves to a proportional font on macOS.
 (set-face-attribute 'fixed-pitch nil :family 'unspecified :inherit 'default)
-
-(setopt shr-use-colors nil)
-
-;; Matches the markdown preview CSS.
-(defun vp/eww-serif-font ()
-  (face-remap-add-relative 'variable-pitch :family "Vollkorn"))
-(add-hook 'eww-mode-hook #'vp/eww-serif-font)
 
 
 ;;; Saving + Recent -----
@@ -199,7 +170,7 @@
 ;; minibuffers), then C-y.
 (use-package password-store
   :ensure nil
-  :commands password-store-copy)
+  :commands (password-store-copy password-store-copy-field))
 
 (use-package saveplace
   :ensure nil
@@ -213,8 +184,7 @@
   :custom
   (enable-recursive-minibuffers t)
   :config
-  (minibuffer-depth-indicate-mode 1)
-  (minibuffer-electric-default-mode 1))
+  (minibuffer-depth-indicate-mode 1))
 
 (use-package vertico
   :custom (vertico-count 20)
@@ -322,16 +292,7 @@
   :init
   ;; BSD ls lacks -v and dirs-first; ls-lisp avoids coreutils.
   (setopt ls-lisp-use-insert-directory-program nil
-          ls-lisp-dirs-first t
-          ;; Two date columns for old and new files (see vp/dired-show-mtime).
-          ls-lisp-use-localized-time-format t
-          ls-lisp-format-time-list '("%Y-%m-%d %H:%M" "%Y-%m-%d %H:%M"))
-  ;; Keep the date visible while sorted by date. Column 8: remote ls.
-  (defun vp/dired-show-mtime ()
-    (setq-local dired-hide-details-preserved-columns
-                (and (string-match-p dired-sort-by-date-regexp dired-actual-switches)
-                     '(6 7 8))))
-  (add-hook 'dired-before-readin-hook #'vp/dired-show-mtime)
+          ls-lisp-dirs-first t)
   :custom
   (dired-listing-switches "-alhv")
   (dired-hide-details-hide-absolute-location t)
@@ -505,18 +466,10 @@ searchable (C-c n f, C-c n g)."
                      (lambda (e) (member "agenda" (org-mem-entry-tags e)))
                      (org-mem-all-entries))))))))
 
-(defun vp/org-no-bar-fill-prefix ()
-  "Stop `visual-wrap-prefix-mode' taking a table row's | as a prefix.
-Its min-width pads the first cell of text rows only, so their
-separators miss those of rules and empty rows."
-  (setq-local adaptive-fill-regexp
-              (string-replace "|" "" (default-value 'adaptive-fill-regexp))))
-
 (use-package org
   :ensure nil
-  :hook ((org-mode . visual-line-mode)
-         (org-mode . visual-wrap-prefix-mode)
-         (org-mode . vp/org-no-bar-fill-prefix))
+  ;; org-indent-mode (org-startup-indented) sets the wrap prefixes.
+  :hook (org-mode . visual-line-mode)
   :custom
   (org-ellipsis " ⤵")
   (org-startup-indented t)
@@ -528,21 +481,12 @@ separators miss those of rules and empty rows."
   (org-fold-catch-invisible-edits 'show-and-error)
   (org-special-ctrl-a/e t)
   (org-return-follows-link t)
-  (org-insert-heading-respects-content t)
+  (org-insert-heading-respect-content t)
   (org-agenda-inhibit-startup t)
   ;; inbox.org and agenda.org appear on first capture.
   (org-agenda-skip-unavailable-files t)
   (org-agenda-window-setup 'current-window)
   (org-src-window-setup 'current-window)
-  (org-agenda-prefix-format '((agenda . "  %-12:c%?-12t% s")
-                              (todo   . "  %-12:c")
-                              (tags   . "  %-12:c")
-                              (search . "  ")))
-  (org-agenda-sorting-strategy
-   '((agenda habit-down time-up priority-down category-keep)
-     (todo   category-keep priority-down)
-     (tags   category-keep priority-down)
-     (search category-keep)))
   (org-agenda-hide-tags-regexp "\\`agenda\\'")
   (org-agenda-block-separator ?─)
   (org-agenda-skip-scheduled-if-done t)
@@ -553,12 +497,8 @@ separators miss those of rules and empty rows."
   (setopt org-archive-location (concat org-directory "/archive/%s::"))
   (vp/refresh-agenda-files)
 
-  ;; `n' is this variable's default value, not a dispatcher built-in;
-  ;; keep it when setting the variable.
   (setopt org-agenda-custom-commands
-        `(("n" "Agenda and all TODOs"
-           ((agenda "") (alltodo "")))
-          ("o" "Overview: today · next · waiting · inbox"
+        `(("o" "Overview: today · next · waiting · inbox"
            ((agenda "" ((org-agenda-span 'day)
                         (org-agenda-overriding-header "Today")))
             (todo "NEXT" ((org-agenda-overriding-header "Next")))
@@ -618,13 +558,6 @@ separators miss those of rules and empty rows."
   (org-appear-autolinks t)
   (org-appear-autosubmarkers t))
 
-;; Needs mmdc (mermaid-cli). Mermaid only draws, so no y/n prompt.
-(use-package ob-mermaid
-  :after org
-  :config
-  (setopt org-confirm-babel-evaluate
-          (lambda (lang _body) (not (string= lang "mermaid")))))
-
 
 ;;; Org Node (notes) -----
 (defun vp/org-node-affix (node title)
@@ -660,9 +593,18 @@ The date is the file's last change; org-mem updates it on save."
   (add-hook 'org-mem-post-full-scan-functions #'vp/refresh-agenda-files)
   (add-hook 'org-mem-post-targeted-scan-functions #'vp/refresh-agenda-files))
 
-;; Insert a block with C-c C-, m.
+;; Its TAB, M-arrow and C-c C-c hooks search the buffer for a block on
+;; each press, so turn it on only where a block exists. Insert a block
+;; with C-c C-, m, then revert (C-x x g) to turn the mode on.
+(defun vp/org-mindmap-maybe ()
+  (when (save-excursion
+          (goto-char (point-min))
+          (re-search-forward "^[ \t]*#\\+begin_mindmap\\b" nil t))
+    (org-mindmap-mode 1)))
+
 (use-package org-mindmap
-  :hook (org-mode . org-mindmap-mode))
+  :after org   ; loads the C-c C-, m template
+  :config (add-hook 'org-mode-hook #'vp/org-mindmap-maybe))
 
 (defun vp/new-project (title)
   "Create the project hub projects/TITLE.org from the policy skeleton.

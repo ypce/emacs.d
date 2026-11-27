@@ -21,7 +21,7 @@ restores files, windows, and Claude sessions.
 | Font | Use | Install |
 |---|---|---|
 | AeonikMono Nerd Font Mono (Light) | default / fixed-pitch / icons | in `fonts/` (untracked; commercial, do not distribute). Register once: open the `.otf` files in Font Book. To rebuild from Aeonik Mono: Nerd Fonts FontPatcher, `fontforge -script font-patcher --complete --mono AeonikMono-<Weight>.otf`, then `fontforge -script fonts/fix-symbols.py` (Iosevka NFM symbols) |
-| Vollkorn | eww + markdown preview serif | `brew install --cask font-vollkorn` |
+| Vollkorn | markdown preview serif | `brew install --cask font-vollkorn` |
 
 ### CLI tools
 
@@ -30,7 +30,7 @@ brew install ripgrep     # consult-ripgrep, xref, project search
 brew install fd          # consult-fd (C-c f)
 brew install pandoc      # markdown preview rendering
 brew install git         # magit, package-vc, treesit grammar builds
-brew install mermaid-cli # mmdc: ob-mermaid renders org mermaid blocks
+brew install mermaid-cli # mmdc: markdown preview renders mermaid fences
 ```
 
 Tree-sitter grammars build on first use and need git plus a C compiler
@@ -73,4 +73,5 @@ in the buffer sidebar (`C-c e`) when it needs input off screen.
 - Scratchpad: `*scratch*` is persistent (`remember-notes`, file `notes`
   here); killing it only buries it.
 - `C-c n a` opens the agenda dispatcher; `o` is the overview.
-- Nix machines: `/etc/profiles/per-user/vp/bin` joins PATH when present.
+- PATH: emacs-plus stores the shell PATH at `brew install` time
+  (`EMACS_PLUS_PATH`). After a PATH change, `brew reinstall emacs-plus@31`.
