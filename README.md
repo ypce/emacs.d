@@ -54,6 +54,22 @@ be expanded. `PgUp`/`PgDn` and `Ctrl+O` scroll the conversation.
 Set `"preferredNotifChannel": "iterm2"` in `~/.claude.json` so Claude
 Code emits OSC 9 notifications; these turn a session's name red
 in the buffer sidebar (`C-c e`) when it needs input off screen.
+The sidebar spinner and activity need async command hooks in
+`~/.claude/settings.json` that call `vp/claude-hook` with `$PPID`:
+`UserPromptSubmit` sends `start`; `Stop`, `StopFailure` and
+`Notification` (matcher `idle_prompt`) send `stop`, as in
+
+```sh
+emacsclient --eval "(vp/claude-hook $PPID 'start)" >/dev/null 2>&1 || true
+```
+
+`PreToolUse` sends the tool and its target, using jq (`brew install jq`):
+
+```sh
+jq -r --arg pid "$PPID" '"(vp/claude-hook \($pid|tonumber) (quote tool) \(.tool_name|@json) \((.tool_input.file_path // .tool_input.command // .tool_input.pattern // .tool_input.url // .tool_input.query // "")|tostring|.[0:200]|@json) \((.tool_input.description // "")|tostring|.[0:200]|@json))"' | { read -r f; emacsclient --eval "$f"; } >/dev/null 2>&1 || true
+```
+
+Rename a session with `/rename` to shorten its sidebar title.
 
 ## Notes
 
@@ -68,6 +84,10 @@ in the buffer sidebar (`C-c e`) when it needs input off screen.
   dir (`cd =` lists them). History (10k) is written after each command.
   In a remote dir, a leading `/` means the remote root. Aliases (`ll`,
   `,` for `cd ..`, ...) live in `etc/eshell-aliases`.
+- Sidebar (`C-c e`): click a row to visit, a group title (or `s-f`) to
+  fold; middle-click kills, right-click opens a menu. Marks: `●` after a
+  name = unsaved, `*` after a group = uncommitted git changes, Claude
+  spinner = the session is working (dim robot = idle).
 - Shells: `C-x p t` / `C-x p e` show the project's terminal or eshell;
   `C-u` starts one more.
 - Scratchpad: `*scratch*` is persistent (`remember-notes`, file `notes`

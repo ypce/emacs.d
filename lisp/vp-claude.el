@@ -9,6 +9,8 @@
 (require 'claude-code-ide)
 
 (defvar desktop-save-buffer)
+(defvar vp/sidebar--working)
+(declare-function vp/sidebar-set-working "vp-sidebar")
 
 (defun vp/claude-buffer-setup ()
   "Guard a Claude session against kills and save it with the desktop.
@@ -16,7 +18,44 @@ claude is the terminal's own process, so the default `auto' query
 never sees a running command and kills a live session without asking."
   (when (string-prefix-p "*claude-code[" (buffer-name))
     (setq-local ghostel-query-before-killing t
-                desktop-save-buffer #'vp/claude-desktop-misc)))
+                desktop-save-buffer #'vp/claude-desktop-misc)
+    (add-hook 'pre-command-hook #'vp/claude--interrupt nil t)))
+
+;;; Working state
+;; Claude Code hooks in ~/.claude/settings.json call `vp/claude-hook'
+;; through emacsclient with $PPID, the pid of the claude process.
+
+(defun vp/claude-hook (pid state &optional tool arg description)
+  "Report STATE of the session of the claude process PID.
+STATE is start, stop, or tool: Claude runs TOOL on ARG, a file path,
+command or pattern, with DESCRIPTION, the line Claude Code shows
+for it (Bash and Agent have one). A pid of a claude outside Emacs
+matches no buffer and does nothing."
+  (when-let* ((buf (seq-find
+                    (lambda (b)
+                      (when-let* ((s (buffer-local-value 'claude-code-ide--session b)))
+                        (eql (claude-code-ide-mcp-session-cli-pid s) pid)))
+                    (buffer-list))))
+    (vp/sidebar-set-working buf (not (eq state 'stop))
+                            (and tool (vp/claude--activity tool arg description))))
+  nil)
+
+(defun vp/claude--activity (tool arg description)
+  "Short text for TOOL run on ARG: DESCRIPTION if there is one, else
+\"Edit init.el\". An MCP tool drops its mcp__SERVER__ prefix; a path
+keeps its last part."
+  (if (and description (not (string-empty-p description)))
+      description
+    (let ((arg (car (split-string (string-trim arg) "\n"))))
+      (string-trim
+       (concat (car (last (split-string tool "__"))) " "
+               (if (file-name-absolute-p arg) (file-name-nondirectory arg) arg))))))
+
+(defun vp/claude--interrupt ()
+  "End the working state on Esc: Claude Code runs no hook on interrupt."
+  (when (and (bound-and-true-p vp/sidebar--working)
+             (equal (this-command-keys-vector) [escape]))
+    (vp/sidebar-set-working (current-buffer) nil)))
 
 (defun vp/claude-desktop-misc (_dirname)
   "This session as (ID DIR INSTANCE), from Claude Code's pid file.

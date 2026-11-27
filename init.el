@@ -691,7 +691,8 @@ Open the hub if it already exists."
   :load-path "lisp/"
   :commands (vp/claude-resume
              vp/claude-buffer-setup
-             vp/claude-desktop-restore))
+             vp/claude-desktop-restore
+             vp/claude-hook))
 
 ;;; Desktop -----
 ;; Restart restores files, windows, Claude sessions, and the sidebar.

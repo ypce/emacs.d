@@ -17,6 +17,7 @@
 (defvar ghostel-title)
 (defvar system-taskbar-mode)
 (declare-function system-taskbar-badge "system-taskbar")
+(declare-function magit-status-setup-buffer "magit-status")
 (defvar desktop-globals-to-save)
 
 (defconst vp/sidebar-name "*Sidebar*")
@@ -28,35 +29,62 @@
   "Face for a buffer that waits for user action."
   :group 'convenience)
 
-(defface vp/sidebar-tag '((t :foreground "#ff5700" :weight bold))
+(defface vp/sidebar-tag '((t :weight bold))
   "Face for a group name."
   :group 'convenience)
 
 (defvar vp/sidebar-tag-width 10
   "Columns for the name in a group tag. The display cuts longer names.")
 
-(defface vp/sidebar-group-dim '((t :foreground "#6E6A86"))
-  "Face for the dot, count, and parent folder around a group tag."
+(defface vp/sidebar-dim '((t :foreground "#6E6A86"))
+  "Face for the dim parts: dot, parent folder, unsaved mark, idle session."
   :group 'convenience)
 
 (defface vp/sidebar-claude '((t :foreground "#d97757"))
-  "Face for the icon of a live Claude Code session (Claude orange)."
+  "Face for the spinner of a working Claude Code session (Claude orange)."
   :group 'convenience)
+
+(defconst vp/sidebar-spinner ["·" "✢" "✳" "✶" "✻" "✽" "✻" "✶" "✳" "✢"]
+  "Frames of the working spinner, as Claude Code draws it.")
+
+(defconst vp/sidebar-shimmer ["#f6cbb7" "#eaa283"]
+  "Colors of the shimmer peak and its edges on a working session's name.
+The rest of the name is `vp/sidebar-claude'.")
+
+(defvar vp/sidebar-git-interval 10
+  "Seconds before the git state of a group is checked again.")
 
 (defvar vp/sidebar--attention nil
   "Buffers that wait for user action while not displayed.")
 
 (defvar vp/sidebar--folded nil
-  "Keys of the folded groups.")
+  "Keys of the folded groups. The desktop saves them.")
 
 (defvar vp/sidebar--groups nil
-  "Groups as last drawn: ((GROUP (LABEL . BUFFER)...)...).")
+  "Groups as last drawn: ((GROUP (STATE . BUFFER)...)...).
+STATE is (LABEL MODIFIED WORKING); see `vp/sidebar--row-state'.")
 
 (defvar vp/sidebar--timer nil)
+
+(defvar vp/sidebar--tick-timer nil
+  "Timer that turns the spinner while a session works.")
+
+(defvar vp/sidebar--ticks 0
+  "Animation steps so far: the spinner frame and the shimmer position.")
+
+(defvar vp/sidebar--git (make-hash-table :test #'equal)
+  "Group key -> (STATE . CHECKED-AT). STATE is t (dirty), nil, or `none'.")
 
 (defvar-local vp/sidebar--group-cache nil
   "(DIRECTORY . GROUP); project lookup is too slow per redraw.
 Keyed on the directory, so Dired and Eshell regroup when they move.")
+
+(defvar-local vp/sidebar--working nil
+  "Non-nil while a Claude session works on a prompt.
+Claude Code hooks set it; see `vp/sidebar-set-working'.")
+
+(defvar-local vp/sidebar--activity nil
+  "What a working Claude session does now, such as \"Edit init.el\".")
 
 ;;; Model
 
@@ -104,6 +132,10 @@ It shows after the group name: B4-4 alone says little."
               ((not (equal dir group))))   ; / is its own parent
     (vp/sidebar--group-label dir)))
 
+(defun vp/sidebar--group-dir (group)
+  "Directory of GROUP if GROUP is a local path, else nil."
+  (and (file-name-absolute-p group) (expand-file-name group)))
+
 (defun vp/sidebar--group (buf)
   "Group of BUF: the group of its directory."
   (with-current-buffer buf
@@ -113,30 +145,153 @@ It shows after the group name: B4-4 alone says little."
     (cdr vp/sidebar--group-cache)))
 
 (defun vp/sidebar--row-label (buf)
-  "Label of BUF: a session's terminal title, else its name.
-Claude Code sets the title from the first request."
+  "Label of BUF: a session's activity or terminal title, else its name.
+Claude Code sets the title from the first request; /rename changes it."
   (let ((name (buffer-name buf)))
     (or (and (vp/sidebar--session-p buf)
-             (buffer-local-value 'ghostel-title buf))
+             (or (buffer-local-value 'vp/sidebar--activity buf)
+                 (buffer-local-value 'ghostel-title buf)))
         ;; *claude-code[proj:x]* -> proj:x, *eshell*<2> -> eshell<2>
         (replace-regexp-in-string
          "\\`\\*\\(?:claude-code\\[\\(.*\\)\\]\\|\\(.*?\\)\\)\\*\\(<[0-9]+>\\)?\\'"
          "\\1\\2\\3" name))))
 
+(defun vp/sidebar--working-p (buf)
+  "Non-nil if BUF, a Claude session, works on a prompt."
+  (buffer-local-value 'vp/sidebar--working buf))
+
+(defun vp/sidebar--row-state (buf)
+  "(LABEL MODIFIED WORKING) of BUF: what its row shows.
+MODIFIED is non-nil for a file buffer with unsaved changes, WORKING
+for a Claude session that works on a prompt."
+  (list (vp/sidebar--row-label buf)
+        (and (buffer-file-name buf) (buffer-modified-p buf) t)
+        (and (vp/sidebar--session-p buf) (vp/sidebar--working-p buf) t)))
+
+(defun vp/sidebar--buffer-path (buf)
+  "File of BUF, else its directory, abbreviated."
+  (abbreviate-file-name (or (buffer-file-name buf)
+                            (buffer-local-value 'default-directory buf))))
+
 (defun vp/sidebar--collect ()
-  "Listed buffers as ((GROUP (LABEL . BUFFER)...)...).
+  "Listed buffers as ((GROUP (STATE . BUFFER)...)...).
 Groups sort by label, rows by buffer name, so positions stay stable.
-A title change changes the label, so `vp/sidebar--update' redraws."
+A change of STATE makes `vp/sidebar--update' redraw."
   (let (groups)
     (dolist (buf (buffer-list))
       (when (vp/sidebar--listed-p buf)
-        (push (cons (vp/sidebar--row-label buf) buf)
+        (push (cons (vp/sidebar--row-state buf) buf)
               (alist-get (vp/sidebar--group buf) groups nil nil #'equal))))
     (sort (mapcar (lambda (g)
                     (cons (car g) (sort (cdr g) :key (lambda (r) (buffer-name (cdr r))))))
                   groups)
           :key (lambda (g) (list (vp/sidebar--group-label (car g)) (car g)))
           :in-place t)))
+
+;;; Working sessions
+;; Claude Code hooks report the state: UserPromptSubmit starts work,
+;; PreToolUse names the activity, Stop ends it (see `vp/claude-hook').
+
+(defun vp/sidebar-set-working (buf working &optional activity)
+  "Mark BUF, a Claude session, as WORKING with ACTIVITY, or idle.
+While it works, ACTIVITY replaces the title in its row."
+  (with-current-buffer buf
+    (setq vp/sidebar--working working
+          vp/sidebar--activity (and working activity)))
+  (when (and working (not vp/sidebar--tick-timer))
+    (setq vp/sidebar--tick-timer (run-with-timer 0 0.15 #'vp/sidebar--tick)))
+  (vp/sidebar--schedule))
+
+(defun vp/sidebar--spinner-frame ()
+  "The current frame of `vp/sidebar-spinner'."
+  (aref vp/sidebar-spinner (mod vp/sidebar--ticks (length vp/sidebar-spinner))))
+
+(defun vp/sidebar--shimmer-face (i peak)
+  "Face of character I of a name whose shimmer peak is at PEAK."
+  (pcase (abs (- i peak))
+    (0 `(:foreground ,(aref vp/sidebar-shimmer 0)))
+    (1 `(:foreground ,(aref vp/sidebar-shimmer 1)))
+    (_ 'vp/sidebar-claude)))
+
+(defun vp/sidebar--tick ()
+  "Step the animation of working sessions; stop when none works.
+Only text properties change, not the rows: the spinner glyph's
+`display', and the faces of the name, where a bright peak sweeps
+from left to right as in Claude Code's status line."
+  (setq vp/sidebar--ticks (1+ vp/sidebar--ticks))
+  ;; Nobody sees it: the sidebar is closed or Emacs is in the background.
+  (when-let* ((win (get-buffer-window vp/sidebar-name t))
+              ((frame-focus-state (window-frame win))))
+    (with-current-buffer (window-buffer win)
+      (with-silent-modifications
+        (let ((pos (point-min)))
+          (while (setq pos (text-property-any pos (point-max) 'vp/sidebar-spinner t))
+            (put-text-property pos (1+ pos) 'display (vp/sidebar--spinner-frame))
+            (setq pos (1+ pos))))
+        (let ((pos (point-min)))
+          (while (setq pos (text-property-any pos (point-max) 'vp/sidebar-shimmer t))
+            (let* ((end (next-single-property-change pos 'vp/sidebar-shimmer nil (point-max)))
+                   (n (- end pos))
+                   ;; The peak runs a few columns past each end.
+                   (peak (- (mod vp/sidebar--ticks (+ n 6)) 3)))
+              (dotimes (i n)
+                (put-text-property (+ pos i) (+ pos i 1) 'face
+                                   (vp/sidebar--shimmer-face i peak)))
+              (setq pos end)))))))
+  (unless (seq-some #'vp/sidebar--working-p (buffer-list))
+    (cancel-timer vp/sidebar--tick-timer)
+    (setq vp/sidebar--tick-timer nil)))
+
+;;; Git state
+;; `git status' runs async per group, at most once per
+;; `vp/sidebar-git-interval'; a save or a Magit refresh forces it.
+
+(defun vp/sidebar--git-dirty-p (group)
+  "Non-nil if GROUP has uncommitted changes, as last checked."
+  (eq (car (gethash group vp/sidebar--git)) t))
+
+(defun vp/sidebar--git-check (groups)
+  "Start `git status' for each group in GROUPS whose state is stale."
+  (dolist (g groups)
+    (let* ((group (car g))
+           (entry (gethash group vp/sidebar--git))
+           (dir (vp/sidebar--group-dir group)))
+      (when (and dir (file-directory-p dir)
+                 ;; Not a repo: check again only when forced stale.
+                 (not (and (eq (car entry) 'none) (> (cdr entry) 0)))
+                 (> (- (float-time) (or (cdr entry) 0)) vp/sidebar-git-interval))
+        (puthash group (cons (car entry) (float-time)) vp/sidebar--git)
+        (vp/sidebar--git-run group dir (car entry))))))
+
+(defun vp/sidebar--git-run (group dir old)
+  "Run `git status' in DIR for GROUP; redraw if it differs from OLD."
+  (let ((default-directory dir)
+        (dirty nil))
+    (make-process
+     :name "vp-sidebar-git"
+     :command '("git" "status" "--porcelain")
+     :noquery t
+     :filter (lambda (_proc _out) (setq dirty t))
+     :sentinel
+     (lambda (proc _event)
+       (when (memq (process-status proc) '(exit signal))
+         (let ((state (cond ((/= (process-exit-status proc) 0) 'none)
+                            (dirty t))))
+           (puthash group (cons state (float-time)) vp/sidebar--git)
+           (unless (eq state old)
+             (vp/sidebar--update t))))))))
+
+(defun vp/sidebar--git-stale (&rest _)
+  "Make the next update check git again: all groups, or the current one.
+Fits `after-save-hook' and `magit-post-refresh-hook'."
+  (if (buffer-file-name)
+      (when-let* ((entry (gethash (vp/sidebar--group (current-buffer)) vp/sidebar--git)))
+        (setcdr entry 0))
+    (maphash (lambda (_ entry) (setcdr entry 0)) vp/sidebar--git))
+  (vp/sidebar--schedule))
+
+(add-hook 'after-save-hook #'vp/sidebar--git-stale)
+(add-hook 'magit-post-refresh-hook #'vp/sidebar--git-stale)
 
 ;;; Drawing
 
@@ -145,52 +300,60 @@ A title change changes the label, so `vp/sidebar--update' redraws."
   (unless (or (bobp) (get-text-property (1- (point)) 'vp/sidebar-spacer))
     (insert (propertize "\n" 'face '(:height 0.2) 'vp/sidebar-spacer t))))
 
-(defun vp/sidebar--label (text face)
-  "TEXT with one column of padding, in FACE."
-  (propertize (concat text " ") 'face face))
-
 (defun vp/sidebar--insert-row (row indent)
-  "Insert a line for ROW, a (LABEL . BUFFER) pair, after INDENT."
-  (let ((buf (cdr row)))
+  "Insert a line for ROW, a (STATE . BUFFER) pair, after INDENT.
+A dim ● follows the label of a buffer with unsaved changes. A working
+session shows the Claude spinner instead of its icon and a shimmer on
+its name (see `vp/sidebar--tick'); an idle one, a dim robot."
+  (pcase-let ((`((,label ,modified ,working) . ,buf) row))
     (insert
      (propertize
       (concat
        " " indent
-       (if (vp/sidebar--session-p buf) ; sessions are ghostel too
-           (nerd-icons-mdicon "nf-md-robot" :face 'vp/sidebar-claude)
-         (with-current-buffer buf (nerd-icons-icon-for-buffer)))
+       (cond (working (propertize "·" 'face 'vp/sidebar-claude
+                                  'display (vp/sidebar--spinner-frame)
+                                  'vp/sidebar-spinner t))
+             ((vp/sidebar--session-p buf) ; sessions are ghostel too
+              (nerd-icons-mdicon "nf-md-robot" :face 'vp/sidebar-dim))
+             (t (with-current-buffer buf (nerd-icons-icon-for-buffer))))
        " "
-       (vp/sidebar--label (car row)
-                          (and (memq buf vp/sidebar--attention) 'vp/sidebar-attention))
-       "\n")
+       (cond (working (propertize label 'face 'vp/sidebar-claude
+                                  'vp/sidebar-shimmer t))
+             ((memq buf vp/sidebar--attention)
+              (propertize label 'face 'vp/sidebar-attention))
+             (t label))
+       (when modified (propertize " ●" 'face 'vp/sidebar-dim))
+       " \n")
       'vp/sidebar buf
-      'help-echo (buffer-name buf)))))
+      ;; A new list per row: equal values on adjacent rows would
+      ;; highlight the whole group as one span.
+      'mouse-face (list 'highlight)
+      'help-echo (vp/sidebar--buffer-path buf)))))
 
 (defun vp/sidebar--insert-group (name rows)
-  "Insert group NAME (a key) as a capital tag, then ROWS (LABEL . BUFFER).
-Thin gaps go around groups. A small dot leads the tag: ○ open,
-● folded. A folded group hides its rows and shows their count after
-the tag. The parent folder comes last, so a narrow sidebar cuts only
-that; hovering shows the full key."
+  "Insert group NAME (a key) as a bold tag, then ROWS (STATE . BUFFER).
+Thin gaps go around groups. A dot leads the tag: ○ open, ● folded.
+A * after the name means uncommitted git changes. A folded group
+hides its rows and shows their count after the tag. The parent
+folder comes last, so a narrow sidebar cuts only that; hovering
+shows the full key."
   (let* ((folded (member name vp/sidebar--folded))
          (line (concat
-                (propertize (if folded "●" "○") 'face '(:height 0.8))
-                " " (propertize (concat (upcase (truncate-string-to-width
-                                                 (vp/sidebar--group-label name)
-                                                 vp/sidebar-tag-width nil nil "…"))
+                (propertize (if folded "●" "○") 'face 'vp/sidebar-dim)
+                " " (propertize (concat (truncate-string-to-width
+                                         (vp/sidebar--group-label name)
+                                         vp/sidebar-tag-width nil nil "…")
+                                        (when (vp/sidebar--git-dirty-p name) "*")
                                         (when folded (format " %d" (length rows))))
                                 'face 'vp/sidebar-tag)
                 (when-let* ((parent (vp/sidebar--group-parent name)))
-                  (concat " " parent))
+                  (propertize (concat " " parent) 'face 'vp/sidebar-dim))
                 " \n")))
-    ;; Appended, so the tag keeps its own color.
-    (add-face-text-property 0 (length line) '(:height 0.85) t line)
-    (add-face-text-property 0 (length line) 'vp/sidebar-group-dim t line)
     (vp/sidebar--spacer)
     (insert (propertize line 'vp/sidebar-group name 'help-echo name))
     (unless folded
       (dolist (row rows)
-        ;; The icon goes under the tag, past the dot.
+        ;; The icon goes under the tag.
         (vp/sidebar--insert-row row " ")))
     (vp/sidebar--spacer)))
 
@@ -235,6 +398,7 @@ FORCE non-nil redraws anyway."
   (setq vp/sidebar--timer nil)
   (when (get-buffer-window vp/sidebar-name t)
     (let ((groups (vp/sidebar--collect)))
+      (vp/sidebar--git-check groups)
       (when (or force (not (equal groups vp/sidebar--groups)))
         (setq vp/sidebar--groups groups)
         (vp/sidebar--draw)))
@@ -258,6 +422,10 @@ nil keeps the buffer name, which claude-code-ide looks sessions up by."
 ;; buffers, so `vp/sidebar-retitle' misses session titles.
 (add-variable-watcher 'ghostel-title #'vp/sidebar--schedule)
 (add-hook 'eshell-directory-change-hook #'vp/sidebar--schedule)
+;; The unsaved mark: the first change, a revert; a save is in
+;; `vp/sidebar--git-stale'.
+(add-hook 'first-change-hook #'vp/sidebar--schedule)
+(add-hook 'after-revert-hook #'vp/sidebar--schedule)
 (add-hook 'window-buffer-change-functions #'vp/sidebar--follow)
 (add-hook 'window-selection-change-functions #'vp/sidebar--follow)
 
@@ -290,12 +458,25 @@ Fits `ghostel-notification-functions'."
       (vp/sidebar--update t))))
 (add-hook 'window-buffer-change-functions #'vp/sidebar--attention-clear)
 
+(defun vp/sidebar--attention-forget ()
+  "Drop the mark of the buffer being killed. Fits `kill-buffer-hook'."
+  (when (memq (current-buffer) vp/sidebar--attention)
+    (setq vp/sidebar--attention (delq (current-buffer) vp/sidebar--attention))
+    (vp/sidebar--badge)
+    (vp/sidebar--schedule)))
+(add-hook 'kill-buffer-hook #'vp/sidebar--attention-forget)
+
 ;;; Commands
 
 (defun vp/sidebar--main-window ()
-  "Leave the sidebar for the last used main window."
-  (when (derived-mode-p 'vp/sidebar-mode)
+  "Leave the sidebar window for the last used main window."
+  (when (window-parameter nil 'window-side)
     (select-window (get-mru-window nil nil t))))
+
+(defun vp/sidebar--show-buffer (buf)
+  "Show BUF in the last used main window."
+  (vp/sidebar--main-window)
+  (switch-to-buffer buf))
 
 (defun vp/sidebar-next ()
   "Move to the next row."
@@ -312,22 +493,80 @@ Fits `ghostel-notification-functions'."
   "Show the buffer at point in the last used main window."
   (interactive)
   (when-let* ((buf (get-text-property (pos-bol) 'vp/sidebar)))
-    (vp/sidebar--main-window)
-    (switch-to-buffer buf)))
+    (vp/sidebar--show-buffer buf)))
+
+(defun vp/sidebar--at-event (event)
+  "(BUFFER . GROUP) under EVENT: a row's buffer and its group, or nil
+and the group of a tag."
+  (let* ((posn (event-start event))
+         (pos (posn-point posn)))
+    ;; The sidebar need not be the current buffer.
+    (with-current-buffer (window-buffer (posn-window posn))
+      (when pos
+        (if-let* ((buf (get-text-property pos 'vp/sidebar)))
+            (cons buf (vp/sidebar--group buf))
+          (cons nil (get-text-property pos 'vp/sidebar-group)))))))
 
 (defun vp/sidebar-mouse-visit (event)
   "Visit the row at EVENT, or fold the group whose tag is at EVENT.
 Point does not move to a tag or a gap."
   (interactive "e")
-  (let* ((posn (event-start event))
-         (pos (posn-point posn)))
-    ;; The sidebar need not be the current buffer yet.
-    (with-current-buffer (window-buffer (posn-window posn))
-      (cond ((get-text-property pos 'vp/sidebar)
-             (mouse-set-point event)
-             (vp/sidebar-visit))
-            ((get-text-property pos 'vp/sidebar-group)
-             (vp/sidebar--toggle (get-text-property pos 'vp/sidebar-group)))))))
+  (pcase (vp/sidebar--at-event event)
+    (`(,(and (pred bufferp) buf) . ,_)
+     (mouse-set-point event)
+     (vp/sidebar--show-buffer buf))
+    (`(nil . ,(and (pred stringp) group))
+     (vp/sidebar--toggle group))))
+
+(defun vp/sidebar-mouse-kill (event)
+  "Kill the buffer of the row at EVENT."
+  (interactive "e")
+  (when-let* ((buf (car (vp/sidebar--at-event event))))
+    (kill-buffer buf)))
+
+(defun vp/sidebar--kill-group (group)
+  "Kill the listed buffers of GROUP."
+  (dolist (row (alist-get group (vp/sidebar--collect) nil nil #'equal))
+    (kill-buffer (cdr row))))
+
+(defun vp/sidebar--finder (path)
+  "Show PATH in Finder: a file selected in its folder, a folder opened."
+  (if (file-directory-p path)
+      (call-process "open" nil 0 nil path)
+    (call-process "open" nil 0 nil "-R" path)))
+
+(defun vp/sidebar-mouse-menu (event)
+  "Pop up the actions for the row or tag at EVENT.
+Only actions that clicks do not cover: visit, kill and fold have
+their own mouse buttons."
+  (interactive "e")
+  (pcase-let* ((`(,buf . ,group) (vp/sidebar--at-event event))
+               (dir (and group (vp/sidebar--group-dir group))))
+    (when group
+      (popup-menu
+       `("Sidebar"
+         ,@(when buf
+             (let ((path (expand-file-name (vp/sidebar--buffer-path buf))))
+               `(["Copy path" (kill-new ,(abbreviate-file-name path))]
+                 ["Show in Finder" (vp/sidebar--finder ,path)
+                  :active ,(not (file-remote-p path))]
+                 "---")))
+         ["Kill group" (vp/sidebar--kill-group ,group)]
+         ["Open group in Finder" (vp/sidebar--finder ,dir) :active ,(and dir t)]
+         ["Dired" (progn (vp/sidebar--main-window) (dired ,dir)) :active ,(and dir t)]
+         ["Magit status"
+          (progn (vp/sidebar--main-window) (magit-status-setup-buffer ,dir))
+          :active ,(and dir (fboundp 'magit-status-setup-buffer) t)])
+       event))))
+
+(defun vp/sidebar-wheel (event)
+  "Scroll the sidebar with the wheel EVENT, only when its rows do not fit."
+  (interactive "e")
+  (let ((win (posn-window (event-start event))))
+    (with-current-buffer (window-buffer win)
+      (unless (and (= (window-start win) (point-min))
+                   (pos-visible-in-window-p (point-max) win))
+        (mwheel-scroll event)))))
 
 (defun vp/sidebar--toggle (group)
   "Fold GROUP if it is open, else open it."
@@ -391,7 +630,8 @@ With no sidebar on screen, step N buffers in the window's history."
       (switch-to-buffer next))))
 
 (defvar-keymap vp/sidebar-mode-map
-  :doc "Navigation only: n / e step, RET visits, g redraws."
+  :doc "n / e step, RET visits, g redraws. Mouse: 1 visits a row or
+folds a group, 2 kills, 3 opens the menu."
   "n" #'vp/sidebar-next
   "e" #'vp/sidebar-previous
   ;; Arrows and C-n / C-p also step by row, past the spacer lines.
@@ -401,7 +641,14 @@ With no sidebar on screen, step N buffers in the window's history."
   "<down-mouse-1>" #'ignore             ; no drag region, no flashing
   "<drag-mouse-1>" #'ignore
   "<mouse-1>" #'vp/sidebar-mouse-visit
-  "<mouse-2>" #'vp/sidebar-mouse-visit)
+  "<down-mouse-2>" #'ignore
+  "<mouse-2>" #'vp/sidebar-mouse-kill
+  "<down-mouse-3>" #'ignore
+  "<mouse-3>" #'vp/sidebar-mouse-menu
+  "<wheel-up>" #'vp/sidebar-wheel
+  "<wheel-down>" #'vp/sidebar-wheel
+  "<wheel-left>" #'ignore
+  "<wheel-right>" #'ignore)
 
 (define-derived-mode vp/sidebar-mode special-mode "Sidebar"
   "Buffers by remote host, org, project, or directory."
@@ -414,6 +661,8 @@ With no sidebar on screen, step N buffers in the window's history."
               left-fringe-width 0
               right-fringe-width 0
               hl-line-sticky-flag t
+              ;; Else its map shadows the wheel keys above.
+              pixel-scroll-precision-mode nil
               revert-buffer-function (lambda (&rest _) (vp/sidebar--update t)))
   (hl-line-mode 1))
 
@@ -463,6 +712,7 @@ Fits `desktop-after-read-hook'."
 
 (with-eval-after-load 'desktop
   (add-to-list 'desktop-globals-to-save 'vp/sidebar-open)
+  (add-to-list 'desktop-globals-to-save 'vp/sidebar--folded)
   (add-hook 'desktop-save-hook #'vp/sidebar-desktop-save))
 
 (provide 'vp-sidebar)
