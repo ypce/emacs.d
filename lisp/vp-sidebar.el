@@ -134,15 +134,17 @@ It shows after the group name: B4-4 alone says little."
 
 (defun vp/sidebar--group-dir (group)
   "Directory of GROUP if GROUP is a local path, else nil."
-  (and (file-name-absolute-p group) (expand-file-name group)))
+  (and group (file-name-absolute-p group) (expand-file-name group)))
 
 (defun vp/sidebar--group (buf)
-  "Group of BUF: the group of its directory."
+  "Group of BUF: the group of its directory, or nil for the *scratch*
+notes, which belong to no folder."
   (with-current-buffer buf
-    (unless (equal (car vp/sidebar--group-cache) default-directory)
+    (unless (bound-and-true-p remember-notes-mode)
+      (unless (equal (car vp/sidebar--group-cache) default-directory)
       (setq vp/sidebar--group-cache
-            (cons default-directory (vp/sidebar--dir-group default-directory))))
-    (cdr vp/sidebar--group-cache)))
+              (cons default-directory (vp/sidebar--dir-group default-directory))))
+      (cdr vp/sidebar--group-cache))))
 
 (defun vp/sidebar--row-label (buf)
   "Label of BUF: a session's activity or terminal title, else its name.
@@ -185,7 +187,10 @@ A change of STATE makes `vp/sidebar--update' redraw."
     (sort (mapcar (lambda (g)
                     (cons (car g) (sort (cdr g) :key (lambda (r) (buffer-name (cdr r))))))
                   groups)
-          :key (lambda (g) (list (vp/sidebar--group-label (car g)) (car g)))
+          ;; The nil group (no folder) comes first.
+          :key (lambda (g) (if (car g)
+                               (list 1 (vp/sidebar--group-label (car g)) (car g))
+                             (list 0)))
           :in-place t)))
 
 ;;; Working sessions
@@ -332,13 +337,13 @@ its name (see `vp/sidebar--tick'); an idle one, a dim robot."
 
 (defun vp/sidebar--insert-group (name rows)
   "Insert group NAME (a key) as a bold tag, then ROWS (STATE . BUFFER).
-Thin gaps go around groups. A dot leads the tag: ○ open, ● folded.
-A * after the name means uncommitted git changes. A folded group
-hides its rows and shows their count after the tag. The parent
-folder comes last, so a narrow sidebar cuts only that; hovering
-shows the full key."
-  (let* ((folded (member name vp/sidebar--folded))
-         (line (concat
+A nil NAME (no folder) gets no tag. Thin gaps go around groups.
+A dot leads the tag: ○ open, ● folded. A * after the name means
+uncommitted git changes. A folded group hides its rows and shows
+their count after the tag. The parent folder comes last, so a
+narrow sidebar cuts only that; hovering shows the full key."
+  (let* ((folded (and name (member name vp/sidebar--folded)))
+         (line (and name (concat
                 (propertize (if folded "●" "○") 'face 'vp/sidebar-dim)
                 " " (propertize (concat (truncate-string-to-width
                                          (vp/sidebar--group-label name)
@@ -348,13 +353,14 @@ shows the full key."
                                 'face 'vp/sidebar-tag)
                 (when-let* ((parent (vp/sidebar--group-parent name)))
                   (propertize (concat " " parent) 'face 'vp/sidebar-dim))
-                " \n")))
+                " \n"))))
     (vp/sidebar--spacer)
-    (insert (propertize line 'vp/sidebar-group name 'help-echo name))
+    (when name
+      (insert (propertize line 'vp/sidebar-group name 'help-echo name)))
     (unless folded
       (dolist (row rows)
         ;; The icon goes under the tag.
-        (vp/sidebar--insert-row row " ")))
+        (vp/sidebar--insert-row row (if name " " ""))))
     (vp/sidebar--spacer)))
 
 (defun vp/sidebar--draw ()
@@ -542,21 +548,22 @@ their own mouse buttons."
   (interactive "e")
   (pcase-let* ((`(,buf . ,group) (vp/sidebar--at-event event))
                (dir (and group (vp/sidebar--group-dir group))))
-    (when group
+    (when (or buf group)
       (popup-menu
        `("Sidebar"
          ,@(when buf
              (let ((path (expand-file-name (vp/sidebar--buffer-path buf))))
                `(["Copy path" (kill-new ,(abbreviate-file-name path))]
                  ["Show in Finder" (vp/sidebar--finder ,path)
-                  :active ,(not (file-remote-p path))]
-                 "---")))
-         ["Kill group" (vp/sidebar--kill-group ,group)]
-         ["Open group in Finder" (vp/sidebar--finder ,dir) :active ,(and dir t)]
-         ["Dired" (progn (vp/sidebar--main-window) (dired ,dir)) :active ,(and dir t)]
-         ["Magit status"
-          (progn (vp/sidebar--main-window) (magit-status-setup-buffer ,dir))
-          :active ,(and dir (fboundp 'magit-status-setup-buffer) t)])
+                  :active ,(not (file-remote-p path))])))
+         ,@(when group
+             `("---"
+               ["Kill group" (vp/sidebar--kill-group ,group)]
+               ["Open group in Finder" (vp/sidebar--finder ,dir) :active ,(and dir t)]
+               ["Dired" (progn (vp/sidebar--main-window) (dired ,dir)) :active ,(and dir t)]
+               ["Magit status"
+                (progn (vp/sidebar--main-window) (magit-status-setup-buffer ,dir))
+                :active ,(and dir (fboundp 'magit-status-setup-buffer) t)])))
        event))))
 
 (defun vp/sidebar-wheel (event)
@@ -582,8 +589,9 @@ Elsewhere, the group of the current buffer."
   (when-let* ((buf (if (derived-mode-p 'vp/sidebar-mode)
                        (get-text-property (pos-bol) 'vp/sidebar)
                      (current-buffer)))
-              ((vp/sidebar--listed-p buf)))
-    (vp/sidebar--toggle (vp/sidebar--group buf))))
+              ((vp/sidebar--listed-p buf))
+              (group (vp/sidebar--group buf)))
+    (vp/sidebar--toggle group)))
 
 (defun vp/sidebar--neighbor (n)
   "The buffer N stops away from the current one, wrapping around.
