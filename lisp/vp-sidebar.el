@@ -4,8 +4,9 @@
 ;; project, or else directory. Claude Code sessions go in the group
 ;; of their directory, named by the terminal title that Claude Code
 ;; sets. The super keys follow its order (see
-;; `vp/sidebar-next-buffer'). Each line carries one `vp/sidebar' text
-;; property: a buffer or a group key.
+;; `vp/sidebar-next-buffer'). Each buffer line carries its buffer in
+;; the `vp/sidebar' text property. A group tag carries its key in
+;; `vp/sidebar-group' instead, so row motion and hl-line skip it.
 ;;; Code:
 
 (require 'hl-line)
@@ -27,8 +28,15 @@
   "Face for a buffer that waits for user action."
   :group 'convenience)
 
-(defface vp/sidebar-group-parent '((t :inherit shadow :height 0.85))
-  "Face for the parent folder after a group name."
+(defface vp/sidebar-tag '((t :foreground "#ff5700" :weight bold))
+  "Face for a group name."
+  :group 'convenience)
+
+(defvar vp/sidebar-tag-width 10
+  "Columns for the name in a group tag. The display cuts longer names.")
+
+(defface vp/sidebar-group-dim '((t :foreground "#6E6A86"))
+  "Face for the dot, count, and parent folder around a group tag."
   :group 'convenience)
 
 (defface vp/sidebar-claude '((t :foreground "#d97757"))
@@ -39,7 +47,7 @@
   "Buffers that wait for user action while not displayed.")
 
 (defvar vp/sidebar--folded nil
-  "Names of the folded groups.")
+  "Keys of the folded groups.")
 
 (defvar vp/sidebar--groups nil
   "Groups as last drawn: ((GROUP (LABEL . BUFFER)...)...).")
@@ -159,33 +167,31 @@ A title change changes the label, so `vp/sidebar--update' redraws."
       'help-echo (buffer-name buf)))))
 
 (defun vp/sidebar--insert-group (name rows)
-  "Insert group NAME, a key, with ROWS, (LABEL . BUFFER) pairs.
-Thin gaps go around groups. A folded group shows its buffer count
-and turns red when a buffer in it waits for user action. The parent
-folder comes last, so a narrow sidebar cuts only that; hovering
-shows the full key."
-  (let ((folded (member name vp/sidebar--folded))
-        (bufs (mapcar #'cdr rows)))
+  "Insert group NAME (a key) as a capital tag, then ROWS (LABEL . BUFFER).
+Thin gaps go around groups. A small dot leads the tag: ○ open,
+● folded. A folded group hides its rows and shows their count after
+the tag. The parent folder comes last, so a narrow sidebar cuts only
+that; hovering shows the full key."
+  (let* ((folded (member name vp/sidebar--folded))
+         (line (concat
+                (propertize (if folded "●" "○") 'face '(:height 0.8))
+                " " (propertize (concat (upcase (truncate-string-to-width
+                                                 (vp/sidebar--group-label name)
+                                                 vp/sidebar-tag-width nil nil "…"))
+                                        (when folded (format " %d" (length rows))))
+                                'face 'vp/sidebar-tag)
+                (when-let* ((parent (vp/sidebar--group-parent name)))
+                  (concat " " parent))
+                " \n")))
+    ;; Appended, so the tag keeps its own color.
+    (add-face-text-property 0 (length line) '(:height 0.85) t line)
+    (add-face-text-property 0 (length line) 'vp/sidebar-group-dim t line)
     (vp/sidebar--spacer)
-    (insert (propertize
-               (concat " " (propertize (if folded "▸" "▾") 'face 'shadow)
-                       " " (propertize
-                            (vp/sidebar--group-label name) 'face
-                            (if (and folded
-                                     (seq-some (lambda (r) (memq r vp/sidebar--attention))
-                                               bufs))
-                                'vp/sidebar-attention
-                              'shadow))
-                       (when folded
-                         (propertize (format "  %d" (length bufs)) 'face 'shadow))
-                       (when-let* ((parent (vp/sidebar--group-parent name)))
-                         (propertize (concat "  " parent) 'face 'vp/sidebar-group-parent))
-                       " \n")
-               'vp/sidebar name 'help-echo name))
+    (insert (propertize line 'vp/sidebar-group name 'help-echo name))
     (unless folded
       (dolist (row rows)
-        ;; Aligns the icon under the group name, past the triangle.
-        (vp/sidebar--insert-row row "  ")))
+        ;; The icon goes under the tag, past the dot.
+        (vp/sidebar--insert-row row " ")))
     (vp/sidebar--spacer)))
 
 (defun vp/sidebar--draw ()
@@ -196,7 +202,10 @@ shows the full key."
       (erase-buffer)
       (pcase-dolist (`(,name . ,rows) vp/sidebar--groups)
         (vp/sidebar--insert-group name rows))
-      (goto-char (or (vp/sidebar--pos at) (point-min))))))
+      (goto-char (or (vp/sidebar--pos at) (point-min)))
+      ;; Point stays on rows: hl-line would mark a tag or a gap.
+      (unless (get-text-property (point) 'vp/sidebar)
+        (vp/sidebar-next)))))
 
 (defun vp/sidebar--pos (value)
   "Position of the line whose `vp/sidebar' property is VALUE, or nil."
@@ -207,19 +216,14 @@ shows the full key."
         (prop-match-beginning match)))))
 
 (defun vp/sidebar--follow (&rest _)
-  "Move the highlight to the buffer of the selected window.
-A buffer in a folded group highlights the group name."
+  "Move the highlight to the buffer of the selected window."
   (when-let* ((win (get-buffer-window vp/sidebar-name))
               ((not (eq win (selected-window))))
               ;; Else every minibuffer entry drops the highlight.
               ((not (minibufferp (window-buffer)))))
     (let ((buf (window-buffer)))
       (with-current-buffer vp/sidebar-name
-        (if-let* ((pos (or (vp/sidebar--pos buf)
-                           (and (vp/sidebar--listed-p buf)
-                                (let ((group (vp/sidebar--group buf)))
-                                  (and (member group vp/sidebar--folded)
-                                       (vp/sidebar--pos group)))))))
+        (if-let* ((pos (vp/sidebar--pos buf)))
             (progn (goto-char pos)
                    (set-window-point win pos)
                    (hl-line-highlight))
@@ -305,38 +309,47 @@ Fits `ghostel-notification-functions'."
   (text-property-search-backward 'vp/sidebar nil nil t))
 
 (defun vp/sidebar-visit ()
-  "Show the buffer at point in the last used main window.
-On a group name, fold or unfold."
+  "Show the buffer at point in the last used main window."
   (interactive)
-  (pcase (get-text-property (pos-bol) 'vp/sidebar)
-    ((pred stringp) (vp/sidebar-fold))
-    ((and (pred bufferp) buf) (vp/sidebar--main-window) (switch-to-buffer buf))))
+  (when-let* ((buf (get-text-property (pos-bol) 'vp/sidebar)))
+    (vp/sidebar--main-window)
+    (switch-to-buffer buf)))
 
 (defun vp/sidebar-mouse-visit (event)
-  "Visit the row at EVENT."
+  "Visit the row at EVENT, or fold the group whose tag is at EVENT.
+Point does not move to a tag or a gap."
   (interactive "e")
-  (mouse-set-point event)
-  (vp/sidebar-visit))
+  (let* ((posn (event-start event))
+         (pos (posn-point posn)))
+    ;; The sidebar need not be the current buffer yet.
+    (with-current-buffer (window-buffer (posn-window posn))
+      (cond ((get-text-property pos 'vp/sidebar)
+             (mouse-set-point event)
+             (vp/sidebar-visit))
+            ((get-text-property pos 'vp/sidebar-group)
+             (vp/sidebar--toggle (get-text-property pos 'vp/sidebar-group)))))))
+
+(defun vp/sidebar--toggle (group)
+  "Fold GROUP if it is open, else open it."
+  (setq vp/sidebar--folded (if (member group vp/sidebar--folded)
+                               (delete group vp/sidebar--folded)
+                             (cons group vp/sidebar--folded)))
+  (vp/sidebar--update t))
 
 (defun vp/sidebar-fold ()
-  "Fold or unfold the group at point in the sidebar.
-Elsewhere, fold the group of the current buffer."
+  "Fold or open the group of the row at point in the sidebar.
+Elsewhere, the group of the current buffer."
   (interactive)
-  (when-let* ((side (get-buffer vp/sidebar-name))
-              (group (if (eq (current-buffer) side)
-                         (pcase (get-text-property (pos-bol) 'vp/sidebar)
-                           ((and (pred stringp) g) g)
-                           ((and (pred bufferp) b) (vp/sidebar--group b)))
-                       (vp/sidebar--group (current-buffer)))))
-    (setq vp/sidebar--folded (if (member group vp/sidebar--folded)
-                                 (delete group vp/sidebar--folded)
-                               (cons group vp/sidebar--folded)))
-    (vp/sidebar--update t)))
+  (when-let* ((buf (if (derived-mode-p 'vp/sidebar-mode)
+                       (get-text-property (pos-bol) 'vp/sidebar)
+                     (current-buffer)))
+              ((vp/sidebar--listed-p buf)))
+    (vp/sidebar--toggle (vp/sidebar--group buf))))
 
 (defun vp/sidebar--neighbor (n)
   "The buffer N stops away from the current one, wrapping around.
 A folded group is one stop and stays folded: it yields its most
-recently used buffer, and the highlight sits on the group name."
+recently used buffer."
   (when-let* ((stops (mapcan (lambda (g)
                                (let ((bufs (mapcar #'cdr (cdr g))))
                                  (if (member (car g) vp/sidebar--folded)
